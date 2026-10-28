@@ -271,12 +271,23 @@ bool fetchTimeFromAPI() {
     return false;
   }
 
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, http.getStream());
+  // Read the complete response first. Some HTTP responses arrive chunked;
+  // parsing the raw stream directly can fail before the JSON body is consumed.
+  String responseBody = http.getString();
   http.end();
+
+  Serial.printf("Time API response length: %u bytes\n", (unsigned)responseBody.length());
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, responseBody);
 
   if (error) {
     Serial.printf("Time API JSON error: %s\n", error.c_str());
+    String preview = responseBody;
+    if (preview.length() > 240) {
+      preview = preview.substring(0, 240);
+    }
+    Serial.printf("Time API body preview: [%s]\n", preview.c_str());
     return false;
   }
 
