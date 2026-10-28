@@ -1575,6 +1575,27 @@ void setup() {
       FORECAST_VIEWPORT_HEIGHT);
   }
 
+  // Buffer just the narrow metrics column (about 36 KB at 118x153 RGB565).
+  weatherMetricsCanvas = new Arduino_Canvas(
+    weatherMetricsPanelWidth(),
+    WEATHER_METRIC_PANEL_HEIGHT,
+    gfx,
+    weatherMetricsPanelX(),
+    WEATHER_METRIC_PANEL_TOP,
+    0);
+
+  if (weatherMetricsCanvas == nullptr ||
+      !weatherMetricsCanvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
+    Serial.println("Weather-metrics canvas unavailable; scrolling animation disabled.");
+    delete weatherMetricsCanvas;
+    weatherMetricsCanvas = nullptr;
+  } else {
+    Serial.printf(
+      "Weather-metrics canvas ready: %d x %d\\n",
+      weatherMetricsPanelWidth(),
+      WEATHER_METRIC_PANEL_HEIGHT);
+  }
+
   Serial.printf("Logical display size: %d x %d\n", screenW, screenH);
   Wire.begin(TOUCH_SDA, TOUCH_SCL);
   Wire.setClock(100000);
