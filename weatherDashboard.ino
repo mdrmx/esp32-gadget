@@ -5,6 +5,8 @@
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
 #include <PNGdec.h>
+#include <RTClib.h>
+#include <time.h>
 #include <stdlib.h>
 #include "secrets.h"
 
@@ -20,6 +22,27 @@ float locationLat = 53.4808f;
 float locationLon = -2.2426f;
 long locationTimezoneOffset = 0;
 const unsigned long UPDATE_INTERVAL = 600000UL;
+
+// =====================================================
+// CLOCK AND RTC CONFIGURATION
+// =====================================================
+
+// UK civil time with automatic GMT/BST transitions. The RTC stores UTC;
+// localtime() applies this timezone rule even when the device is offline.
+const char* TIME_ZONE_INFO = "GMT0BST,M3.5.0/1,M10.5.0/2";
+const time_t MIN_VALID_EPOCH = 1704067200; // 2024-01-01
+
+RTC_DS1307 rtc;
+bool rtcAvailable = false;
+bool rtcTimeValid = false;
+bool ntpTimeValid = false;
+unsigned long lastNtpAttemptMs = 0;
+unsigned long lastNtpSyncMs = 0;
+unsigned long lastClockCheckMs = 0;
+String lastHeaderClock = "";
+
+const unsigned long NTP_RETRY_INTERVAL = 5UL * 60UL * 1000UL;
+const unsigned long NTP_SYNC_INTERVAL = 6UL * 60UL * 60UL * 1000UL;
 
 // =====================================================
 // DISPLAY
@@ -140,17 +163,213 @@ void drawCenteredText(const String& text, int y, uint8_t size, uint16_t colour) 
 }
 
 // =====================================================
+// CLOCK HELPERS
+// =====================================================
+
+bool getCurrentUtcEpoch(time_t& epoch) {
+  // Prefer the battery-backed RTC. The system clock is a fallback when the
+  // RTC is absent, uninitialised, or fails to return a plausible date.
+  if (rtcAvailable && rtcTimeValid) {
+    DateTime rtcNow = rtc.now();
+    time_t rtcEpoch = (time_t)rtcNow.unixtime();
+    if (rtcEpoch >= MIN_VALID_EPOCH) {
+      epoch = rtcEpoch;
+      return true;
+    }
+    rtcTimeValid = false;
+  }
+
+  time_t systemEpoch = time(nullptr);
+  if (systemEpoch >= MIN_VALID_EPOCH) {
+    epoch = systemEpoch;
+    return true;
+  }
+
+  return false;
+}
+
+String getHeaderClockText() {
+  time_t epoch = 0;
+  if (!getCurrentUtcEpoch(epoch)) {
+    return "--:--";
+  }
+
+  struct tm localTime;
+  if (localtime_r(&epoch, &localTime) == nullptr) {
+    return "--:--";
+  }
+
+  char clockText[6];
+  snprintf(clockText, sizeof(clockText), "%02d:%02d",
+           localTime.tm_hour, localTime.tm_min);
+  return String(clockText);
+}
+
+String getHeaderLocationText() {
+  String label = weatherCity;
+
+  // Before the current-weather response arrives, use the configured city.
+  if (label.length() == 0) {
+    label = String(CITY);
+    int comma = label.indexOf(',');
+    if (comma > 0) {
+      label = label.substring(0, comma);
+    }
+  }
+
+  label.trim();
+  if (label.length() > 17) {
+    label = label.substring(0, 16) + ".";
+  }
+  return label;
+}
+
+void drawHeaderClockOnly(const String& clockText) {
+  gfx->fillRect(screenW - 78, 0, 78, 36, PANEL);
+
+  gfx->setTextSize(2);
+  gfx->setTextColor(ACCENT);
+  int16_t x1, y1;
+  uint16_t w, h;
+  gfx->getTextBounds(clockText.c_str(), 0, 10, &x1, &y1, &w, &h);
+  int x = screenW - 10 - (int)w;
+  if (x < screenW - 70) {
+    x = screenW - 70;
+  }
+  drawText(clockText, x, 10, 2, ACCENT);
+  lastHeaderClock = clockText;
+}
+
+void refreshHeaderClock() {
+  String clockText = getHeaderClockText();
+  if (clockText != lastHeaderClock) {
+    drawHeaderClockOnly(clockText);
+  }
+}
+
+void syncClockFromNTP() {
+  lastNtpAttemptMs = millis();
+  Serial.println("Synchronising clock from internet time (NTP)...");
+
+  configTzTime(TIME_ZONE_INFO, "pool.ntp.org", "time.cloudflare.com");
+
+  time_t utcNow = time(nullptr);
+  unsigned long startedAt = millis();
+
+  // Give SNTP up to 12 seconds to obtain a trustworthy epoch.
+  while (utcNow < MIN_VALID_EPOCH &&
+         millis() - startedAt < 12000UL) {
+    delay(250);
+    utcNow = time(nullptr);
+  }
+
+  if (utcNow < MIN_VALID_EPOCH) {
+    Serial.println("NTP sync failed; keeping the DS1307 time if available.");
+    return;
+  }
+
+  ntpTimeValid = true;
+  lastNtpSyncMs = millis();
+
+  struct tm localTime;
+  localtime_r(&utcNow, &localTime);
+  Serial.printf("NTP time: %04d-%02d-%02d %02d:%02d:%02d local UK time\n",
+                localTime.tm_year + 1900,
+                localTime.tm_mon + 1,
+                localTime.tm_mday,
+                localTime.tm_hour,
+                localTime.tm_min,
+                localTime.tm_sec);
+
+  if (rtcAvailable) {
+    // Store UTC in the DS1307. The timezone/DST conversion is done when
+    // rendering the header, so the clock remains correct across GMT/BST
+    // transitions even if connectivity is unavailable.
+    rtc.adjust(DateTime((uint32_t)utcNow));
+    rtcTimeValid = true;
+    DateTime saved = rtc.now();
+    Serial.printf("DS1307 synchronised to UTC: %04d-%02d-%02d %02d:%02d:%02d\n",
+                  saved.year(), saved.month(), saved.day(),
+                  saved.hour(), saved.minute(), saved.second());
+  } else {
+    Serial.println("DS1307 not available; system time will be used until reboot.");
+  }
+
+  lastHeaderClock = "";
+}
+
+void maybeSyncClockFromNetwork() {
+  if (WiFi.status() != WL_CONNECTED) {
+    return;
+  }
+
+  unsigned long nowMs = millis();
+  bool syncDue = false;
+
+  if (ntpTimeValid) {
+    syncDue = (nowMs - lastNtpSyncMs >= NTP_SYNC_INTERVAL);
+  } else {
+    syncDue = (lastNtpAttemptMs == 0 ||
+               nowMs - lastNtpAttemptMs >= NTP_RETRY_INTERVAL);
+  }
+
+  if (syncDue) {
+    syncClockFromNTP();
+  }
+}
+
+void initialiseRTC() {
+  // Share the already-initialised Wire bus with the CST816 touch controller.
+  // The CST816 is at 0x15; the DS1307 normally uses 0x68.
+  setenv("TZ", TIME_ZONE_INFO, 1);
+  tzset();
+
+  rtcAvailable = rtc.begin(&Wire);
+  if (!rtcAvailable) {
+    Serial.println("DS1307 not detected at I2C address 0x68.");
+    return;
+  }
+
+  Serial.println("DS1307 detected at I2C address 0x68.");
+
+  if (!rtc.isrunning()) {
+    Serial.println("DS1307 oscillator is stopped; waiting for NTP to set time.");
+    return;
+  }
+
+  DateTime rtcNow = rtc.now();
+  if (rtcNow.year() >= 2024 && rtcNow.year() <= 2099) {
+    rtcTimeValid = true;
+    Serial.printf("DS1307 retained UTC time: %04d-%02d-%02d %02d:%02d:%02d\n",
+                  rtcNow.year(), rtcNow.month(), rtcNow.day(),
+                  rtcNow.hour(), rtcNow.minute(), rtcNow.second());
+  } else {
+    Serial.println("DS1307 time is not set; waiting for NTP to synchronise it.");
+  }
+}
+
+// =====================================================
 // HEADER
 // =====================================================
 
 void drawHeader() {
   gfx->fillRect(0, 0, screenW, 36, PANEL);
-  // drawText("WEATHER", 10, 10, 2, UI_WHITE);
 
-  drawText(
-    currentTab == 0 ? "NOW" : "FORECAST",
-    screenW - (currentTab == 0 ? 48 : 80),
-    13, 1, ACCENT);
+  String locationLabel = getHeaderLocationText();
+  drawText(locationLabel, 10, 10, 2, UI_WHITE);
+
+  String clockText = getHeaderClockText();
+  gfx->setTextSize(2);
+  int16_t x1, y1;
+  uint16_t w, h;
+  gfx->getTextBounds(clockText.c_str(), 0, 10, &x1, &y1, &w, &h);
+  int x = screenW - 10 - (int)w;
+  if (x < screenW - 70) {
+    x = screenW - 70;
+  }
+  drawText(clockText, x, 10, 2, ACCENT);
+  lastHeaderClock = clockText;
+
   gfx->drawFastHLine(0, 36, screenW, ACCENT);
 }
 
@@ -361,10 +580,6 @@ void drawWeather() {
   gfx->fillScreen(BG);
   drawHeader();
 
-  String city = weatherCity;
-  if (city.length() > 18) city = city.substring(0, 17) + ".";
-  drawText(city, 10, 10, 2, UI_WHITE);
- 
 
   // The city name is intentionally separate from the centred weather stack.
   // Leave a clearer gap after the city before the icon.
@@ -575,7 +790,10 @@ void pollTouch() {
 // =====================================================
 
 bool connectWiFi() {
-  if (WiFi.status() == WL_CONNECTED) return true;
+  if (WiFi.status() == WL_CONNECTED) {
+    maybeSyncClockFromNetwork();
+    return true;
+  }
   drawLoading("Connecting Wi-Fi...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(wifiSsid, wifiPassword);
@@ -590,6 +808,7 @@ bool connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("Wi-Fi connected");
     Serial.println(WiFi.localIP());
+    maybeSyncClockFromNetwork();
     return true;
   }
 
@@ -851,6 +1070,8 @@ void setup() {
   touchAvailable = Wire.endTransmission() == 0;
   Serial.println(touchAvailable ? "CST816 detected at 0x15" : "Touch controller not detected");
 
+  initialiseRTC();
+
   drawLoading("Starting up...");
   connectWiFi();
   fetchWeather();
@@ -868,6 +1089,11 @@ void setup() {
 
 void loop() {
   pollTouch();
+
+  if (millis() - lastClockCheckMs >= 1000UL) {
+    lastClockCheckMs = millis();
+    refreshHeaderClock();
+  }
 
   if (millis() - lastUpdate >= UPDATE_INTERVAL) {
     lastUpdate = millis();
