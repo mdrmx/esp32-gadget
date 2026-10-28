@@ -28,22 +28,20 @@ const unsigned long UPDATE_INTERVAL = 600000UL;
 #define LCD_SCLK 39
 #define LCD_MOSI 38
 #define LCD_MISO 40
-#define LCD_DC   42
-#define LCD_RST  -1
-#define LCD_CS   45
-#define LCD_BL   1
+#define LCD_DC 42
+#define LCD_RST -1
+#define LCD_CS 45
+#define LCD_BL 1
 
 #define LCD_ROTATION 1
-#define LCD_WIDTH    240
-#define LCD_HEIGHT   320
+#define LCD_WIDTH 240
+#define LCD_HEIGHT 320
 
 Arduino_DataBus* bus = new Arduino_ESP32SPI(
-  LCD_DC, LCD_CS, LCD_SCLK, LCD_MOSI, LCD_MISO
-);
+  LCD_DC, LCD_CS, LCD_SCLK, LCD_MOSI, LCD_MISO);
 
 Arduino_GFX* gfx = new Arduino_ST7789(
-  bus, LCD_RST, LCD_ROTATION, true, LCD_WIDTH, LCD_HEIGHT
-);
+  bus, LCD_RST, LCD_ROTATION, true, LCD_WIDTH, LCD_HEIGHT);
 
 int screenW = 320;
 int screenH = 240;
@@ -59,10 +57,10 @@ int screenH = 240;
 
 // Values are kept as configurable raw codes. The diagnostic logs below
 // report each transition so physical swipe directions can be verified.
-#define GESTURE_SCREEN_LEFT  0x01
+#define GESTURE_SCREEN_LEFT 0x01
 #define GESTURE_SCREEN_RIGHT 0x02
-#define GESTURE_SCREEN_DOWN  0x03
-#define GESTURE_SCREEN_UP    0x04
+#define GESTURE_SCREEN_DOWN 0x03
+#define GESTURE_SCREEN_UP 0x04
 
 bool touchAvailable = false;
 uint8_t lastHandledGesture = 0;
@@ -73,13 +71,13 @@ unsigned long lastGestureTime = 0;
 // COLOURS
 // =====================================================
 
-const uint16_t BG           = 0x1082;
-const uint16_t PANEL        = 0x2128;
-const uint16_t UI_WHITE     = 0xFFFF;
-const uint16_t MUTED        = 0xBDF7;
-const uint16_t ACCENT       = 0x5DDF;
-const uint16_t UI_YELLOW    = 0xFEA0;
-const uint16_t UI_GREEN     = 0x7E8A;
+const uint16_t BG = 0x1082;
+const uint16_t PANEL = 0x2128;
+const uint16_t UI_WHITE = 0xFFFF;
+const uint16_t MUTED = 0xBDF7;
+const uint16_t ACCENT = 0x5DDF;
+const uint16_t UI_YELLOW = 0xFEA0;
+const uint16_t UI_GREEN = 0x7E8A;
 const uint16_t ERROR_COLOUR = 0xF986;
 
 // =====================================================
@@ -152,8 +150,7 @@ void drawHeader() {
   drawText(
     currentTab == 0 ? "NOW" : "FORECAST",
     screenW - (currentTab == 0 ? 48 : 80),
-    13, 1, ACCENT
-  );
+    13, 1, ACCENT);
   gfx->drawFastHLine(0, 36, screenW, ACCENT);
 }
 
@@ -210,16 +207,14 @@ int drawWeatherPngLine(PNGDRAW* pDraw) {
     pDraw,
     linePixels,
     PNG_RGB565_LITTLE_ENDIAN,
-    context->backgroundBGR
-  );
+    context->backgroundBGR);
 
   gfx->draw16bitRGBBitmap(
     context->x,
     context->y + pDraw->y,
     linePixels,
     pDraw->iWidth,
-    1
-  );
+    1);
 
   return 1;
 }
@@ -230,9 +225,7 @@ bool loadOpenWeatherIconPNG() {
     return false;
   }
 
-  if (weatherIconPngData != nullptr &&
-      weatherIconPngLength > 0 &&
-      cachedWeatherIconCode == weatherIcon) {
+  if (weatherIconPngData != nullptr && weatherIconPngLength > 0 && cachedWeatherIconCode == weatherIcon) {
     return true;
   }
 
@@ -276,8 +269,7 @@ bool loadOpenWeatherIconPNG() {
   size_t bytesRead = 0;
   unsigned long startedAt = millis();
 
-  while (bytesRead < (size_t)contentLength &&
-         millis() - startedAt < 8000UL) {
+  while (bytesRead < (size_t)contentLength && millis() - startedAt < 8000UL) {
     int available = stream->available();
 
     if (available > 0) {
@@ -296,14 +288,11 @@ bool loadOpenWeatherIconPNG() {
 
   http.end();
 
-  if (bytesRead != (size_t)contentLength ||
-      newData[0] != 0x89 || newData[1] != 0x50 ||
-      newData[2] != 0x4E || newData[3] != 0x47) {
+  if (bytesRead != (size_t)contentLength || newData[0] != 0x89 || newData[1] != 0x50 || newData[2] != 0x4E || newData[3] != 0x47) {
     Serial.printf(
       "OpenWeather icon download incomplete/invalid: %u of %d bytes\n",
       (unsigned)bytesRead,
-      contentLength
-    );
+      contentLength);
     free(newData);
     return false;
   }
@@ -319,8 +308,7 @@ bool loadOpenWeatherIconPNG() {
   Serial.printf(
     "Cached OpenWeather icon %s (%u bytes)\n",
     cachedWeatherIconCode.c_str(),
-    (unsigned)weatherIconPngLength
-  );
+    (unsigned)weatherIconPngLength);
 
   return true;
 }
@@ -333,8 +321,7 @@ void drawOpenWeatherIcon(int x, int y) {
   int openResult = weatherPngDecoder.openRAM(
     weatherIconPngData,
     (int)weatherIconPngLength,
-    drawWeatherPngLine
-  );
+    drawWeatherPngLine);
 
   if (openResult != PNG_SUCCESS) {
     Serial.printf("OpenWeather PNG open failed: %d\n", openResult);
@@ -417,7 +404,6 @@ void drawWeather() {
   drawText("hPa", cardX + 10, 183, 1, MUTED);
 
   gfx->drawFastHLine(10, screenH - 29, screenW - 20, PANEL);
-  drawText("SWIPE RIGHT TO LEFT", 12, screenH - 19, 1, MUTED);
   drawTabIndicator();
 }
 
@@ -461,7 +447,7 @@ void drawForecast() {
   int firstItem = forecastCount > 0 ? forecastOffset + 1 : 0;
   int lastItem = min(forecastOffset + ITEMS_PER_PAGE, forecastCount);
   String rangeText = String(firstItem) + "-" + String(lastItem) + "/" + String(forecastCount);
-  drawText("UP/DOWN SCROLL", 10, screenH - 25, 1, MUTED);
+
   drawText(rangeText, screenW - 58, screenH - 25, 1, UI_YELLOW);
   drawTabIndicator();
 }
@@ -490,8 +476,7 @@ void handleGesture(uint8_t gesture) {
 
   Serial.printf(
     "Navigation gesture accepted: raw=0x%02X; tab=%d; offset=%d\n",
-    gesture, currentTab, forecastOffset
-  );
+    gesture, currentTab, forecastOffset);
 
   // These are provisional mappings. Use the raw transition logs to verify
   // physical directions on this particular panel before changing the codes.
@@ -621,10 +606,7 @@ bool fetchWeather() {
   HTTPClient http;
 
   String url =
-    "https://api.openweathermap.org/data/2.5/weather?q=" +
-    String(CITY) +
-    "&appid=" + String(apiKey) +
-    "&units=metric";
+    "https://api.openweathermap.org/data/2.5/weather?q=" + String(CITY) + "&appid=" + String(apiKey) + "&units=metric";
 
   if (!http.begin(client, url)) {
     if (weatherAvailable) drawWeather();
@@ -672,8 +654,7 @@ bool fetchWeather() {
 
   Serial.printf(
     "%s: %.1f C, %s, humidity %d%%, pressure %d hPa\n",
-    weatherCity.c_str(), temperature, weatherDescription.c_str(), humidity, pressure
-  );
+    weatherCity.c_str(), temperature, weatherDescription.c_str(), humidity, pressure);
   return true;
 }
 
@@ -695,7 +676,7 @@ String formatForecastTime(uint32_t timestamp, long timezoneOffset) {
     gmtime_r(&firstTimestamp, &firstTime);
 
     if (localTime.tm_yday != firstTime.tm_yday || localTime.tm_year != firstTime.tm_year) {
-      const char* dayNames[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+      const char* dayNames[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
       return String(dayNames[localTime.tm_wday]) + " " + String(clockText);
     }
   }
@@ -801,19 +782,14 @@ bool fetchForecast() {
   forecastError = "";
 
   String nextUrl =
-    "https://api.openweathermap.org/data/4.0/onecall/timeline/1h?lat=" +
-    String(locationLat, 4) +
-    "&lon=" + String(locationLon, 4) +
-    "&units=metric&appid=" + String(apiKey);
+    "https://api.openweathermap.org/data/4.0/onecall/timeline/1h?lat=" + String(locationLat, 4) + "&lon=" + String(locationLon, 4) + "&units=metric&appid=" + String(apiKey);
 
   // The 1-hour endpoint returns up to 20 entries per request. Follow its
   // prepared pagination URL until we have up to 48 hours or no next page.
   int pageCount = 0;
   const int MAX_HOURLY_PAGES = 3;
 
-  while (nextUrl.length() > 0 &&
-         forecastCount < MAX_FORECAST &&
-         pageCount < MAX_HOURLY_PAGES) {
+  while (nextUrl.length() > 0 && forecastCount < MAX_FORECAST && pageCount < MAX_HOURLY_PAGES) {
     String pageUrl = nextUrl;
     String pageNext = "";
     if (!fetchOneCallForecastPage(pageUrl, pageNext)) {
