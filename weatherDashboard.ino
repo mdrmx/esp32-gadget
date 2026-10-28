@@ -879,10 +879,13 @@ void drawWeatherMetricsCounter() {
     WEATHER_METRIC_COUNT);
   String rangeText = String(firstItem) + "-" + String(lastItem) +
                      "/" + String(WEATHER_METRIC_COUNT);
+  int x = weatherMetricsPanelX() + 5;
+  int y = WEATHER_METRIC_PANEL_BOTTOM + 2;
+  gfx->fillRect(x, y, 50, 8, BG);
   drawText(
     rangeText,
-    weatherMetricsPanelX() + 5,
-    WEATHER_METRIC_PANEL_BOTTOM + 2,
+    x,
+    y,
     1,
     UI_YELLOW);
 }
