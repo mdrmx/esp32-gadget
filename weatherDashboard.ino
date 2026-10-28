@@ -289,9 +289,10 @@ void drawWeather() {
   if (description.length() > 23) description = description.substring(0, 22) + ".";
   drawText(description, 12, 73, 1, MUTED);
 
-  drawWeatherConditionIcon(weatherIcon, weatherMain, 14, 83);
-  drawText(String(temperature, 1) + " C", 80, 96, 3, UI_YELLOW);
-  drawText("Feels " + String(feelsLike, 1) + " C", 80, 135, 1, MUTED);
+  // Stack the condition icon above the temperature in the left column.
+  drawWeatherConditionIcon(weatherIcon, weatherMain, 68, 78);
+  drawText(String(temperature, 1) + " C", 42, 143, 3, UI_YELLOW);
+  drawText("Feels " + String(feelsLike, 1) + " C", 63, 178, 1, MUTED);
 
   int cardX = (screenW * 60) / 100;
   int cardW = screenW - cardX - 10;
@@ -397,9 +398,10 @@ void handleGesture(uint8_t gesture) {
         drawForecast();
         Serial.println("Action: mapped horizontal-left gesture opened forecast");
       } else {
-        drawWeather();
-        drawText("Forecast unavailable", 12, screenH - 42, 1, ERROR_COLOUR);
-        Serial.println("Action: forecast unavailable");
+        // Show the forecast screen even when retrieval failed, so the API
+        // error message is visible instead of only a generic unavailable log.
+        drawForecast();
+        Serial.printf("Action: forecast unavailable; reason: %s\\n", forecastError.length() ? forecastError.c_str() : "No hourly records");
       }
     } else {
       Serial.println("Action: mapped horizontal-left gesture; already on forecast");
@@ -613,19 +615,27 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
   int code = http.GET();
 
   if (code != HTTP_CODE_OK) {
-    Serial.printf("One Call hourly HTTP status: %d\n", code);
+    // Capture the response body before closing HTTP. OpenWeather normally
+    // includes a JSON message for rejected keys, subscriptions, and limits.
+    String errorBody = http.getString();
+    Serial.printf("One Call hourly HTTP status: %d\\n", code);
+    if (errorBody.length() > 0) {
+      if (errorBody.length() > 240) errorBody = errorBody.substring(0, 240);
+      Serial.printf("One Call error response: %s\\n", errorBody.c_str());
+    }
     http.end();
 
     if (code == 401 || code == 403) {
-      forecastError = "Enable One Call API";
+      forecastError = "Check One Call access";
     } else if (code == 429) {
-      forecastError = "Hourly API rate limit";
+      forecastError = "One Call rate limit";
+    } else if (code < 0) {
+      forecastError = "One Call network error";
     } else {
-      forecastError = "Hourly API request failed";
+      forecastError = "One Call HTTP " + String(code);
     }
     return false;
   }
-
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, http.getStream());
   http.end();
@@ -640,6 +650,14 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
   nextUrl = doc["next"] | "";
 
   JsonArray list = doc["data"].as<JsonArray>();
+  if (list.isNull()) {
+    Serial.println("One Call response did not contain a data array.");
+    serializeJson(doc, Serial);
+    Serial.println();
+    forecastError = "Unexpected One Call data";
+    return false;
+  }
+  Serial.printf("One Call page contains %u record(s).\\n", (unsigned)list.size());
   for (JsonObject item : list) {
     if (forecastCount >= MAX_FORECAST) break;
 
@@ -709,10 +727,11 @@ bool fetchForecast() {
 
   forecastAvailable = forecastCount > 0;
   if (!forecastAvailable && forecastError.length() == 0) {
-    forecastError = "No hourly data";
+    forecastError = "No hourly records";
+    Serial.println("One Call returned without any parsable hourly records.");
   }
 
-  Serial.printf("Hourly forecast records received: %d across %d page(s)\n", forecastCount, pageCount);
+  Serial.printf("Hourly forecast records received: %d across %d page(s)\\n", forecastCount, pageCount);
   return forecastAvailable;
 }
 
