@@ -167,7 +167,7 @@ void drawCenteredText(const String& text, int y, uint8_t size, uint16_t colour) 
 
 bool getCurrentUtcEpoch(time_t& epoch) {
   // After the first successful API sync, the ESP32 system clock advances
-  // locally. No repeated HTTP or RTC reads are needed to draw the header.
+  // locally. No repeated time API requests are needed to draw the header.
   time_t systemEpoch = time(nullptr);
   if (systemEpoch >= MIN_VALID_EPOCH) {
     epoch = systemEpoch;
