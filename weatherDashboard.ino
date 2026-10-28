@@ -368,7 +368,7 @@ void drawWeather() {
 
   // The city name is intentionally separate from the centred weather stack.
   // Leave a clearer gap after the city before the icon.
-  drawOpenWeatherIcon(49, 37);
+  drawOpenWeatherIcon(46, 37);
 
   String description = weatherDescription;
   if (description.length() > 23) description = description.substring(0, 22) + ".";
