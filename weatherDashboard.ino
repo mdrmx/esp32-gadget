@@ -1090,10 +1090,7 @@ void setup() {
   initialiseTimeZone();
 
   drawLoading("Starting up...");
-  connectWiFi();
-  if (WiFi.status() == WL_CONNECTED) {
-    fetchTimeFromAPI();
-  }
+  connectWiFi();  // Starts a time API request when connectivity is available.
   fetchWeather();
   fetchForecast();
 
