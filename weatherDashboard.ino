@@ -4,6 +4,8 @@
 #include <ArduinoJson.h>
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
+#include <PNGdec.h>
+#include <stdlib.h>
 #include "secrets.h"
 
 // =====================================================
@@ -181,95 +183,186 @@ void drawError(const String& message) {
 }
 
 // =====================================================
-// WEATHER CONDITION ICONS (drawn with Arduino_GFX primitives)
+// OPENWEATHER ICON PNG DOWNLOAD + DECODING
+// Uses official PNG assets: https://openweathermap.org/img/wn/<code>.png
+// Install the "PNGdec" library by Larry Bank from Arduino Library Manager.
 // =====================================================
 
-void drawSunIcon(int cx, int cy, int radius) {
-  const uint16_t sunColour = UI_YELLOW;
-  gfx->drawLine(cx, cy - radius - 7, cx, cy - radius - 3, sunColour);
-  gfx->drawLine(cx, cy + radius + 3, cx, cy + radius + 7, sunColour);
-  gfx->drawLine(cx - radius - 7, cy, cx - radius - 3, cy, sunColour);
-  gfx->drawLine(cx + radius + 3, cy, cx + radius + 7, cy, sunColour);
-  gfx->drawLine(cx - radius - 5, cy - radius - 5, cx - radius - 2, cy - radius - 2, sunColour);
-  gfx->drawLine(cx + radius + 2, cy - radius - 2, cx + radius + 5, cy - radius - 5, sunColour);
-  gfx->drawLine(cx - radius - 5, cy + radius + 5, cx - radius - 2, cy + radius + 2, sunColour);
-  gfx->drawLine(cx + radius + 2, cy + radius + 2, cx + radius + 5, cy + radius + 5, sunColour);
-  gfx->fillCircle(cx, cy, radius, sunColour);
+PNG weatherPngDecoder;
+uint8_t* weatherIconPngData = nullptr;
+size_t weatherIconPngLength = 0;
+String cachedWeatherIconCode = "";
+
+struct WeatherPngDrawContext {
+  int x;
+  int y;
+  uint32_t backgroundBGR;
+};
+
+int drawWeatherPngLine(PNGDRAW* pDraw) {
+  WeatherPngDrawContext* context = (WeatherPngDrawContext*)pDraw->pUser;
+  if (context == nullptr || pDraw->iWidth > 100) {
+    return 0;
+  }
+
+  uint16_t linePixels[100];
+  weatherPngDecoder.getLineAsRGB565(
+    pDraw,
+    linePixels,
+    PNG_RGB565_LITTLE_ENDIAN,
+    context->backgroundBGR
+  );
+
+  gfx->draw16bitRGBBitmap(
+    context->x,
+    context->y + pDraw->y,
+    linePixels,
+    pDraw->iWidth,
+    1
+  );
+
+  return 1;
 }
 
-void drawMoonIcon(int cx, int cy, int radius) {
-  gfx->fillCircle(cx, cy, radius, UI_YELLOW);
-  gfx->fillCircle(cx + radius / 2, cy - radius / 2, radius, BG);
+bool loadOpenWeatherIconPNG() {
+  if (weatherIcon.length() != 3) {
+    Serial.printf("Invalid OpenWeather icon code: %s\n", weatherIcon.c_str());
+    return false;
+  }
+
+  if (weatherIconPngData != nullptr &&
+      weatherIconPngLength > 0 &&
+      cachedWeatherIconCode == weatherIcon) {
+    return true;
+  }
+
+  String url = "https://openweathermap.org/img/wn/" + weatherIcon + ".png";
+  Serial.printf("Downloading OpenWeather icon %s\n", weatherIcon.c_str());
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  if (!http.begin(client, url)) {
+    Serial.println("Could not initialise OpenWeather icon request");
+    return false;
+  }
+
+  http.setConnectTimeout(10000);
+  http.setTimeout(10000);
+  int status = http.GET();
+
+  if (status != HTTP_CODE_OK) {
+    Serial.printf("OpenWeather icon HTTP status: %d\n", status);
+    http.end();
+    return false;
+  }
+
+  int contentLength = http.getSize();
+  if (contentLength <= 8 || contentLength > 20000) {
+    Serial.printf("Unexpected OpenWeather icon size: %d bytes\n", contentLength);
+    http.end();
+    return false;
+  }
+
+  uint8_t* newData = (uint8_t*)malloc((size_t)contentLength);
+  if (newData == nullptr) {
+    Serial.println("Not enough RAM to cache OpenWeather icon");
+    http.end();
+    return false;
+  }
+
+  Stream* stream = http.getStreamPtr();
+  size_t bytesRead = 0;
+  unsigned long startedAt = millis();
+
+  while (bytesRead < (size_t)contentLength &&
+         millis() - startedAt < 8000UL) {
+    int available = stream->available();
+
+    if (available > 0) {
+      size_t remaining = (size_t)contentLength - bytesRead;
+      size_t toRead = (size_t)available < remaining ? (size_t)available : remaining;
+      int count = stream->readBytes(newData + bytesRead, toRead);
+      if (count > 0) {
+        bytesRead += (size_t)count;
+      }
+    } else if (!http.connected()) {
+      break;
+    } else {
+      delay(1);
+    }
+  }
+
+  http.end();
+
+  if (bytesRead != (size_t)contentLength ||
+      newData[0] != 0x89 || newData[1] != 0x50 ||
+      newData[2] != 0x4E || newData[3] != 0x47) {
+    Serial.printf(
+      "OpenWeather icon download incomplete/invalid: %u of %d bytes\n",
+      (unsigned)bytesRead,
+      contentLength
+    );
+    free(newData);
+    return false;
+  }
+
+  if (weatherIconPngData != nullptr) {
+    free(weatherIconPngData);
+  }
+
+  weatherIconPngData = newData;
+  weatherIconPngLength = bytesRead;
+  cachedWeatherIconCode = weatherIcon;
+
+  Serial.printf(
+    "Cached OpenWeather icon %s (%u bytes)\n",
+    cachedWeatherIconCode.c_str(),
+    (unsigned)weatherIconPngLength
+  );
+
+  return true;
 }
 
-void drawCloudIcon(int x, int y, uint16_t colour) {
-  gfx->fillCircle(x + 13, y + 17, 10, colour);
-  gfx->fillCircle(x + 26, y + 11, 13, colour);
-  gfx->fillCircle(x + 39, y + 18, 9, colour);
-  gfx->fillRoundRect(x + 5, y + 16, 40, 16, 7, colour);
-}
-
-void drawWeatherConditionIcon(const String& iconCode, const String& condition, int x, int y) {
-  String code = iconCode.length() >= 2 ? iconCode.substring(0, 2) : "";
-  bool night = iconCode.endsWith("n");
-  uint16_t cloudColour = MUTED;
-
-  if (code == "01") {
-    if (night) drawMoonIcon(x + 28, y + 25, 10);
-    else drawSunIcon(x + 28, y + 25, 10);
+void drawOpenWeatherIcon(int x, int y) {
+  if (!loadOpenWeatherIconPNG()) {
     return;
   }
 
-  if (code == "02") {
-    if (night) drawMoonIcon(x + 35, y + 13, 7);
-    else drawSunIcon(x + 35, y + 13, 7);
-    drawCloudIcon(x + 1, y + 13, cloudColour);
+  int openResult = weatherPngDecoder.openRAM(
+    weatherIconPngData,
+    (int)weatherIconPngLength,
+    drawWeatherPngLine
+  );
+
+  if (openResult != PNG_SUCCESS) {
+    Serial.printf("OpenWeather PNG open failed: %d\n", openResult);
     return;
   }
 
-  if (code == "03" || code == "04" || code == "09" ||
-      code == "10" || code == "11" || code == "13") {
-    drawCloudIcon(x + 1, y + 9, cloudColour);
-  }
+  int iconWidth = weatherPngDecoder.getWidth();
+  int iconHeight = weatherPngDecoder.getHeight();
 
-  if (code == "09" || code == "10") {
-    gfx->drawLine(x + 15, y + 42, x + 11, y + 48, ACCENT);
-    gfx->drawLine(x + 28, y + 42, x + 24, y + 48, ACCENT);
-    gfx->drawLine(x + 40, y + 42, x + 36, y + 48, ACCENT);
+  if (iconWidth > 100 || iconHeight > 100) {
+    Serial.printf("OpenWeather PNG dimensions unexpected: %d x %d\n", iconWidth, iconHeight);
+    weatherPngDecoder.close();
     return;
   }
 
-  if (code == "11") {
-    gfx->fillTriangle(x + 27, y + 34, x + 19, y + 44, x + 26, y + 44, UI_YELLOW);
-    gfx->fillTriangle(x + 26, y + 42, x + 31, y + 42, x + 22, y + 51, UI_YELLOW);
-    return;
+  WeatherPngDrawContext context;
+  context.x = x;
+  context.y = y;
+  // BG is RGB565 0x1082, approximately RGB(16,16,16). PNGdec expects
+  // the background as 00BBGGRR when blending transparent PNG pixels.
+  context.backgroundBGR = 0x00101010UL;
+
+  int decodeResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
+  if (decodeResult != PNG_SUCCESS) {
+    Serial.printf("OpenWeather PNG decode failed: %d\n", decodeResult);
   }
 
-  if (code == "13") {
-    gfx->fillCircle(x + 16, y + 42, 2, UI_WHITE);
-    gfx->fillCircle(x + 28, y + 46, 2, UI_WHITE);
-    gfx->fillCircle(x + 39, y + 41, 2, UI_WHITE);
-    gfx->drawLine(x + 28, y + 42, x + 28, y + 49, UI_WHITE);
-    gfx->drawLine(x + 24, y + 46, x + 32, y + 46, UI_WHITE);
-    return;
-  }
-
-  if (code == "50") {
-    gfx->drawFastHLine(x + 2, y + 14, 48, MUTED);
-    gfx->drawFastHLine(x + 7, y + 24, 40, MUTED);
-    gfx->drawFastHLine(x + 1, y + 34, 46, MUTED);
-    return;
-  }
-
-  if (code == "03" || code == "04") {
-    // A second, darker cloud gives overcast conditions more visual weight.
-    gfx->drawFastHLine(x + 8, y + 42, 38, cloudColour);
-  } else if (condition.equalsIgnoreCase("Clear")) {
-    if (night) drawMoonIcon(x + 28, y + 25, 10);
-    else drawSunIcon(x + 28, y + 25, 10);
-  } else {
-    drawCloudIcon(x + 1, y + 9, cloudColour);
-  }
+  weatherPngDecoder.close();
 }
 
 // =====================================================
@@ -289,10 +382,21 @@ void drawWeather() {
   if (description.length() > 23) description = description.substring(0, 22) + ".";
   drawText(description, 12, 73, 1, MUTED);
 
-  // Stack the condition icon above the temperature in the left column.
-  drawWeatherConditionIcon(weatherIcon, weatherMain, 68, 78);
-  drawText(String(temperature, 1) + " C", 42, 143, 3, UI_YELLOW);
-  drawText("Feels " + String(feelsLike, 1) + " C", 63, 178, 1, MUTED);
+  // Stack the official OpenWeather PNG icon above the temperature.
+  // The left content column is centred at approximately x=96.
+  drawOpenWeatherIcon(71, 82);
+  String temperatureText = String(temperature, 1) + " C";
+  gfx->setTextSize(3);
+  int16_t tempX1, tempY1;
+  uint16_t tempW, tempH;
+  gfx->getTextBounds(temperatureText.c_str(), 0, 143, &tempX1, &tempY1, &tempW, &tempH);
+  drawText(temperatureText, 96 - (int)tempW / 2, 143, 3, UI_YELLOW);
+  String feelsText = "Feels " + String(feelsLike, 1) + " C";
+  gfx->setTextSize(1);
+  int16_t feelsX1, feelsY1;
+  uint16_t feelsW, feelsH;
+  gfx->getTextBounds(feelsText.c_str(), 0, 178, &feelsX1, &feelsY1, &feelsW, &feelsH);
+  drawText(feelsText, 96 - (int)feelsW / 2, 178, 1, MUTED);
 
   int cardX = (screenW * 60) / 100;
   int cardW = screenW - cardX - 10;
