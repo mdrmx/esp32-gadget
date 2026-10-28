@@ -296,10 +296,7 @@ void processPendingRtcSync() {
   if (rtcAvailable) {
     rtc.adjust(DateTime((uint32_t)utcNow));
     rtcTimeValid = true;
-    DateTime saved = rtc.now();
-    Serial.printf("DS1307 updated with UTC: %04d-%02d-%02d %02d:%02d:%02d\n",
-                  saved.year(), saved.month(), saved.day(),
-                  saved.hour(), saved.minute(), saved.second());
+    Serial.println("DS1307 updated with synchronised UTC time.");
   } else {
     Serial.println("DS1307 unavailable; ESP32 system clock is synchronised only.");
   }
