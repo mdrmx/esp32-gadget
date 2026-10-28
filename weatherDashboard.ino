@@ -292,7 +292,7 @@ void handleGesture(uint8_t gesture) {
 
   // These are provisional mappings. Use the raw transition logs to verify
   // physical directions on this particular panel before changing the codes.
-  if (gesture == GESTURE_SCREEN_LEFT) {
+  if (gesture == GESTURE_SCREEN_RIGHT) {
     if (currentTab == 0) {
       forecastOffset = 0;
       if (forecastAvailable && forecastCount > 0) {
@@ -309,7 +309,7 @@ void handleGesture(uint8_t gesture) {
     return;
   }
 
-  if (gesture == GESTURE_SCREEN_RIGHT) {
+  if (gesture == GESTURE_SCREEN_LEFT) {
     if (currentTab == 1) {
       drawWeather();
       Serial.println("Action: mapped horizontal-right gesture returned to weather");
