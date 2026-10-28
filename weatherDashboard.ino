@@ -7,6 +7,8 @@
 #include <PNGdec.h>
 #include <RTClib.h>
 #include <time.h>
+#include <sys/time.h>
+#include <esp_sntp.h>
 #include <stdlib.h>
 #include "secrets.h"
 
@@ -36,6 +38,7 @@ RTC_DS1307 rtc;
 bool rtcAvailable = false;
 bool rtcTimeValid = false;
 bool ntpTimeValid = false;
+volatile bool rtcSyncPending = false;
 unsigned long lastNtpAttemptMs = 0;
 unsigned long lastNtpSyncMs = 0;
 unsigned long lastClockCheckMs = 0;
@@ -167,24 +170,13 @@ void drawCenteredText(const String& text, int y, uint8_t size, uint16_t colour) 
 // =====================================================
 
 bool getCurrentUtcEpoch(time_t& epoch) {
-  // Prefer the battery-backed RTC. The system clock is a fallback when the
-  // RTC is absent, uninitialised, or fails to return a plausible date.
-  if (rtcAvailable && rtcTimeValid) {
-    DateTime rtcNow = rtc.now();
-    time_t rtcEpoch = (time_t)rtcNow.unixtime();
-    if (rtcEpoch >= MIN_VALID_EPOCH) {
-      epoch = rtcEpoch;
-      return true;
-    }
-    rtcTimeValid = false;
-  }
-
+  // The ESP32 system clock is synchronised from the DS1307 at startup and
+  // from SNTP when online. Avoid I2C reads in the display refresh path.
   time_t systemEpoch = time(nullptr);
   if (systemEpoch >= MIN_VALID_EPOCH) {
     epoch = systemEpoch;
     return true;
   }
-
   return false;
 }
 
@@ -247,33 +239,53 @@ void refreshHeaderClock() {
   }
 }
 
+void onSystemTimeSynchronized(struct timeval* tv) {
+  (void)tv;
+
+  // This callback runs after ESP-IDF SNTP updates the ESP32 system clock.
+  // Keep the callback non-blocking: defer the RTC I2C write to loop().
+  ntpTimeValid = true;
+  lastNtpSyncMs = millis();
+  rtcSyncPending = true;
+  lastHeaderClock = "";
+
+  Serial.println("SNTP synchronisation completed; RTC update queued.");
+}
+
 void syncClockFromNTP() {
-  lastNtpAttemptMs = millis();
-  Serial.println("Synchronising clock from internet time (NTP)...");
-
-  configTzTime(TIME_ZONE_INFO, "pool.ntp.org", "time.cloudflare.com");
-
-  time_t utcNow = time(nullptr);
-  unsigned long startedAt = millis();
-
-  // Give SNTP up to 12 seconds to obtain a trustworthy epoch.
-  while (utcNow < MIN_VALID_EPOCH &&
-         millis() - startedAt < 12000UL) {
-    delay(250);
-    utcNow = time(nullptr);
-  }
-
-  if (utcNow < MIN_VALID_EPOCH) {
-    Serial.println("NTP sync failed; keeping the DS1307 time if available.");
+  if (WiFi.status() != WL_CONNECTED) {
     return;
   }
 
-  ntpTimeValid = true;
-  lastNtpSyncMs = millis();
+  if (lastNtpAttemptMs != 0 &&
+      millis() - lastNtpAttemptMs < NTP_RETRY_INTERVAL &&
+      !ntpTimeValid) {
+    return;
+  }
+
+  lastNtpAttemptMs = millis();
+  Serial.println("Starting asynchronous NTP synchronisation...");
+  configTzTime(TIME_ZONE_INFO, "pool.ntp.org", "time.cloudflare.com");
+  // No wait loop here: setup and the main UI loop continue immediately.
+}
+
+void processPendingRtcSync() {
+  if (!rtcSyncPending) {
+    return;
+  }
+
+  // Clear first so any later SNTP callback can queue another update.
+  rtcSyncPending = false;
+
+  time_t utcNow = time(nullptr);
+  if (utcNow < MIN_VALID_EPOCH) {
+    Serial.println("SNTP callback fired but system time is not valid; RTC not updated.");
+    return;
+  }
 
   struct tm localTime;
   localtime_r(&utcNow, &localTime);
-  Serial.printf("NTP time: %04d-%02d-%02d %02d:%02d:%02d local UK time\n",
+  Serial.printf("SNTP time: %04d-%02d-%02d %02d:%02d:%02d local UK time\n",
                 localTime.tm_year + 1900,
                 localTime.tm_mon + 1,
                 localTime.tm_mday,
@@ -282,17 +294,14 @@ void syncClockFromNTP() {
                 localTime.tm_sec);
 
   if (rtcAvailable) {
-    // Store UTC in the DS1307. The timezone/DST conversion is done when
-    // rendering the header, so the clock remains correct across GMT/BST
-    // transitions even if connectivity is unavailable.
     rtc.adjust(DateTime((uint32_t)utcNow));
     rtcTimeValid = true;
     DateTime saved = rtc.now();
-    Serial.printf("DS1307 synchronised to UTC: %04d-%02d-%02d %02d:%02d:%02d\n",
+    Serial.printf("DS1307 updated with UTC: %04d-%02d-%02d %02d:%02d:%02d\n",
                   saved.year(), saved.month(), saved.day(),
                   saved.hour(), saved.minute(), saved.second());
   } else {
-    Serial.println("DS1307 not available; system time will be used until reboot.");
+    Serial.println("DS1307 unavailable; ESP32 system clock is synchronised only.");
   }
 
   lastHeaderClock = "";
@@ -340,9 +349,20 @@ void initialiseRTC() {
   DateTime rtcNow = rtc.now();
   if (rtcNow.year() >= 2024 && rtcNow.year() <= 2099) {
     rtcTimeValid = true;
-    Serial.printf("DS1307 retained UTC time: %04d-%02d-%02d %02d:%02d:%02d\n",
-                  rtcNow.year(), rtcNow.month(), rtcNow.day(),
-                  rtcNow.hour(), rtcNow.minute(), rtcNow.second());
+    time_t rtcEpoch = (time_t)rtcNow.unixtime();
+    struct timeval rtcTimeval;
+    rtcTimeval.tv_sec = rtcEpoch;
+    rtcTimeval.tv_usec = 0;
+
+    // Initialise ESP32 system time once from the RTC. Normal clock reads
+    // thereafter use time(nullptr), not repeated I2C transactions.
+    if (settimeofday(&rtcTimeval, nullptr) == 0) {
+      Serial.printf("System clock initialised from DS1307 UTC: %04d-%02d-%02d %02d:%02d:%02d\n",
+                    rtcNow.year(), rtcNow.month(), rtcNow.day(),
+                    rtcNow.hour(), rtcNow.minute(), rtcNow.second());
+    } else {
+      Serial.println("Failed to initialise system time from DS1307.");
+    }
   } else {
     Serial.println("DS1307 time is not set; waiting for NTP to synchronise it.");
   }
@@ -1072,8 +1092,14 @@ void setup() {
 
   initialiseRTC();
 
+  // The callback only queues work; the actual RTC write happens in loop().
+  sntp_set_time_sync_notification_cb(onSystemTimeSynchronized);
+
   drawLoading("Starting up...");
   connectWiFi();
+  if (WiFi.status() == WL_CONNECTED) {
+    syncClockFromNTP();
+  }
   fetchWeather();
   fetchForecast();
 
@@ -1089,6 +1115,8 @@ void setup() {
 
 void loop() {
   pollTouch();
+  processPendingRtcSync();
+  maybeSyncClockFromNetwork();
 
   if (millis() - lastClockCheckMs >= 1000UL) {
     lastClockCheckMs = millis();
