@@ -4,6 +4,8 @@
 #include <ArduinoJson.h>
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
+#include <PNGdec.h>
+#include <stdlib.h>
 #include "secrets.h"
 
 // =====================================================
@@ -14,6 +16,9 @@ const char* wifiSsid = WIFI_SSID;
 const char* wifiPassword = WIFI_PASSWORD;
 const char* apiKey = OPENWEATHER_API_KEY;
 const char* CITY = "Manchester,GB";
+float locationLat = 53.4808f;
+float locationLon = -2.2426f;
+long locationTimezoneOffset = 0;
 const unsigned long UPDATE_INTERVAL = 600000UL;
 
 // =====================================================
@@ -23,22 +28,20 @@ const unsigned long UPDATE_INTERVAL = 600000UL;
 #define LCD_SCLK 39
 #define LCD_MOSI 38
 #define LCD_MISO 40
-#define LCD_DC   42
-#define LCD_RST  -1
-#define LCD_CS   45
-#define LCD_BL   1
+#define LCD_DC 42
+#define LCD_RST -1
+#define LCD_CS 45
+#define LCD_BL 1
 
 #define LCD_ROTATION 1
-#define LCD_WIDTH    240
-#define LCD_HEIGHT   320
+#define LCD_WIDTH 240
+#define LCD_HEIGHT 320
 
 Arduino_DataBus* bus = new Arduino_ESP32SPI(
-  LCD_DC, LCD_CS, LCD_SCLK, LCD_MOSI, LCD_MISO
-);
+  LCD_DC, LCD_CS, LCD_SCLK, LCD_MOSI, LCD_MISO);
 
 Arduino_GFX* gfx = new Arduino_ST7789(
-  bus, LCD_RST, LCD_ROTATION, true, LCD_WIDTH, LCD_HEIGHT
-);
+  bus, LCD_RST, LCD_ROTATION, true, LCD_WIDTH, LCD_HEIGHT);
 
 int screenW = 320;
 int screenH = 240;
@@ -54,10 +57,10 @@ int screenH = 240;
 
 // Values are kept as configurable raw codes. The diagnostic logs below
 // report each transition so physical swipe directions can be verified.
-#define GESTURE_SCREEN_LEFT  0x01
+#define GESTURE_SCREEN_LEFT 0x01
 #define GESTURE_SCREEN_RIGHT 0x02
-#define GESTURE_SCREEN_DOWN  0x03
-#define GESTURE_SCREEN_UP    0x04
+#define GESTURE_SCREEN_DOWN 0x03
+#define GESTURE_SCREEN_UP 0x04
 
 bool touchAvailable = false;
 uint8_t lastHandledGesture = 0;
@@ -68,13 +71,13 @@ unsigned long lastGestureTime = 0;
 // COLOURS
 // =====================================================
 
-const uint16_t BG           = 0x1082;
-const uint16_t PANEL        = 0x2128;
-const uint16_t UI_WHITE     = 0xFFFF;
-const uint16_t MUTED        = 0xBDF7;
-const uint16_t ACCENT       = 0x5DDF;
-const uint16_t UI_YELLOW    = 0xFEA0;
-const uint16_t UI_GREEN     = 0x7E8A;
+const uint16_t BG = 0x1082;
+const uint16_t PANEL = 0x2128;
+const uint16_t UI_WHITE = 0xFFFF;
+const uint16_t MUTED = 0xBDF7;
+const uint16_t ACCENT = 0x5DDF;
+const uint16_t UI_YELLOW = 0xFEA0;
+const uint16_t UI_GREEN = 0x7E8A;
 const uint16_t ERROR_COLOUR = 0xF986;
 
 // =====================================================
@@ -84,6 +87,8 @@ const uint16_t ERROR_COLOUR = 0xF986;
 String weatherCity = "";
 String weatherDescription = "";
 String weatherMain = "";
+String weatherIcon = "03d";
+String forecastError = "";
 float temperature = 0.0;
 float feelsLike = 0.0;
 int humidity = 0;
@@ -92,13 +97,14 @@ bool weatherAvailable = false;
 bool forecastAvailable = false;
 unsigned long lastUpdate = 0;
 
-const int MAX_FORECAST = 40;
+const int MAX_FORECAST = 48;
 const int ITEMS_PER_PAGE = 4;
 
 struct ForecastItem {
   String timeText;
   String description;
   float temp;
+  uint32_t timestamp;
 };
 
 ForecastItem forecast[MAX_FORECAST];
@@ -144,8 +150,7 @@ void drawHeader() {
   drawText(
     currentTab == 0 ? "NOW" : "FORECAST",
     screenW - (currentTab == 0 ? 48 : 80),
-    13, 1, ACCENT
-  );
+    13, 1, ACCENT);
   gfx->drawFastHLine(0, 36, screenW, ACCENT);
 }
 
@@ -175,6 +180,179 @@ void drawError(const String& message) {
 }
 
 // =====================================================
+// OPENWEATHER ICON PNG DOWNLOAD + DECODING
+// Uses official PNG assets: https://openweathermap.org/img/wn/<code>.png
+// Install the "PNGdec" library by Larry Bank from Arduino Library Manager.
+// =====================================================
+
+PNG weatherPngDecoder;
+uint8_t* weatherIconPngData = nullptr;
+size_t weatherIconPngLength = 0;
+String cachedWeatherIconCode = "";
+
+struct WeatherPngDrawContext {
+  int x;
+  int y;
+  uint32_t backgroundBGR;
+};
+
+int drawWeatherPngLine(PNGDRAW* pDraw) {
+  WeatherPngDrawContext* context = (WeatherPngDrawContext*)pDraw->pUser;
+  if (context == nullptr || pDraw->iWidth > 100) {
+    return 0;
+  }
+
+  uint16_t linePixels[100];
+  weatherPngDecoder.getLineAsRGB565(
+    pDraw,
+    linePixels,
+    PNG_RGB565_LITTLE_ENDIAN,
+    context->backgroundBGR);
+
+  gfx->draw16bitRGBBitmap(
+    context->x,
+    context->y + pDraw->y,
+    linePixels,
+    pDraw->iWidth,
+    1);
+
+  return 1;
+}
+
+bool loadOpenWeatherIconPNG() {
+  if (weatherIcon.length() != 3) {
+    Serial.printf("Invalid OpenWeather icon code: %s\n", weatherIcon.c_str());
+    return false;
+  }
+
+  if (weatherIconPngData != nullptr && weatherIconPngLength > 0 && cachedWeatherIconCode == weatherIcon) {
+    return true;
+  }
+
+  String url = "https://openweathermap.org/img/wn/" + weatherIcon + ".png";
+  Serial.printf("Downloading OpenWeather icon %s\n", weatherIcon.c_str());
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  if (!http.begin(client, url)) {
+    Serial.println("Could not initialise OpenWeather icon request");
+    return false;
+  }
+
+  http.setConnectTimeout(10000);
+  http.setTimeout(10000);
+  int status = http.GET();
+
+  if (status != HTTP_CODE_OK) {
+    Serial.printf("OpenWeather icon HTTP status: %d\n", status);
+    http.end();
+    return false;
+  }
+
+  int contentLength = http.getSize();
+  if (contentLength <= 8 || contentLength > 20000) {
+    Serial.printf("Unexpected OpenWeather icon size: %d bytes\n", contentLength);
+    http.end();
+    return false;
+  }
+
+  uint8_t* newData = (uint8_t*)malloc((size_t)contentLength);
+  if (newData == nullptr) {
+    Serial.println("Not enough RAM to cache OpenWeather icon");
+    http.end();
+    return false;
+  }
+
+  Stream* stream = http.getStreamPtr();
+  size_t bytesRead = 0;
+  unsigned long startedAt = millis();
+
+  while (bytesRead < (size_t)contentLength && millis() - startedAt < 8000UL) {
+    int available = stream->available();
+
+    if (available > 0) {
+      size_t remaining = (size_t)contentLength - bytesRead;
+      size_t toRead = (size_t)available < remaining ? (size_t)available : remaining;
+      int count = stream->readBytes(newData + bytesRead, toRead);
+      if (count > 0) {
+        bytesRead += (size_t)count;
+      }
+    } else if (!http.connected()) {
+      break;
+    } else {
+      delay(1);
+    }
+  }
+
+  http.end();
+
+  if (bytesRead != (size_t)contentLength || newData[0] != 0x89 || newData[1] != 0x50 || newData[2] != 0x4E || newData[3] != 0x47) {
+    Serial.printf(
+      "OpenWeather icon download incomplete/invalid: %u of %d bytes\n",
+      (unsigned)bytesRead,
+      contentLength);
+    free(newData);
+    return false;
+  }
+
+  if (weatherIconPngData != nullptr) {
+    free(weatherIconPngData);
+  }
+
+  weatherIconPngData = newData;
+  weatherIconPngLength = bytesRead;
+  cachedWeatherIconCode = weatherIcon;
+
+  Serial.printf(
+    "Cached OpenWeather icon %s (%u bytes)\n",
+    cachedWeatherIconCode.c_str(),
+    (unsigned)weatherIconPngLength);
+
+  return true;
+}
+
+void drawOpenWeatherIcon(int x, int y) {
+  if (!loadOpenWeatherIconPNG()) {
+    return;
+  }
+
+  int openResult = weatherPngDecoder.openRAM(
+    weatherIconPngData,
+    (int)weatherIconPngLength,
+    drawWeatherPngLine);
+
+  if (openResult != PNG_SUCCESS) {
+    Serial.printf("OpenWeather PNG open failed: %d\n", openResult);
+    return;
+  }
+
+  int iconWidth = weatherPngDecoder.getWidth();
+  int iconHeight = weatherPngDecoder.getHeight();
+
+  if (iconWidth > 100 || iconHeight > 100) {
+    Serial.printf("OpenWeather PNG dimensions unexpected: %d x %d\n", iconWidth, iconHeight);
+    weatherPngDecoder.close();
+    return;
+  }
+
+  WeatherPngDrawContext context;
+  context.x = x;
+  context.y = y;
+  // BG is RGB565 0x1082, approximately RGB(16,16,16). PNGdec expects
+  // the background as 00BBGGRR when blending transparent PNG pixels.
+  context.backgroundBGR = 0x00101010UL;
+
+  int decodeResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
+  if (decodeResult != PNG_SUCCESS) {
+    Serial.printf("OpenWeather PNG decode failed: %d\n", decodeResult);
+  }
+
+  weatherPngDecoder.close();
+}
+
+// =====================================================
 // CURRENT WEATHER SCREEN
 // =====================================================
 
@@ -191,8 +369,21 @@ void drawWeather() {
   if (description.length() > 23) description = description.substring(0, 22) + ".";
   drawText(description, 12, 73, 1, MUTED);
 
-  drawText(String(temperature, 1) + " C", 12, 91, 4, UI_YELLOW);
-  drawText("Feels " + String(feelsLike, 1) + " C", 12, 137, 1, MUTED);
+  // Stack the official OpenWeather PNG icon above the temperature.
+  // The left content column is centred at approximately x=96.
+  drawOpenWeatherIcon(71, 82);
+  String temperatureText = String(temperature, 1) + " C";
+  gfx->setTextSize(3);
+  int16_t tempX1, tempY1;
+  uint16_t tempW, tempH;
+  gfx->getTextBounds(temperatureText.c_str(), 0, 143, &tempX1, &tempY1, &tempW, &tempH);
+  drawText(temperatureText, 96 - (int)tempW / 2, 143, 3, UI_YELLOW);
+  String feelsText = "Feels " + String(feelsLike, 1) + " C";
+  gfx->setTextSize(1);
+  int16_t feelsX1, feelsY1;
+  uint16_t feelsW, feelsH;
+  gfx->getTextBounds(feelsText.c_str(), 0, 178, &feelsX1, &feelsY1, &feelsW, &feelsH);
+  drawText(feelsText, 96 - (int)feelsW / 2, 178, 1, MUTED);
 
   int cardX = (screenW * 60) / 100;
   int cardW = screenW - cardX - 10;
@@ -213,7 +404,6 @@ void drawWeather() {
   drawText("hPa", cardX + 10, 183, 1, MUTED);
 
   gfx->drawFastHLine(10, screenH - 29, screenW - 20, PANEL);
-  drawText("SWIPE RIGHT TO LEFT", 12, screenH - 19, 1, MUTED);
   drawTabIndicator();
 }
 
@@ -225,13 +415,13 @@ void drawForecast() {
   currentTab = 1;
   gfx->fillScreen(BG);
   drawHeader();
-  drawText("UPCOMING FORECAST", 10, 44, 1, UI_WHITE);
+  drawText("UPCOMING HOURLY FORECAST", 10, 44, 1, UI_WHITE);
 
   int visible = forecastCount - forecastOffset;
   if (visible > ITEMS_PER_PAGE) visible = ITEMS_PER_PAGE;
 
   if (!forecastAvailable || forecastCount == 0) {
-    drawCenteredText("No forecast data", 100, 1, MUTED);
+    drawCenteredText(forecastError.length() ? forecastError : "No hourly data", 100, 1, MUTED);
   } else {
     for (int i = 0; i < visible; i++) {
       int index = forecastOffset + i;
@@ -257,9 +447,8 @@ void drawForecast() {
   int firstItem = forecastCount > 0 ? forecastOffset + 1 : 0;
   int lastItem = min(forecastOffset + ITEMS_PER_PAGE, forecastCount);
   String rangeText = String(firstItem) + "-" + String(lastItem) + "/" + String(forecastCount);
-  drawText("UP/DOWN SCROLL", 10, screenH - 25, 1, MUTED);
+
   drawText(rangeText, screenW - 58, screenH - 25, 1, UI_YELLOW);
-  drawText("LEFT/RIGHT TABS", 10, screenH - 12, 1, MUTED);
   drawTabIndicator();
 }
 
@@ -287,8 +476,7 @@ void handleGesture(uint8_t gesture) {
 
   Serial.printf(
     "Navigation gesture accepted: raw=0x%02X; tab=%d; offset=%d\n",
-    gesture, currentTab, forecastOffset
-  );
+    gesture, currentTab, forecastOffset);
 
   // These are provisional mappings. Use the raw transition logs to verify
   // physical directions on this particular panel before changing the codes.
@@ -299,9 +487,10 @@ void handleGesture(uint8_t gesture) {
         drawForecast();
         Serial.println("Action: mapped horizontal-left gesture opened forecast");
       } else {
-        drawWeather();
-        drawText("Forecast unavailable", 12, screenH - 42, 1, ERROR_COLOUR);
-        Serial.println("Action: forecast unavailable");
+        // Show the forecast screen even when retrieval failed, so the API
+        // error message is visible instead of only a generic unavailable log.
+        drawForecast();
+        Serial.printf("Action: forecast unavailable; reason: %s\n", forecastError.length() ? forecastError.c_str() : "No hourly records");
       }
     } else {
       Serial.println("Action: mapped horizontal-left gesture; already on forecast");
@@ -417,10 +606,7 @@ bool fetchWeather() {
   HTTPClient http;
 
   String url =
-    "https://api.openweathermap.org/data/2.5/weather?q=" +
-    String(CITY) +
-    "&appid=" + String(apiKey) +
-    "&units=metric";
+    "https://api.openweathermap.org/data/2.5/weather?q=" + String(CITY) + "&appid=" + String(apiKey) + "&units=metric";
 
   if (!http.begin(client, url)) {
     if (weatherAvailable) drawWeather();
@@ -456,6 +642,10 @@ bool fetchWeather() {
   weatherCity = doc["name"] | "Unknown";
   weatherDescription = doc["weather"][0]["description"] | "Unknown";
   weatherMain = doc["weather"][0]["main"] | "Unknown";
+  weatherIcon = doc["weather"][0]["icon"] | "03d";
+  locationLat = doc["coord"]["lat"] | locationLat;
+  locationLon = doc["coord"]["lon"] | locationLon;
+  locationTimezoneOffset = doc["timezone"] | locationTimezoneOffset;
   temperature = doc["main"]["temp"] | 0.0f;
   feelsLike = doc["main"]["feels_like"] | 0.0f;
   humidity = doc["main"]["humidity"] | 0;
@@ -464,34 +654,44 @@ bool fetchWeather() {
 
   Serial.printf(
     "%s: %.1f C, %s, humidity %d%%, pressure %d hPa\n",
-    weatherCity.c_str(), temperature, weatherDescription.c_str(), humidity, pressure
-  );
+    weatherCity.c_str(), temperature, weatherDescription.c_str(), humidity, pressure);
   return true;
 }
 
 // =====================================================
-// FETCH FORECAST
+// FETCH ONE CALL 4.0 HOURLY FORECAST
 // =====================================================
 
-bool fetchForecast() {
-  if (!connectWiFi()) {
-    forecastAvailable = false;
-    return false;
+String formatForecastTime(uint32_t timestamp, long timezoneOffset) {
+  time_t localTimestamp = (time_t)timestamp + (time_t)timezoneOffset;
+  struct tm localTime;
+  gmtime_r(&localTimestamp, &localTime);
+
+  char clockText[8];
+  snprintf(clockText, sizeof(clockText), "%02d:%02d", localTime.tm_hour, localTime.tm_min);
+
+  if (forecastCount > 0) {
+    time_t firstTimestamp = (time_t)forecast[0].timestamp + (time_t)timezoneOffset;
+    struct tm firstTime;
+    gmtime_r(&firstTimestamp, &firstTime);
+
+    if (localTime.tm_yday != firstTime.tm_yday || localTime.tm_year != firstTime.tm_year) {
+      const char* dayNames[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+      return String(dayNames[localTime.tm_wday]) + " " + String(clockText);
+    }
   }
 
+  return String(clockText);
+}
+
+bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
   WiFiClientSecure client;
   client.setInsecure();
+
   HTTPClient http;
-
-  String url =
-    "https://api.openweathermap.org/data/2.5/forecast?q=" +
-    String(CITY) +
-    "&appid=" + String(apiKey) +
-    "&units=metric";
-
-  Serial.println("Requesting forecast...");
   if (!http.begin(client, url)) {
-    forecastAvailable = false;
+    forecastError = "Hourly API unavailable";
+    Serial.println("One Call HTTP initialisation failed");
     return false;
   }
 
@@ -500,44 +700,118 @@ bool fetchForecast() {
   int code = http.GET();
 
   if (code != HTTP_CODE_OK) {
-    Serial.printf("Forecast HTTP status: %d\n", code);
+    // Capture the response body before closing HTTP. OpenWeather normally
+    // includes a JSON message for rejected keys, subscriptions, and limits.
+    String errorBody = http.getString();
+    Serial.printf("One Call hourly HTTP status: %d\n", code);
+    if (errorBody.length() > 0) {
+      if (errorBody.length() > 240) errorBody = errorBody.substring(0, 240);
+      Serial.printf("One Call error response: %s\n", errorBody.c_str());
+    }
     http.end();
-    forecastAvailable = false;
+
+    if (code == 401 || code == 403) {
+      forecastError = "Check One Call access";
+    } else if (code == 429) {
+      forecastError = "One Call rate limit";
+    } else if (code < 0) {
+      forecastError = "One Call network error";
+    } else {
+      forecastError = "One Call HTTP " + String(code);
+    }
     return false;
   }
-
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, http.getStream());
   http.end();
 
   if (error) {
-    Serial.printf("Forecast JSON error: %s\n", error.c_str());
-    forecastAvailable = false;
+    Serial.printf("One Call hourly JSON error: %s\n", error.c_str());
+    forecastError = "Hourly data parse failed";
     return false;
   }
 
-  JsonArray list = doc["list"].as<JsonArray>();
-  forecastCount = 0;
+  locationTimezoneOffset = doc["timezone_offset"] | locationTimezoneOffset;
+  nextUrl = doc["next"] | "";
+
+  JsonArray list = doc["data"].as<JsonArray>();
+  if (list.isNull()) {
+    Serial.println("One Call response did not contain a data array.");
+    serializeJson(doc, Serial);
+    Serial.println();
+    forecastError = "Unexpected One Call data";
+    return false;
+  }
+  Serial.printf("One Call page contains %u record(s).\n", (unsigned)list.size());
   for (JsonObject item : list) {
     if (forecastCount >= MAX_FORECAST) break;
 
-    const char* dtText = item["dt_txt"] | "";
-    const char* desc = item["weather"][0]["main"] | "Unknown";
-    float temp = item["main"]["temp"] | 0.0f;
-    String timeText = String(dtText);
+    uint32_t timestamp = item["dt"] | 0UL;
+    if (timestamp == 0) continue;
 
-    if (timeText.length() >= 16) {
-      timeText = timeText.substring(5, 10) + " " + timeText.substring(11, 16);
+    bool duplicate = false;
+    for (int i = 0; i < forecastCount; i++) {
+      if (forecast[i].timestamp == timestamp) {
+        duplicate = true;
+        break;
+      }
     }
+    if (duplicate) continue;
 
-    forecast[forecastCount].timeText = timeText;
+    const char* desc = item["weather"][0]["main"] | "Unknown";
+    float temp = item["temp"] | 0.0f;
+
+    forecast[forecastCount].timestamp = timestamp;
+    forecast[forecastCount].timeText = formatForecastTime(timestamp, locationTimezoneOffset);
     forecast[forecastCount].description = String(desc);
     forecast[forecastCount].temp = temp;
     forecastCount++;
   }
 
+  return true;
+}
+
+bool fetchForecast() {
+  if (!connectWiFi()) {
+    forecastAvailable = false;
+    forecastError = "Wi-Fi unavailable";
+    return false;
+  }
+
+  forecastCount = 0;
+  forecastError = "";
+
+  String nextUrl =
+    "https://api.openweathermap.org/data/4.0/onecall/timeline/1h?lat=" + String(locationLat, 4) + "&lon=" + String(locationLon, 4) + "&units=metric&appid=" + String(apiKey);
+
+  // The 1-hour endpoint returns up to 20 entries per request. Follow its
+  // prepared pagination URL until we have up to 48 hours or no next page.
+  int pageCount = 0;
+  const int MAX_HOURLY_PAGES = 3;
+
+  while (nextUrl.length() > 0 && forecastCount < MAX_FORECAST && pageCount < MAX_HOURLY_PAGES) {
+    String pageUrl = nextUrl;
+    String pageNext = "";
+    if (!fetchOneCallForecastPage(pageUrl, pageNext)) {
+      if (forecastCount == 0) {
+        forecastAvailable = false;
+        Serial.println("Hourly forecast unavailable. Check One Call API 4.0 subscription and API key.");
+        return false;
+      }
+      break;
+    }
+
+    nextUrl = pageNext;
+    pageCount++;
+  }
+
   forecastAvailable = forecastCount > 0;
-  Serial.printf("Forecast periods received: %d\n", forecastCount);
+  if (!forecastAvailable && forecastError.length() == 0) {
+    forecastError = "No hourly records";
+    Serial.println("One Call returned without any parsable hourly records.");
+  }
+
+  Serial.printf("Hourly forecast records received: %d across %d page(s)\n", forecastCount, pageCount);
   return forecastAvailable;
 }
 
