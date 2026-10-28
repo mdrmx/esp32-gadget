@@ -909,7 +909,28 @@ void animateWeatherMetricsScroll(int direction) {
   // redraw rather than using a multi-frame direct-render animation.
   if (weatherMetricsCanvas == nullptr) {
     weatherMetricOffset = targetOffset;
-  
+    drawWeatherMetricsPanel(weatherMetricOffset, 0);
+    drawWeatherMetricsCounter();
+    return;
+  }
+
+  const int animationFrames = 7;
+  const int animationDelayMs = 8;
+  int startOffset = weatherMetricOffset;
+
+  for (int frame = 1; frame <= animationFrames; frame++) {
+    float progress = (float)frame / animationFrames;
+    float easedProgress = progress * progress * (3.0f - 2.0f * progress);
+    int scrollPixels = (int)(
+      direction * WEATHER_METRIC_ROW_STEP * easedProgress);
+    drawWeatherMetricsViewport(startOffset, scrollPixels);
+    delay(animationDelayMs);
+  }
+
+  weatherMetricOffset = targetOffset;
+  drawWeatherMetricsCounter();
+}
+
 void drawWeather() {
   currentTab = 0;
   gfx->fillScreen(BG);
@@ -921,7 +942,6 @@ void drawWeather() {
   const int contentCentreX = 96;
   const int descriptionMaxWidth = 176;
 
-  // Adjust these gaps independently (all values are pixels).
   // Adjust these gaps independently (all values are pixels).
   const int iconDescriptionGap = -7;
   const int descriptionTemperatureGap = 10;
@@ -957,28 +977,6 @@ void drawWeather() {
     contentY,
     1,
     MUTED);
-
-  drawWeatherMetricsPanel(weatherMetricOffset, 0);
-    drawWeatherMetricsCounter();
-    return;
-  }
-
-  const int animationFrames = 7;
-  const int animationDelayMs = 8;
-  int startOffset = weatherMetricOffset;
-
-  for (int frame = 1; frame <= animationFrames; frame++) {
-    float progress = (float)frame / animationFrames;
-    float easedProgress = progress * progress * (3.0f - 2.0f * progress);
-    int scrollPixels = (int)(
-      direction * WEATHER_METRIC_ROW_STEP * easedProgress);
-    drawWeatherMetricsViewport(startOffset, scrollPixels);
-    delay(animationDelayMs);
-  }
-
-  weatherMetricOffset = targetOffset;
-  drawWeatherMetricsCounter();
-}
 
   drawWeatherMetricsPanel(weatherMetricOffset, 0);
   drawWeatherMetricsCounter();
