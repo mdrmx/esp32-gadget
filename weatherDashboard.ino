@@ -120,7 +120,10 @@ bool forecastAvailable = false;
 unsigned long lastUpdate = 0;
 
 const int MAX_FORECAST = 48;
-const int ITEMS_PER_PAGE = 4;
+const int ITEMS_PER_PAGE = 3;
+const int FORECAST_ROW_TOP = 62;
+const int FORECAST_ROW_STEP = 39;
+const int FORECAST_CARD_HEIGHT = 33;
 
 struct ForecastItem {
   String timeText;
@@ -780,45 +783,95 @@ void drawWeather() {
 // FORECAST SCREEN
 // =====================================================
 
-void drawForecast() {
-  currentTab = 1;
-  gfx->fillScreen(BG);
-  drawHeader();
-  drawText("UPCOMING HOURLY FORECAST", 10, 44, 1, UI_WHITE);
+void drawForecastItem(int index, int y) {
+  gfx->fillRoundRect(8, y, screenW - 16, FORECAST_CARD_HEIGHT, 6, PANEL);
+  drawText(forecast[index].timeText, 16, y + 11, 1, UI_WHITE);
 
-  int visible = forecastCount - forecastOffset;
-  if (visible > ITEMS_PER_PAGE) visible = ITEMS_PER_PAGE;
+  String desc = forecast[index].description;
+  if (desc.length() > 12) desc = desc.substring(0, 11) + ".";
+  drawText(desc, 90, y + 11, 1, MUTED);
 
-  if (!forecastAvailable || forecastCount == 0) {
-    drawCenteredText(forecastError.length() ? forecastError : "No hourly data", 100, 1, MUTED);
-  } else {
-    for (int i = 0; i < visible; i++) {
-      int index = forecastOffset + i;
-      int y = 62 + i * 39;
-      gfx->fillRoundRect(8, y, screenW - 16, 33, 6, PANEL);
-      drawText(forecast[index].timeText, 16, y + 11, 1, UI_WHITE);
+  String temp = String(forecast[index].temp, 1) + "C";
+  gfx->setTextSize(1);
+  gfx->setTextColor(UI_YELLOW);
+  int16_t x1, y1;
+  uint16_t w, h;
+  gfx->getTextBounds(temp.c_str(), 0, y + 11, &x1, &y1, &w, &h);
+  gfx->setCursor(screenW - 16 - w, y + 11);
+  gfx->print(temp);
+}
 
-      String desc = forecast[index].description;
-      if (desc.length() > 12) desc = desc.substring(0, 11) + ".";
-      drawText(desc, 90, y + 11, 1, MUTED);
-
-      String temp = String(forecast[index].temp, 1) + "C";
-      gfx->setTextSize(1);
-      gfx->setTextColor(UI_YELLOW);
-      int16_t x1, y1;
-      uint16_t w, h;
-      gfx->getTextBounds(temp.c_str(), 0, y + 11, &x1, &y1, &w, &h);
-      gfx->setCursor(screenW - 16 - w, y + 11);
-      gfx->print(temp);
-    }
-  }
-
+void drawForecastFooter() {
   int firstItem = forecastCount > 0 ? forecastOffset + 1 : 0;
   int lastItem = min(forecastOffset + ITEMS_PER_PAGE, forecastCount);
   String rangeText = String(firstItem) + "-" + String(lastItem) + "/" + String(forecastCount);
 
   drawText(rangeText, screenW - 58, screenH - 25, 1, UI_YELLOW);
   drawTabIndicator();
+}
+
+// Render one scrolling frame. scrollPixels moves the records vertically while
+// the header and footer are redrawn afterwards, masking anything that travels
+// outside the three-row viewport.
+void drawForecastFrame(int baseOffset, int scrollPixels) {
+  const int viewportTop = FORECAST_ROW_TOP;
+  const int viewportBottom = FORECAST_ROW_TOP + ITEMS_PER_PAGE * FORECAST_ROW_STEP;
+
+  gfx->fillRect(0, viewportTop, screenW, viewportBottom - viewportTop, BG);
+
+  int firstIndex = max(0, baseOffset - 1);
+  int lastIndex = min(forecastCount, baseOffset + ITEMS_PER_PAGE + 1);
+  for (int index = firstIndex; index < lastIndex; index++) {
+    int y = FORECAST_ROW_TOP + (index - baseOffset) * FORECAST_ROW_STEP - scrollPixels;
+    if (y + FORECAST_CARD_HEIGHT < 0 || y >= screenH) continue;
+    drawForecastItem(index, y);
+  }
+
+  // Redraw the fixed header/title and footer after moving rows; these areas
+  // also mask rows that slide outside the viewport.
+  gfx->fillRect(0, 0, screenW, viewportTop, BG);
+  drawHeader();
+  drawText("UPCOMING HOURLY FORECAST", 10, 44, 1, UI_WHITE);
+
+  gfx->fillRect(0, viewportBottom, screenW, screenH - viewportBottom, BG);
+  drawForecastFooter();
+}
+
+void drawForecast() {
+  currentTab = 1;
+  if (!forecastAvailable || forecastCount == 0) {
+    gfx->fillScreen(BG);
+    drawHeader();
+    drawText("UPCOMING HOURLY FORECAST", 10, 44, 1, UI_WHITE);
+    drawCenteredText(forecastError.length() ? forecastError : "No hourly data", 100, 1, MUTED);
+    drawForecastFooter();
+    return;
+  }
+
+  drawForecastFrame(forecastOffset, 0);
+}
+
+// Animate a one-row scroll with easing so the relationship between the swipe
+// and the changing forecast position is visible without a sudden jump.
+void animateForecastScroll(int direction) {
+  int targetOffset = forecastOffset + direction;
+  int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  if (targetOffset < 0 || targetOffset > maxOffset) return;
+
+  const int animationFrames = 6;
+  const int animationDelayMs = 12;
+  int startOffset = forecastOffset;
+
+  for (int frame = 1; frame <= animationFrames; frame++) {
+    float progress = (float)frame / animationFrames;
+    float easedProgress = progress * progress * (3.0f - 2.0f * progress);
+    int scrollPixels = (int)(direction * FORECAST_ROW_STEP * easedProgress);
+    drawForecastFrame(startOffset, scrollPixels);
+    delay(animationDelayMs);
+  }
+
+  forecastOffset = targetOffset;
+  drawForecast();
 }
 
 // =====================================================
@@ -885,8 +938,7 @@ void handleGesture(uint8_t gesture) {
   if (gesture == GESTURE_SCREEN_UP) {
     int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
     if (forecastOffset < maxOffset) {
-      forecastOffset++;
-      drawForecast();
+      animateForecastScroll(1);
       Serial.printf("Action: mapped vertical-up gesture advanced one entry; offset=%d\n", forecastOffset);
     } else {
       Serial.println("Action: already at end of forecast");
@@ -896,8 +948,7 @@ void handleGesture(uint8_t gesture) {
 
   if (gesture == GESTURE_SCREEN_DOWN) {
     if (forecastOffset > 0) {
-      forecastOffset--;
-      drawForecast();
+      animateForecastScroll(-1);
       Serial.printf("Action: mapped vertical-down gesture moved back one entry; offset=%d\n", forecastOffset);
     } else {
       Serial.println("Action: already at beginning of forecast");
