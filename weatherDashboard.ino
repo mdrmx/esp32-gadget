@@ -169,14 +169,22 @@ int measureTextWidth(const String& text, uint8_t size) {
   return (int)w;
 }
 
+int measureTextHeight(const String& text, uint8_t size) {
+  gfx->setTextSize(size);
+  int16_t x1, y1;
+  uint16_t w, h;
+  gfx->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &w, &h);
+  return (int)h;
+}
+
 // Wrap the description to the weather column and centre each line around
-// centreX. The last line stays anchored at lastLineY so the temperature and
-// feels-like labels below it keep their existing positions.
-void drawWrappedCenteredText(
+// centreX. Returns the rendered block height so following data can be placed
+// relative to its actual line count.
+int drawWrappedCenteredText(
   const String& text,
   int centreX,
   int maxWidth,
-  int lastLineY,
+  int topY,
   uint8_t size,
   uint16_t colour
 ) {
@@ -224,17 +232,33 @@ void drawWrappedCenteredText(
   if (lineCount < 2 && currentLine.length() > 0) {
     lines[lineCount++] = currentLine;
   }
-  if (lineCount == 0) return;
+  if (lineCount == 0) return 0;
 
   gfx->setTextSize(size);
   gfx->setTextColor(colour);
-  int lineHeight = 8 * size;
-  int firstY = lastLineY - (lineCount - 1) * lineHeight;
+  int lineHeight = measureTextHeight(lines[0], size);
+  if (lineHeight <= 0) lineHeight = 8 * size;
 
   for (int i = 0; i < lineCount; i++) {
     int width = measureTextWidth(lines[i], size);
-    drawText(lines[i], centreX - width / 2, firstY + i * lineHeight, size, colour);
+    drawText(lines[i], centreX - width / 2, topY + i * lineHeight, size, colour);
   }
+
+  return lineCount * lineHeight;
+}
+
+// Draw one line centred around centreX and return its measured height.
+int drawCenteredWeatherLine(
+  const String& text,
+  int centreX,
+  int y,
+  uint8_t size,
+  uint16_t colour
+) {
+  int width = measureTextWidth(text, size);
+  int height = measureTextHeight(text, size);
+  drawText(text, centreX - width / 2, y, size, colour);
+  return height > 0 ? height : 8 * size;
 }
 
 // =====================================================
@@ -636,9 +660,9 @@ String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   return true;
 }
 
-void drawOpenWeatherIcon(int x, int y) {
+int drawOpenWeatherIcon(int x, int y) {
   if (!loadOpenWeatherIconPNG()) {
-    return;
+    return 0;
   }
 
   int openResult = weatherPngDecoder.openRAM(
@@ -647,17 +671,17 @@ void drawOpenWeatherIcon(int x, int y) {
     drawWeatherPngLine);
 
   if (openResult != PNG_SUCCESS) {
-    Serial.printf("OpenWeather PNG open failed: %d\n", openResult);
-    return;
+    Serial.printf("OpenWeather PNG open failed: %d\\n", openResult);
+    return 0;
   }
 
   int iconWidth = weatherPngDecoder.getWidth();
   int iconHeight = weatherPngDecoder.getHeight();
 
   if (iconWidth > 100 || iconHeight > 100) {
-    Serial.printf("OpenWeather PNG dimensions unexpected: %d x %d\n", iconWidth, iconHeight);
+    Serial.printf("OpenWeather PNG dimensions unexpected: %d x %d\\n", iconWidth, iconHeight);
     weatherPngDecoder.close();
-    return;
+    return 0;
   }
 
   WeatherPngDrawContext context;
@@ -669,10 +693,11 @@ void drawOpenWeatherIcon(int x, int y) {
 
   int decodeResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
   if (decodeResult != PNG_SUCCESS) {
-    Serial.printf("OpenWeather PNG decode failed: %d\n", decodeResult);
+    Serial.printf("OpenWeather PNG decode failed: %d\\n", decodeResult);
   }
 
   weatherPngDecoder.close();
+  return decodeResult == PNG_SUCCESS ? iconHeight : 0;
 }
 
 // =====================================================
@@ -684,27 +709,42 @@ void drawWeather() {
   gfx->fillScreen(BG);
   drawHeader();
 
+  // Lay out the weather stack from top to bottom. Each element's measured
+  // height determines where the next element begins, so a wrapped description
+  // moves the temperature and feels-like value down without overlapping.
+  const int contentCentreX = 96;
+  const int descriptionMaxWidth = 176;
+  const int stackGap = 3;
+  int contentY = 37;
 
-  // The city name is intentionally separate from the centred weather stack.
-  // Leave a clearer gap after the city before the icon.
-  drawOpenWeatherIcon(46, 37);
+  int iconHeight = drawOpenWeatherIcon(46, contentY);
+  contentY += (iconHeight > 0 ? iconHeight : 0) + stackGap;
 
-  drawWrappedCenteredText(weatherDescription, 96, 176, 132, 2, MUTED);
+  int descriptionHeight = drawWrappedCenteredText(
+    weatherDescription,
+    contentCentreX,
+    descriptionMaxWidth,
+    contentY,
+    2,
+    MUTED);
+  contentY += descriptionHeight + stackGap;
 
-  // Keep the temperature secondary to the official 50 px condition icon.
   String temperatureText = String(temperature, 1) + " C";
-  gfx->setTextSize(2);
-  int16_t tempX1, tempY1;
-  uint16_t tempW, tempH;
-  gfx->getTextBounds(temperatureText.c_str(), 0, 151, &tempX1, &tempY1, &tempW, &tempH);
-  drawText(temperatureText, 96 - (int)tempW / 2, 151, 2, UI_YELLOW);
+  int temperatureHeight = drawCenteredWeatherLine(
+    temperatureText,
+    contentCentreX,
+    contentY,
+    2,
+    UI_YELLOW);
+  contentY += temperatureHeight + stackGap;
 
   String feelsText = "Feels " + String(feelsLike, 1) + " C";
-  gfx->setTextSize(1);
-  int16_t feelsX1, feelsY1;
-  uint16_t feelsW, feelsH;
-  gfx->getTextBounds(feelsText.c_str(), 0, 184, &feelsX1, &feelsY1, &feelsW, &feelsH);
-  drawText(feelsText, 96 - (int)feelsW / 2, 184, 1, MUTED);
+  drawCenteredWeatherLine(
+    feelsText,
+    contentCentreX,
+    contentY,
+    1,
+    MUTED);
 
   int cardX = (screenW * 60) / 100;
   int cardW = screenW - cardX - 10;
