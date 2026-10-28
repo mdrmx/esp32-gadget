@@ -5,6 +5,8 @@
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
 #include <PNGdec.h>
+#include <time.h>
+#include <sys/time.h>
 #include <stdlib.h>
 #include "secrets.h"
 
@@ -20,6 +22,26 @@ float locationLat = 53.4808f;
 float locationLon = -2.2426f;
 long locationTimezoneOffset = 0;
 const unsigned long UPDATE_INTERVAL = 600000UL;
+
+// =====================================================
+// CLOCK API CONFIGURATION
+// =====================================================
+
+// Fetch Europe/London local date/time from the HTTP API, convert it using
+// the same UK timezone/DST rules, then set the ESP32 system clock.
+const char* TIME_ZONE_INFO = "GMT0BST,M3.5.0/1,M10.5.0/2";
+const char* TIME_API_URL =
+  "https://timeapi.io/api/Time/current/zone?timeZone=Europe%2FLondon";
+const time_t MIN_VALID_EPOCH = 1704067200; // 2024-01-01
+
+bool timeApiValid = false;
+unsigned long lastTimeApiAttemptMs = 0;
+unsigned long lastTimeApiSyncMs = 0;
+unsigned long lastClockCheckMs = 0;
+String lastHeaderClock = "";
+
+const unsigned long TIME_API_RETRY_INTERVAL = 5UL * 60UL * 1000UL;
+const unsigned long TIME_API_SYNC_INTERVAL = 6UL * 60UL * 60UL * 1000UL;
 
 // =====================================================
 // DISPLAY
@@ -140,17 +162,242 @@ void drawCenteredText(const String& text, int y, uint8_t size, uint16_t colour) 
 }
 
 // =====================================================
+// CLOCK HELPERS
+// =====================================================
+
+bool getCurrentUtcEpoch(time_t& epoch) {
+  // After the first successful API sync, the ESP32 system clock advances
+  // locally. No repeated time API requests are needed to draw the header.
+  time_t systemEpoch = time(nullptr);
+  if (systemEpoch >= MIN_VALID_EPOCH) {
+    epoch = systemEpoch;
+    return true;
+  }
+  return false;
+}
+
+String getHeaderClockText() {
+  time_t epoch = 0;
+  if (!getCurrentUtcEpoch(epoch)) {
+    return "--:--";
+  }
+
+  struct tm localTime;
+  if (localtime_r(&epoch, &localTime) == nullptr) {
+    return "--:--";
+  }
+
+  char clockText[6];
+  snprintf(clockText, sizeof(clockText), "%02d:%02d",
+           localTime.tm_hour, localTime.tm_min);
+  return String(clockText);
+}
+
+String getHeaderLocationText() {
+  String label = weatherCity;
+
+  // Before the current-weather response arrives, use the configured city.
+  if (label.length() == 0) {
+    label = String(CITY);
+    int comma = label.indexOf(',');
+    if (comma > 0) {
+      label = label.substring(0, comma);
+    }
+  }
+
+  label.trim();
+  if (label.length() > 17) {
+    label = label.substring(0, 16) + ".";
+  }
+  return label;
+}
+
+void drawHeaderClockOnly(const String& clockText) {
+  gfx->fillRect(screenW - 78, 0, 78, 36, PANEL);
+
+  gfx->setTextSize(2);
+  gfx->setTextColor(ACCENT);
+  int16_t x1, y1;
+  uint16_t w, h;
+  gfx->getTextBounds(clockText.c_str(), 0, 10, &x1, &y1, &w, &h);
+  int x = screenW - 10 - (int)w;
+  if (x < screenW - 70) {
+    x = screenW - 70;
+  }
+  drawText(clockText, x, 10, 2, ACCENT);
+  lastHeaderClock = clockText;
+}
+
+void refreshHeaderClock() {
+  String clockText = getHeaderClockText();
+  if (clockText != lastHeaderClock) {
+    drawHeaderClockOnly(clockText);
+  }
+}
+
+bool fetchTimeFromAPI() {
+  lastTimeApiAttemptMs = millis();
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Time API skipped: Wi-Fi is not connected.");
+    return false;
+  }
+
+  Serial.println("Requesting current date/time from TimeAPI.io...");
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+
+  if (!http.begin(client, TIME_API_URL)) {
+    Serial.println("Could not initialise time API request.");
+    return false;
+  }
+
+  http.setConnectTimeout(5000);
+  http.setTimeout(5000);
+  int status = http.GET();
+
+  if (status != HTTP_CODE_OK) {
+    Serial.printf("Time API HTTP status: %d\n", status);
+    String errorBody = http.getString();
+    if (errorBody.length() > 0) {
+      if (errorBody.length() > 180) {
+        errorBody = errorBody.substring(0, 180);
+      }
+      Serial.printf("Time API response: %s\n", errorBody.c_str());
+    }
+    http.end();
+    return false;
+  }
+
+  // Read the complete response first. Some HTTP responses arrive chunked;
+  // parsing the raw stream directly can fail before the JSON body is consumed.
+  String responseBody = http.getString();
+  http.end();
+
+  Serial.printf("Time API response length: %u bytes\n", (unsigned)responseBody.length());
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, responseBody);
+
+  if (error) {
+    Serial.printf("Time API JSON error: %s\n", error.c_str());
+    String preview = responseBody;
+    if (preview.length() > 240) {
+      preview = preview.substring(0, 240);
+    }
+    Serial.printf("Time API body preview: [%s]\n", preview.c_str());
+    return false;
+  }
+
+  int year = doc["year"] | 0;
+  int month = doc["month"] | 0;
+  int day = doc["day"] | 0;
+  int hour = doc["hour"] | -1;
+  int minute = doc["minute"] | -1;
+  int second = doc["seconds"] | (doc["second"] | 0);
+
+  if (year < 2024 || year > 2099 ||
+      month < 1 || month > 12 ||
+      day < 1 || day > 31 ||
+      hour < 0 || hour > 23 ||
+      minute < 0 || minute > 59 ||
+      second < 0 || second > 60) {
+    Serial.println("Time API response contained invalid date/time fields.");
+    serializeJson(doc, Serial);
+    Serial.println();
+    return false;
+  }
+
+  // The API returns Europe/London wall-clock fields. mktime() converts
+  // them to Unix UTC epoch using the UK timezone and DST rules configured
+  // during setup. This avoids assuming the UK is always UTC+0 or UTC+1.
+  struct tm localTime = {};
+  localTime.tm_year = year - 1900;
+  localTime.tm_mon = month - 1;
+  localTime.tm_mday = day;
+  localTime.tm_hour = hour;
+  localTime.tm_min = minute;
+  localTime.tm_sec = second;
+  localTime.tm_isdst = -1;
+
+  time_t epoch = mktime(&localTime);
+  if (epoch < MIN_VALID_EPOCH) {
+    Serial.println("Time API date could not be converted to a valid epoch.");
+    return false;
+  }
+
+  struct timeval newSystemTime;
+  newSystemTime.tv_sec = epoch;
+  newSystemTime.tv_usec = 0;
+
+  if (settimeofday(&newSystemTime, nullptr) != 0) {
+    Serial.println("Failed to set ESP32 system time from TimeAPI.io.");
+    return false;
+  }
+
+  timeApiValid = true;
+  lastTimeApiSyncMs = millis();
+  lastHeaderClock = "";
+
+  Serial.printf("System clock set from API: %04d-%02d-%02d %02d:%02d:%02d Europe/London\n",
+                year, month, day, hour, minute, second);
+  return true;
+}
+
+void maybeSyncTimeFromAPI() {
+  if (WiFi.status() != WL_CONNECTED) {
+    return;
+  }
+
+  unsigned long nowMs = millis();
+  bool syncDue = false;
+
+  if (timeApiValid) {
+    syncDue = nowMs - lastTimeApiSyncMs >= TIME_API_SYNC_INTERVAL;
+  } else {
+    syncDue = lastTimeApiAttemptMs == 0 ||
+              nowMs - lastTimeApiAttemptMs >= TIME_API_RETRY_INTERVAL;
+  }
+
+  // If a periodic refresh has failed, retry no more than once per five minutes.
+  if (syncDue &&
+      (lastTimeApiAttemptMs == 0 ||
+       nowMs - lastTimeApiAttemptMs >= TIME_API_RETRY_INTERVAL)) {
+    fetchTimeFromAPI();
+  }
+}
+
+void initialiseTimeZone() {
+  setenv("TZ", TIME_ZONE_INFO, 1);
+  tzset();
+}
+
+// =====================================================
+
+// =====================================================
 // HEADER
 // =====================================================
 
 void drawHeader() {
   gfx->fillRect(0, 0, screenW, 36, PANEL);
-  // drawText("WEATHER", 10, 10, 2, UI_WHITE);
 
-  drawText(
-    currentTab == 0 ? "NOW" : "FORECAST",
-    screenW - (currentTab == 0 ? 48 : 80),
-    13, 1, ACCENT);
+  String locationLabel = getHeaderLocationText();
+  drawText(locationLabel, 10, 10, 2, UI_WHITE);
+
+  String clockText = getHeaderClockText();
+  gfx->setTextSize(2);
+  int16_t x1, y1;
+  uint16_t w, h;
+  gfx->getTextBounds(clockText.c_str(), 0, 10, &x1, &y1, &w, &h);
+  int x = screenW - 10 - (int)w;
+  if (x < screenW - 70) {
+    x = screenW - 70;
+  }
+  drawText(clockText, x, 10, 2, ACCENT);
+  lastHeaderClock = clockText;
+
   gfx->drawFastHLine(0, 36, screenW, ACCENT);
 }
 
@@ -361,10 +608,6 @@ void drawWeather() {
   gfx->fillScreen(BG);
   drawHeader();
 
-  String city = weatherCity;
-  if (city.length() > 18) city = city.substring(0, 17) + ".";
-  drawText(city, 10, 10, 2, UI_WHITE);
- 
 
   // The city name is intentionally separate from the centred weather stack.
   // Leave a clearer gap after the city before the icon.
@@ -575,7 +818,10 @@ void pollTouch() {
 // =====================================================
 
 bool connectWiFi() {
-  if (WiFi.status() == WL_CONNECTED) return true;
+  if (WiFi.status() == WL_CONNECTED) {
+    maybeSyncTimeFromAPI();
+    return true;
+  }
   drawLoading("Connecting Wi-Fi...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(wifiSsid, wifiPassword);
@@ -590,6 +836,7 @@ bool connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("Wi-Fi connected");
     Serial.println(WiFi.localIP());
+    maybeSyncTimeFromAPI();
     return true;
   }
 
@@ -851,8 +1098,10 @@ void setup() {
   touchAvailable = Wire.endTransmission() == 0;
   Serial.println(touchAvailable ? "CST816 detected at 0x15" : "Touch controller not detected");
 
+  initialiseTimeZone();
+
   drawLoading("Starting up...");
-  connectWiFi();
+  connectWiFi();  // Starts a time API request when connectivity is available.
   fetchWeather();
   fetchForecast();
 
@@ -868,6 +1117,12 @@ void setup() {
 
 void loop() {
   pollTouch();
+  maybeSyncTimeFromAPI();
+
+  if (millis() - lastClockCheckMs >= 1000UL) {
+    lastClockCheckMs = millis();
+    refreshHeaderClock();
+  }
 
   if (millis() - lastUpdate >= UPDATE_INTERVAL) {
     lastUpdate = millis();
