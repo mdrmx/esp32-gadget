@@ -1,37 +1,41 @@
 # Location header clock and DS1307 RTC
 
-## What it does
+## Behaviour
 
-- The shared display header shows the weather location on the left and a 24-hour `HH:MM` clock on the right, on both the current-weather and hourly-forecast screens.
-- On Wi-Fi, the ESP32 obtains time from NTP and writes the synchronised UTC time to the DS1307.
-- The DS1307 then retains UTC time from its backup battery when the device is switched off or has no network.
-- The firmware applies the UK `GMT/BST` timezone rule when displaying the time, including daylight-saving transitions while offline.
-- When connected, the clock resynchronises every six hours; if initial NTP sync fails, it retries after five minutes.
+- The shared header shows the configured weather location and a 24-hour `HH:MM` clock on both tabs.
+- At startup, the ESP32 reads the DS1307 once and initialises the ESP32 system clock with `settimeofday()`.
+- The header reads only the ESP32 system clock; it does not query the RTC during every redraw.
+- When Wi-Fi is available, ESP-IDF SNTP updates system time asynchronously. A sync callback queues a DS1307 write for the main loop, so the callback itself does not perform I²C work.
+- The DS1307 stores UTC. The ESP32 applies the UK `GMT/BST` timezone rule to the displayed time, including daylight-saving changes while offline.
+- If Wi-Fi or NTP is unavailable, the system clock continues from the RTC initialised at startup. When connectivity returns, SNTP can correct the system clock and synchronise the RTC again.
 
-The display clock uses `--:--` until either the RTC holds a valid time or NTP obtains one.
+The display clock shows `--:--` until a valid time is available from the DS1307 or NTP.
 
-## Arduino library
+## Arduino libraries
 
-Install **RTClib by Adafruit** from Arduino IDE Library Manager. PNGdec is still required by the current-weather icon feature.
+Install these libraries from Arduino IDE Library Manager:
+
+- **RTClib by Adafruit**
+- **PNGdec by Larry Bank** (required for the OpenWeather condition icons)
 
 ## DS1307 module wiring
 
-The firmware already starts the shared I²C bus for the CST816 touch controller using:
+The firmware shares the existing I²C bus used by the CST816 touch controller:
 
 - ESP32 GPIO 48: SDA
 - ESP32 GPIO 47: SCL
 
-The RTC can share that bus; the CST816 uses I²C address `0x15` and the DS1307 normally uses `0x68`. Do not start a second I²C bus.
+The CST816 touch controller uses I²C address `0x15`; the DS1307 normally uses `0x68`. Do not create a second I²C bus.
 
 | DS1307 module pin | Connection |
 | --- | --- |
 | VCC | Regulated 5 V supply |
 | GND | Common ground shared with ESP32 and level shifter |
-| SDA | High-voltage side SDA of a bidirectional I²C level shifter |
-| SCL | High-voltage side SCL of a bidirectional I²C level shifter |
+| SDA | High-voltage SDA on a bidirectional I²C level shifter |
+| SCL | High-voltage SCL on a bidirectional I²C level shifter |
 | SQW | Leave unconnected |
 
-Level shifter connections:
+Level-shifter connections:
 
 | Level shifter pin | Connection |
 | --- | --- |
@@ -43,20 +47,19 @@ Level shifter connections:
 | HV1 / HV SDA | DS1307 SDA |
 | HV2 / HV SCL | DS1307 SCL |
 
-**Do not connect the DS1307 module's SDA/SCL directly to ESP32 GPIO pins unless you have verified that the module's pull-ups are at 3.3 V.** The DS1307 is specified for 4.5–5.5 V operation, and its I²C bus can be pulled up to 5.5 V; ESP32 GPIOs are not 5 V tolerant. A bidirectional I²C level shifter is the safe option.
+**Do not connect the DS1307 module's SDA/SCL directly to the ESP32 unless you've verified the RTC board's pull-ups are at 3.3 V.** The DS1307's I²C lines may be pulled as high as 5.5 V, while ESP32 GPIOs are not 5 V tolerant. A bidirectional level shifter is the safe option.
 
-Use a regulated 5 V output (such as the PowerBoost 1000C's 5 V output in this setup), not a raw battery connection, for module VCC. Connect all grounds together.
+Use regulated 5 V for RTC VCC, not a raw battery connection. Connect all grounds together.
 
 ### Backup-cell caution
 
-Check the exact DS1307 module's battery/charging circuit. Some inexpensive RTC boards include a trickle-charging path intended for a rechargeable LIR2032 cell. If the fitted coin cell is a non-rechargeable CR2032 and the board charges it, do not power it in that configuration; use the manufacturer's intended rechargeable cell or remove/disable the charging path correctly.
+Inspect the exact module's backup-battery circuitry. Some boards include a charging path intended for a rechargeable LIR2032. Do not use a non-rechargeable CR2032 if the board charges it; use the intended rechargeable cell or safely remove/disable the charging path according to the module's design.
 
-## Verification
+## How to verify
 
-After wiring and uploading:
-
-1. Serial Monitor should report `DS1307 detected at I2C address 0x68.`
-2. On network connection, it should report the NTP local time and `DS1307 synchronised to UTC`.
-3. The top-right clock should advance once per minute.
-4. Disconnect Wi-Fi or restart the device; the clock should continue using the battery-backed RTC.
-5. The location in the top-left header should appear on both tabs.
+1. Upload the firmware and open Serial Monitor at 115200 baud.
+2. Confirm `DS1307 detected at I2C address 0x68.`
+3. With Wi-Fi available, confirm the log reports that asynchronous SNTP synchronisation has started, followed by `SNTP synchronisation completed; RTC update queued.` and `DS1307 updated with synchronised UTC time.`
+4. Confirm the header clock advances without waiting for the RTC each second.
+5. Disconnect Wi-Fi and restart. The clock should continue from the DS1307 battery-backed time.
+6. Check that the same location and clock appear in both tabs.
