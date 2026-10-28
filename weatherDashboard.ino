@@ -714,11 +714,16 @@ void drawWeather() {
   // moves the temperature and feels-like value down without overlapping.
   const int contentCentreX = 96;
   const int descriptionMaxWidth = 176;
-  const int stackGap = 3;
+
+  // Adjust these gaps independently (all values are pixels).
+  const int iconDescriptionGap = 3;
+  const int descriptionTemperatureGap = 7;
+  const int temperatureFeelsGap = 6;
+
   int contentY = 37;
 
   int iconHeight = drawOpenWeatherIcon(46, contentY);
-  contentY += (iconHeight > 0 ? iconHeight : 0) + stackGap;
+  contentY += (iconHeight > 0 ? iconHeight : 0) + iconDescriptionGap;
 
   int descriptionHeight = drawWrappedCenteredText(
     weatherDescription,
@@ -727,7 +732,7 @@ void drawWeather() {
     contentY,
     2,
     MUTED);
-  contentY += descriptionHeight + stackGap;
+  contentY += descriptionHeight + descriptionTemperatureGap;
 
   String temperatureText = String(temperature, 1) + " C";
   int temperatureHeight = drawCenteredWeatherLine(
@@ -736,7 +741,7 @@ void drawWeather() {
     contentY,
     2,
     UI_YELLOW);
-  contentY += temperatureHeight + stackGap;
+  contentY += temperatureHeight + temperatureFeelsGap;
 
   String feelsText = "Feels " + String(feelsLike, 1) + " C";
   drawCenteredWeatherLine(
