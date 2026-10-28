@@ -257,12 +257,6 @@ void syncClockFromNTP() {
     return;
   }
 
-  if (lastNtpAttemptMs != 0 &&
-      millis() - lastNtpAttemptMs < NTP_RETRY_INTERVAL &&
-      !ntpTimeValid) {
-    return;
-  }
-
   lastNtpAttemptMs = millis();
   Serial.println("Starting asynchronous NTP synchronisation...");
   configTzTime(TIME_ZONE_INFO, "pool.ntp.org", "time.cloudflare.com");
