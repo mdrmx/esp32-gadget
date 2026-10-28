@@ -145,7 +145,7 @@ void drawCenteredText(const String& text, int y, uint8_t size, uint16_t colour) 
 
 void drawHeader() {
   gfx->fillRect(0, 0, screenW, 36, PANEL);
-  drawText("WEATHER", 10, 10, 2, UI_WHITE);
+  // drawText("WEATHER", 10, 10, 2, UI_WHITE);
 
   drawText(
     currentTab == 0 ? "NOW" : "FORECAST",
@@ -229,7 +229,7 @@ bool loadOpenWeatherIconPNG() {
     return true;
   }
 
-  String url = "https://openweathermap.org/img/wn/" + weatherIcon + ".png";
+String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   Serial.printf("Downloading OpenWeather icon %s\n", weatherIcon.c_str());
 
   WiFiClientSecure client;
@@ -363,11 +363,12 @@ void drawWeather() {
 
   String city = weatherCity;
   if (city.length() > 18) city = city.substring(0, 17) + ".";
-  drawText(city, 12, 48, 2, UI_WHITE);
+  drawText(city, 10, 10, 2, UI_WHITE);
+ 
 
   // The city name is intentionally separate from the centred weather stack.
   // Leave a clearer gap after the city before the icon.
-  drawOpenWeatherIcon(71, 78);
+  drawOpenWeatherIcon(49, 37);
 
   String description = weatherDescription;
   if (description.length() > 23) description = description.substring(0, 22) + ".";
