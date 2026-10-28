@@ -161,6 +161,82 @@ void drawCenteredText(const String& text, int y, uint8_t size, uint16_t colour) 
   gfx->print(text);
 }
 
+int measureTextWidth(const String& text, uint8_t size) {
+  gfx->setTextSize(size);
+  int16_t x1, y1;
+  uint16_t w, h;
+  gfx->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &w, &h);
+  return (int)w;
+}
+
+// Wrap the description to the weather column and centre each line around
+// centreX. The last line stays anchored at lastLineY so the temperature and
+// feels-like labels below it keep their existing positions.
+void drawWrappedCenteredText(
+  const String& text,
+  int centreX,
+  int maxWidth,
+  int lastLineY,
+  uint8_t size,
+  uint16_t colour
+) {
+  String lines[2];
+  int lineCount = 0;
+  String currentLine;
+  int wordStart = 0;
+
+  while (wordStart < (int)text.length()) {
+    while (wordStart < (int)text.length() && text[wordStart] == ' ') {
+      wordStart++;
+    }
+    if (wordStart >= (int)text.length()) break;
+
+    int wordEnd = text.indexOf(' ', wordStart);
+    if (wordEnd < 0) wordEnd = text.length();
+    String word = text.substring(wordStart, wordEnd);
+    wordStart = wordEnd + 1;
+
+    String candidate = currentLine.length() ? currentLine + " " + word : word;
+    if (measureTextWidth(candidate, size) <= maxWidth) {
+      currentLine = candidate;
+    } else if (lineCount == 0 && currentLine.length() > 0) {
+      lines[lineCount++] = currentLine;
+      currentLine = word;
+    } else if (lineCount == 1) {
+      // There is no room for another line; shorten the second line neatly.
+      String shortened = currentLine;
+      while (shortened.length() > 0 &&
+             measureTextWidth(shortened + "...", size) > maxWidth) {
+        int lastSpace = shortened.lastIndexOf(' ');
+        if (lastSpace >= 0) {
+          shortened = shortened.substring(0, lastSpace);
+        } else {
+          shortened = shortened.substring(0, shortened.length() - 1);
+        }
+      }
+      currentLine = shortened + "...";
+      break;
+    } else {
+      currentLine = word;
+    }
+  }
+
+  if (lineCount < 2 && currentLine.length() > 0) {
+    lines[lineCount++] = currentLine;
+  }
+  if (lineCount == 0) return;
+
+  gfx->setTextSize(size);
+  gfx->setTextColor(colour);
+  int lineHeight = 8 * size;
+  int firstY = lastLineY - (lineCount - 1) * lineHeight;
+
+  for (int i = 0; i < lineCount; i++) {
+    int width = measureTextWidth(lines[i], size);
+    drawText(lines[i], centreX - width / 2, firstY + i * lineHeight, size, colour);
+  }
+}
+
 // =====================================================
 // CLOCK HELPERS
 // =====================================================
@@ -613,13 +689,7 @@ void drawWeather() {
   // Leave a clearer gap after the city before the icon.
   drawOpenWeatherIcon(46, 37);
 
-  String description = weatherDescription;
-  if (description.length() > 23) description = description.substring(0, 22) + ".";
-  gfx->setTextSize(1);
-  int16_t descX1, descY1;
-  uint16_t descW, descH;
-  gfx->getTextBounds(description.c_str(), 0, 132, &descX1, &descY1, &descW, &descH);
-  drawText(description, 96 - (int)descW / 2, 132, 1, MUTED);
+  drawWrappedCenteredText(weatherDescription, 96, 176, 132, 2, MUTED);
 
   // Keep the temperature secondary to the official 50 px condition icon.
   String temperatureText = String(temperature, 1) + " C";
