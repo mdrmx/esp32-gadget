@@ -5,10 +5,8 @@
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
 #include <PNGdec.h>
-#include <RTClib.h>
 #include <time.h>
 #include <sys/time.h>
-#include <esp_sntp.h>
 #include <stdlib.h>
 #include "secrets.h"
 
@@ -26,26 +24,24 @@ long locationTimezoneOffset = 0;
 const unsigned long UPDATE_INTERVAL = 600000UL;
 
 // =====================================================
-// CLOCK AND RTC CONFIGURATION
+// CLOCK API CONFIGURATION
 // =====================================================
 
-// UK civil time with automatic GMT/BST transitions. The RTC stores UTC;
-// localtime() applies this timezone rule even when the device is offline.
+// Fetch Europe/London local date/time from the HTTP API, convert it using
+// the same UK timezone/DST rules, then set the ESP32 system clock.
 const char* TIME_ZONE_INFO = "GMT0BST,M3.5.0/1,M10.5.0/2";
+const char* TIME_API_URL =
+  "https://timeapi.io/api/Time/current/zone?timeZone=Europe%2FLondon";
 const time_t MIN_VALID_EPOCH = 1704067200; // 2024-01-01
 
-RTC_DS1307 rtc;
-bool rtcAvailable = false;
-bool rtcTimeValid = false;
-bool ntpTimeValid = false;
-volatile bool rtcSyncPending = false;
-unsigned long lastNtpAttemptMs = 0;
-unsigned long lastNtpSyncMs = 0;
+bool timeApiValid = false;
+unsigned long lastTimeApiAttemptMs = 0;
+unsigned long lastTimeApiSyncMs = 0;
 unsigned long lastClockCheckMs = 0;
 String lastHeaderClock = "";
 
-const unsigned long NTP_RETRY_INTERVAL = 5UL * 60UL * 1000UL;
-const unsigned long NTP_SYNC_INTERVAL = 6UL * 60UL * 60UL * 1000UL;
+const unsigned long TIME_API_RETRY_INTERVAL = 5UL * 60UL * 1000UL;
+const unsigned long TIME_API_SYNC_INTERVAL = 6UL * 60UL * 60UL * 1000UL;
 
 // =====================================================
 // DISPLAY
@@ -170,8 +166,8 @@ void drawCenteredText(const String& text, int y, uint8_t size, uint16_t colour) 
 // =====================================================
 
 bool getCurrentUtcEpoch(time_t& epoch) {
-  // The ESP32 system clock is synchronised from the DS1307 at startup and
-  // from SNTP when online. Avoid I2C reads in the display refresh path.
+  // After the first successful API sync, the ESP32 system clock advances
+  // locally. No repeated HTTP or RTC reads are needed to draw the header.
   time_t systemEpoch = time(nullptr);
   if (systemEpoch >= MIN_VALID_EPOCH) {
     epoch = systemEpoch;
@@ -239,66 +235,107 @@ void refreshHeaderClock() {
   }
 }
 
-void onSystemTimeSynchronized(struct timeval* tv) {
-  (void)tv;
+bool fetchTimeFromAPI() {
+  lastTimeApiAttemptMs = millis();
 
-  // This callback runs after ESP-IDF SNTP updates the ESP32 system clock.
-  // Keep the callback non-blocking: defer the RTC I2C write to loop().
-  ntpTimeValid = true;
-  lastNtpSyncMs = millis();
-  rtcSyncPending = true;
-  lastHeaderClock = "";
-
-  Serial.println("SNTP synchronisation completed; RTC update queued.");
-}
-
-void syncClockFromNTP() {
   if (WiFi.status() != WL_CONNECTED) {
-    return;
+    Serial.println("Time API skipped: Wi-Fi is not connected.");
+    return false;
   }
 
-  lastNtpAttemptMs = millis();
-  Serial.println("Starting asynchronous NTP synchronisation...");
-  configTzTime(TIME_ZONE_INFO, "pool.ntp.org", "time.cloudflare.com");
-  // No wait loop here: setup and the main UI loop continue immediately.
-}
+  Serial.println("Requesting current date/time from TimeAPI.io...");
 
-void processPendingRtcSync() {
-  if (!rtcSyncPending) {
-    return;
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+
+  if (!http.begin(client, TIME_API_URL)) {
+    Serial.println("Could not initialise time API request.");
+    return false;
   }
 
-  // Clear first so any later SNTP callback can queue another update.
-  rtcSyncPending = false;
+  http.setConnectTimeout(5000);
+  http.setTimeout(5000);
+  int status = http.GET();
 
-  time_t utcNow = time(nullptr);
-  if (utcNow < MIN_VALID_EPOCH) {
-    Serial.println("SNTP callback fired but system time is not valid; RTC not updated.");
-    return;
+  if (status != HTTP_CODE_OK) {
+    Serial.printf("Time API HTTP status: %d\n", status);
+    String errorBody = http.getString();
+    if (errorBody.length() > 0) {
+      if (errorBody.length() > 180) {
+        errorBody = errorBody.substring(0, 180);
+      }
+      Serial.printf("Time API response: %s\n", errorBody.c_str());
+    }
+    http.end();
+    return false;
   }
 
-  struct tm localTime;
-  localtime_r(&utcNow, &localTime);
-  Serial.printf("SNTP time: %04d-%02d-%02d %02d:%02d:%02d local UK time\n",
-                localTime.tm_year + 1900,
-                localTime.tm_mon + 1,
-                localTime.tm_mday,
-                localTime.tm_hour,
-                localTime.tm_min,
-                localTime.tm_sec);
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, http.getStream());
+  http.end();
 
-  if (rtcAvailable) {
-    rtc.adjust(DateTime((uint32_t)utcNow));
-    rtcTimeValid = true;
-    Serial.println("DS1307 updated with synchronised UTC time.");
-  } else {
-    Serial.println("DS1307 unavailable; ESP32 system clock is synchronised only.");
+  if (error) {
+    Serial.printf("Time API JSON error: %s\n", error.c_str());
+    return false;
   }
 
+  int year = doc["year"] | 0;
+  int month = doc["month"] | 0;
+  int day = doc["day"] | 0;
+  int hour = doc["hour"] | -1;
+  int minute = doc["minute"] | -1;
+  int second = doc["seconds"] | (doc["second"] | 0);
+
+  if (year < 2024 || year > 2099 ||
+      month < 1 || month > 12 ||
+      day < 1 || day > 31 ||
+      hour < 0 || hour > 23 ||
+      minute < 0 || minute > 59 ||
+      second < 0 || second > 60) {
+    Serial.println("Time API response contained invalid date/time fields.");
+    serializeJson(doc, Serial);
+    Serial.println();
+    return false;
+  }
+
+  // The API returns Europe/London wall-clock fields. mktime() converts
+  // them to Unix UTC epoch using the UK timezone and DST rules configured
+  // during setup. This avoids assuming the UK is always UTC+0 or UTC+1.
+  struct tm localTime = {};
+  localTime.tm_year = year - 1900;
+  localTime.tm_mon = month - 1;
+  localTime.tm_mday = day;
+  localTime.tm_hour = hour;
+  localTime.tm_min = minute;
+  localTime.tm_sec = second;
+  localTime.tm_isdst = -1;
+
+  time_t epoch = mktime(&localTime);
+  if (epoch < MIN_VALID_EPOCH) {
+    Serial.println("Time API date could not be converted to a valid epoch.");
+    return false;
+  }
+
+  struct timeval newSystemTime;
+  newSystemTime.tv_sec = epoch;
+  newSystemTime.tv_usec = 0;
+
+  if (settimeofday(&newSystemTime, nullptr) != 0) {
+    Serial.println("Failed to set ESP32 system time from TimeAPI.io.");
+    return false;
+  }
+
+  timeApiValid = true;
+  lastTimeApiSyncMs = millis();
   lastHeaderClock = "";
+
+  Serial.printf("System clock set from API: %04d-%02d-%02d %02d:%02d:%02d Europe/London\n",
+                year, month, day, hour, minute, second);
+  return true;
 }
 
-void maybeSyncClockFromNetwork() {
+void maybeSyncTimeFromAPI() {
   if (WiFi.status() != WL_CONNECTED) {
     return;
   }
@@ -306,58 +343,27 @@ void maybeSyncClockFromNetwork() {
   unsigned long nowMs = millis();
   bool syncDue = false;
 
-  if (ntpTimeValid) {
-    syncDue = (nowMs - lastNtpSyncMs >= NTP_SYNC_INTERVAL);
+  if (timeApiValid) {
+    syncDue = nowMs - lastTimeApiSyncMs >= TIME_API_SYNC_INTERVAL;
   } else {
-    syncDue = (lastNtpAttemptMs == 0 ||
-               nowMs - lastNtpAttemptMs >= NTP_RETRY_INTERVAL);
+    syncDue = lastTimeApiAttemptMs == 0 ||
+              nowMs - lastTimeApiAttemptMs >= TIME_API_RETRY_INTERVAL;
   }
 
-  if (syncDue) {
-    syncClockFromNTP();
+  // If a periodic refresh has failed, retry no more than once per five minutes.
+  if (syncDue &&
+      (lastTimeApiAttemptMs == 0 ||
+       nowMs - lastTimeApiAttemptMs >= TIME_API_RETRY_INTERVAL)) {
+    fetchTimeFromAPI();
   }
 }
 
-void initialiseRTC() {
-  // Share the already-initialised Wire bus with the CST816 touch controller.
-  // The CST816 is at 0x15; the DS1307 normally uses 0x68.
+void initialiseTimeZone() {
   setenv("TZ", TIME_ZONE_INFO, 1);
   tzset();
-
-  rtcAvailable = rtc.begin(&Wire);
-  if (!rtcAvailable) {
-    Serial.println("DS1307 not detected at I2C address 0x68.");
-    return;
-  }
-
-  Serial.println("DS1307 detected at I2C address 0x68.");
-
-  if (!rtc.isrunning()) {
-    Serial.println("DS1307 oscillator is stopped; waiting for NTP to set time.");
-    return;
-  }
-
-  DateTime rtcNow = rtc.now();
-  if (rtcNow.year() >= 2024 && rtcNow.year() <= 2099) {
-    rtcTimeValid = true;
-    time_t rtcEpoch = (time_t)rtcNow.unixtime();
-    struct timeval rtcTimeval;
-    rtcTimeval.tv_sec = rtcEpoch;
-    rtcTimeval.tv_usec = 0;
-
-    // Initialise ESP32 system time once from the RTC. Normal clock reads
-    // thereafter use time(nullptr), not repeated I2C transactions.
-    if (settimeofday(&rtcTimeval, nullptr) == 0) {
-      Serial.printf("System clock initialised from DS1307 UTC: %04d-%02d-%02d %02d:%02d:%02d\n",
-                    rtcNow.year(), rtcNow.month(), rtcNow.day(),
-                    rtcNow.hour(), rtcNow.minute(), rtcNow.second());
-    } else {
-      Serial.println("Failed to initialise system time from DS1307.");
-    }
-  } else {
-    Serial.println("DS1307 time is not set; waiting for NTP to synchronise it.");
-  }
 }
+
+// =====================================================
 
 // =====================================================
 // HEADER
@@ -802,7 +808,7 @@ void pollTouch() {
 
 bool connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) {
-    maybeSyncClockFromNetwork();
+    maybeSyncTimeFromAPI();
     return true;
   }
   drawLoading("Connecting Wi-Fi...");
@@ -819,7 +825,7 @@ bool connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("Wi-Fi connected");
     Serial.println(WiFi.localIP());
-    maybeSyncClockFromNetwork();
+    maybeSyncTimeFromAPI();
     return true;
   }
 
@@ -1081,15 +1087,12 @@ void setup() {
   touchAvailable = Wire.endTransmission() == 0;
   Serial.println(touchAvailable ? "CST816 detected at 0x15" : "Touch controller not detected");
 
-  initialiseRTC();
-
-  // The callback only queues work; the actual RTC write happens in loop().
-  sntp_set_time_sync_notification_cb(onSystemTimeSynchronized);
+  initialiseTimeZone();
 
   drawLoading("Starting up...");
   connectWiFi();
   if (WiFi.status() == WL_CONNECTED) {
-    syncClockFromNTP();
+    fetchTimeFromAPI();
   }
   fetchWeather();
   fetchForecast();
@@ -1106,8 +1109,7 @@ void setup() {
 
 void loop() {
   pollTouch();
-  processPendingRtcSync();
-  maybeSyncClockFromNetwork();
+  maybeSyncTimeFromAPI();
 
   if (millis() - lastClockCheckMs >= 1000UL) {
     lastClockCheckMs = millis();
