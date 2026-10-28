@@ -255,10 +255,12 @@ int drawCenteredWeatherLine(
   uint8_t size,
   uint16_t colour
 ) {
-  int width = measureTextWidth(text, size);
-  int height = measureTextHeight(text, size);
-  drawText(text, centreX - width / 2, y, size, colour);
-  return height > 0 ? height : 8 * size;
+  gfx->setTextSize(size);
+  int16_t x1, y1;
+  uint16_t width, height;
+  gfx->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &width, &height);
+  drawText(text, centreX - (int)width / 2, y, size, colour);
+  return height > 0 ? (int)height : 8 * size;
 }
 
 // =====================================================
