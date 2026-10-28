@@ -145,7 +145,7 @@ void drawCenteredText(const String& text, int y, uint8_t size, uint16_t colour) 
 
 void drawHeader() {
   gfx->fillRect(0, 0, screenW, 36, PANEL);
-  drawText("WEATHER", 10, 10, 2, UI_WHITE);
+  // drawText("WEATHER", 10, 10, 2, UI_WHITE);
 
   drawText(
     currentTab == 0 ? "NOW" : "FORECAST",
@@ -229,7 +229,7 @@ bool loadOpenWeatherIconPNG() {
     return true;
   }
 
-  String url = "https://openweathermap.org/img/wn/" + weatherIcon + ".png";
+String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   Serial.printf("Downloading OpenWeather icon %s\n", weatherIcon.c_str());
 
   WiFiClientSecure client;
@@ -363,27 +363,35 @@ void drawWeather() {
 
   String city = weatherCity;
   if (city.length() > 18) city = city.substring(0, 17) + ".";
-  drawText(city, 12, 48, 2, UI_WHITE);
+  drawText(city, 10, 10, 2, UI_WHITE);
+ 
+
+  // The city name is intentionally separate from the centred weather stack.
+  // Leave a clearer gap after the city before the icon.
+  drawOpenWeatherIcon(46, 37);
 
   String description = weatherDescription;
   if (description.length() > 23) description = description.substring(0, 22) + ".";
-  drawText(description, 12, 73, 1, MUTED);
+  gfx->setTextSize(1);
+  int16_t descX1, descY1;
+  uint16_t descW, descH;
+  gfx->getTextBounds(description.c_str(), 0, 132, &descX1, &descY1, &descW, &descH);
+  drawText(description, 96 - (int)descW / 2, 132, 1, MUTED);
 
-  // Stack the official OpenWeather PNG icon above the temperature.
-  // The left content column is centred at approximately x=96.
-  drawOpenWeatherIcon(71, 82);
+  // Keep the temperature secondary to the official 50 px condition icon.
   String temperatureText = String(temperature, 1) + " C";
-  gfx->setTextSize(3);
+  gfx->setTextSize(2);
   int16_t tempX1, tempY1;
   uint16_t tempW, tempH;
-  gfx->getTextBounds(temperatureText.c_str(), 0, 143, &tempX1, &tempY1, &tempW, &tempH);
-  drawText(temperatureText, 96 - (int)tempW / 2, 143, 3, UI_YELLOW);
+  gfx->getTextBounds(temperatureText.c_str(), 0, 151, &tempX1, &tempY1, &tempW, &tempH);
+  drawText(temperatureText, 96 - (int)tempW / 2, 151, 2, UI_YELLOW);
+
   String feelsText = "Feels " + String(feelsLike, 1) + " C";
   gfx->setTextSize(1);
   int16_t feelsX1, feelsY1;
   uint16_t feelsW, feelsH;
-  gfx->getTextBounds(feelsText.c_str(), 0, 178, &feelsX1, &feelsY1, &feelsW, &feelsH);
-  drawText(feelsText, 96 - (int)feelsW / 2, 178, 1, MUTED);
+  gfx->getTextBounds(feelsText.c_str(), 0, 184, &feelsX1, &feelsY1, &feelsW, &feelsH);
+  drawText(feelsText, 96 - (int)feelsW / 2, 184, 1, MUTED);
 
   int cardX = (screenW * 60) / 100;
   int cardW = screenW - cardX - 10;
