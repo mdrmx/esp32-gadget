@@ -377,12 +377,13 @@ void drawWeather() {
   gfx->getTextBounds(description.c_str(), 0, 132, &descX1, &descY1, &descW, &descH);
   drawText(description, 96 - (int)descW / 2, 132, 1, MUTED);
 
+  // Keep the temperature secondary to the official 50 px condition icon.
   String temperatureText = String(temperature, 1) + " C";
-  gfx->setTextSize(3);
+  gfx->setTextSize(2);
   int16_t tempX1, tempY1;
   uint16_t tempW, tempH;
   gfx->getTextBounds(temperatureText.c_str(), 0, 151, &tempX1, &tempY1, &tempW, &tempH);
-  drawText(temperatureText, 96 - (int)tempW / 2, 151, 3, UI_YELLOW);
+  drawText(temperatureText, 96 - (int)tempW / 2, 151, 2, UI_YELLOW);
 
   String feelsText = "Feels " + String(feelsLike, 1) + " C";
   gfx->setTextSize(1);
