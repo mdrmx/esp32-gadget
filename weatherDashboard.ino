@@ -716,9 +716,10 @@ void drawWeather() {
   const int descriptionMaxWidth = 176;
 
   // Adjust these gaps independently (all values are pixels).
-  const int iconDescriptionGap = 3;
-  const int descriptionTemperatureGap = 7;
-  const int temperatureFeelsGap = 6;
+  // Adjust these gaps independently (all values are pixels).
+  const int iconDescriptionGap = -7;
+  const int descriptionTemperatureGap = 10;
+  const int temperatureFeelsGap = 8;
 
   int contentY = 37;
 
