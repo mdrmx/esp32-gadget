@@ -401,7 +401,7 @@ void handleGesture(uint8_t gesture) {
         // Show the forecast screen even when retrieval failed, so the API
         // error message is visible instead of only a generic unavailable log.
         drawForecast();
-        Serial.printf("Action: forecast unavailable; reason: %s\\n", forecastError.length() ? forecastError.c_str() : "No hourly records");
+        Serial.printf("Action: forecast unavailable; reason: %s\n", forecastError.length() ? forecastError.c_str() : "No hourly records");
       }
     } else {
       Serial.println("Action: mapped horizontal-left gesture; already on forecast");
@@ -618,10 +618,10 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
     // Capture the response body before closing HTTP. OpenWeather normally
     // includes a JSON message for rejected keys, subscriptions, and limits.
     String errorBody = http.getString();
-    Serial.printf("One Call hourly HTTP status: %d\\n", code);
+    Serial.printf("One Call hourly HTTP status: %d\n", code);
     if (errorBody.length() > 0) {
       if (errorBody.length() > 240) errorBody = errorBody.substring(0, 240);
-      Serial.printf("One Call error response: %s\\n", errorBody.c_str());
+      Serial.printf("One Call error response: %s\n", errorBody.c_str());
     }
     http.end();
 
@@ -657,7 +657,7 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
     forecastError = "Unexpected One Call data";
     return false;
   }
-  Serial.printf("One Call page contains %u record(s).\\n", (unsigned)list.size());
+  Serial.printf("One Call page contains %u record(s).\n", (unsigned)list.size());
   for (JsonObject item : list) {
     if (forecastCount >= MAX_FORECAST) break;
 
@@ -731,7 +731,7 @@ bool fetchForecast() {
     Serial.println("One Call returned without any parsable hourly records.");
   }
 
-  Serial.printf("Hourly forecast records received: %d across %d page(s)\\n", forecastCount, pageCount);
+  Serial.printf("Hourly forecast records received: %d across %d page(s)\n", forecastCount, pageCount);
   return forecastAvailable;
 }
 
