@@ -68,6 +68,7 @@ Arduino_GFX* gfx = new Arduino_ST7789(
 // Buffered forecast viewport used to render each scroll frame off-screen,
 // then send it to the ST7789 as one bitmap transfer.
 Arduino_Canvas* forecastCanvas = nullptr;
+Arduino_Canvas* weatherMetricsCanvas = nullptr;
 
 int screenW = 320;
 int screenH = 240;
@@ -119,12 +120,32 @@ float temperature = 0.0;
 float feelsLike = 0.0;
 int humidity = 0;
 int pressure = 0;
+float windSpeedKmh = 0.0f;
+int cloudCover = 0;
+int visibilityMeters = 0;
+float rainLastHourMm = 0.0f;
+float currentUvIndex = 0.0f;
+float currentRainProbability = 0.0f;
+bool visibilityAvailable = false;
+bool uvIndexAvailable = false;
+bool rainProbabilityAvailable = false;
 bool weatherAvailable = false;
 bool forecastAvailable = false;
 unsigned long lastUpdate = 0;
 
 const int MAX_FORECAST = 48;
 const int ITEMS_PER_PAGE = 3;
+
+const int WEATHER_METRIC_COUNT = 8;
+const int WEATHER_METRICS_VISIBLE = 3;
+const int WEATHER_METRIC_PANEL_TOP = 47;
+const int WEATHER_METRIC_PANEL_HEIGHT = 153;
+const int WEATHER_METRIC_PANEL_BOTTOM =
+  WEATHER_METRIC_PANEL_TOP + WEATHER_METRIC_PANEL_HEIGHT;
+const int WEATHER_METRIC_CARD_HEIGHT = 46;
+const int WEATHER_METRIC_ROW_STEP = 50;
+const int WEATHER_METRIC_ROW_TOP = 2;
+int weatherMetricOffset = 0;
 
 // Keep the title above and the range/navigation footer below the scrolling
 // viewport. Three taller cards use the available height evenly.
@@ -768,23 +789,198 @@ void drawWeather() {
     1,
     MUTED);
 
-  int cardX = (screenW * 60) / 100;
-  int cardW = screenW - cardX - 10;
+int weatherMetricsPanelX() {
+  return (screenW * 60) / 100;
+}
 
-  gfx->fillRoundRect(cardX, 47, cardW, 72, 8, PANEL);
-  drawText("HUMIDITY", cardX + 10, 57, 1, MUTED);
-  gfx->setTextSize(3);
-  gfx->setTextColor(ACCENT);
-  gfx->setCursor(cardX + 10, 78);
-  gfx->printf("%d%%", humidity);
+int weatherMetricsPanelWidth() {
+  return screenW - weatherMetricsPanelX() - 10;
+}
 
-  gfx->fillRoundRect(cardX, 127, cardW, 72, 8, PANEL);
-  drawText("PRESSURE", cardX + 10, 137, 1, MUTED);
-  gfx->setTextSize(2);
-  gfx->setTextColor(ACCENT);
-  gfx->setCursor(cardX + 10, 157);
-  gfx->printf("%d", pressure);
-  drawText("hPa", cardX + 10, 183, 1, MUTED);
+String weatherMetricLabel(int index) {
+  switch (index) {
+    case 0: return "HUMIDITY";
+    case 1: return "PRESSURE";
+    case 2: return "UV INDEX";
+    case 3: return "RAIN CHANCE";
+    case 4: return "WIND";
+    case 5: return "CLOUD COVER";
+    case 6: return "VISIBILITY";
+    case 7: return "RAIN (1H)";
+    default: return "";
+  }
+}
+
+String weatherMetricValue(int index) {
+  switch (index) {
+    case 0: return String(humidity) + "%";
+    case 1: return String(pressure) + " hPa";
+    case 2:
+      return uvIndexAvailable ? String(currentUvIndex, 1) : "--";
+    case 3:
+      return rainProbabilityAvailable
+        ? String((int)(currentRainProbability * 100.0f + 0.5f)) + "%"
+        : "--";
+    case 4: return String(windSpeedKmh, 1) + " km/h";
+    case 5: return String(cloudCover) + "%";
+    case 6:
+      return visibilityAvailable
+        ? String(visibilityMeters / 1000.0f, 1) + " km"
+        : "--";
+    case 7: return String(rainLastHourMm, 1) + " mm";
+    default: return "--";
+  }
+}
+
+void drawWeatherMetricItem(
+  Arduino_GFX* target,
+  int index,
+  int x,
+  int y,
+  int panelWidth
+) {
+  target->fillRoundRect(
+    x + 2,
+    y,
+    panelWidth - 4,
+    WEATHER_METRIC_CARD_HEIGHT,
+    6,
+    PANEL);
+
+  String label = weatherMetricLabel(index);
+  target->setTextSize(1);
+  target->setTextColor(MUTED);
+  target->setCursor(x + 9, y + 5);
+  target->print(label);
+
+  String value = weatherMetricValue(index);
+  uint8_t valueSize = value.length() <= 6 ? 2 : 1;
+  target->setTextSize(valueSize);
+  target->setTextColor(ACCENT);
+  int16_t x1, y1;
+  uint16_t w, h;
+  target->getTextBounds(value.c_str(), 0, 0, &x1, &y1, &w, &h);
+  int valueX = x + (panelWidth - (int)w) / 2;
+  int valueY = y + (valueSize == 2 ? 20 : 25);
+  target->setCursor(valueX, valueY);
+  target->print(value);
+}
+
+// Render the metrics panel into a small off-screen buffer, then transfer the
+// complete panel in one bitmap operation. This avoids clearing/repainting
+// individual cards directly to the LCD for each animation frame.
+void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
+  int panelWidth = weatherMetricsPanelWidth();
+
+  if (weatherMetricsCanvas != nullptr) {
+    weatherMetricsCanvas->fillScreen(BG);
+
+    int firstIndex = max(0, baseOffset - 1);
+    int lastIndex = min(
+      WEATHER_METRIC_COUNT,
+      baseOffset + WEATHER_METRICS_VISIBLE + 1);
+
+    for (int index = firstIndex; index < lastIndex; index++) {
+      int y = WEATHER_METRIC_ROW_TOP +
+              (index - baseOffset) * WEATHER_METRIC_ROW_STEP -
+              scrollPixels;
+      if (y + WEATHER_METRIC_CARD_HEIGHT <= 0 ||
+          y >= WEATHER_METRIC_PANEL_HEIGHT) {
+        continue;
+      }
+
+      drawWeatherMetricItem(weatherMetricsCanvas, index, 0, y, panelWidth);
+    }
+
+    weatherMetricsCanvas->flush();
+    return;
+  }
+
+  // Static fallback if the additional canvas could not be allocated.
+  gfx->fillRect(
+    weatherMetricsPanelX(),
+    WEATHER_METRIC_PANEL_TOP,
+    panelWidth,
+    WEATHER_METRIC_PANEL_HEIGHT,
+    BG);
+
+  int visible = min(
+    WEATHER_METRICS_VISIBLE,
+    max(0, WEATHER_METRIC_COUNT - baseOffset));
+  for (int i = 0; i < visible; i++) {
+    int y = WEATHER_METRIC_PANEL_TOP +
+            WEATHER_METRIC_ROW_TOP +
+            i * WEATHER_METRIC_ROW_STEP;
+    drawWeatherMetricItem(
+      gfx,
+      baseOffset + i,
+      weatherMetricsPanelX(),
+      y,
+      panelWidth);
+  }
+}
+
+void drawWeatherMetricsCounter() {
+  int firstItem = weatherMetricOffset + 1;
+  int lastItem = min(
+    weatherMetricOffset + WEATHER_METRICS_VISIBLE,
+    WEATHER_METRIC_COUNT);
+  String rangeText = String(firstItem) + "-" + String(lastItem) +
+                     "/" + String(WEATHER_METRIC_COUNT);
+  drawText(
+    rangeText,
+    weatherMetricsPanelX() + 5,
+    WEATHER_METRIC_PANEL_BOTTOM + 2,
+    1,
+    UI_YELLOW);
+}
+
+void drawWeatherMetricsPanel(int baseOffset, int scrollPixels) {
+  int maxOffset = max(
+    0,
+    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+  if (baseOffset < 0) baseOffset = 0;
+  if (baseOffset > maxOffset) baseOffset = maxOffset;
+
+  drawWeatherMetricsViewport(baseOffset, scrollPixels);
+}
+
+void animateWeatherMetricsScroll(int direction) {
+  int targetOffset = weatherMetricOffset + direction;
+  int maxOffset = max(
+    0,
+    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+
+  if (targetOffset < 0 || targetOffset > maxOffset) return;
+
+  // If memory is too constrained for the buffer, update the page in one
+  // redraw rather than using a multi-frame direct-render animation.
+  if (weatherMetricsCanvas == nullptr) {
+    weatherMetricOffset = targetOffset;
+    drawWeatherMetricsPanel(weatherMetricOffset, 0);
+    drawWeatherMetricsCounter();
+    return;
+  }
+
+  const int animationFrames = 7;
+  const int animationDelayMs = 8;
+  int startOffset = weatherMetricOffset;
+
+  for (int frame = 1; frame <= animationFrames; frame++) {
+    float progress = (float)frame / animationFrames;
+    float easedProgress = progress * progress * (3.0f - 2.0f * progress);
+    int scrollPixels = (int)(
+      direction * WEATHER_METRIC_ROW_STEP * easedProgress);
+    drawWeatherMetricsViewport(startOffset, scrollPixels);
+    delay(animationDelayMs);
+  }
+
+  weatherMetricOffset = targetOffset;
+  drawWeatherMetricsCounter();
+}
+
+  drawWeatherMetricsPanel(weatherMetricOffset, 0);
+  drawWeatherMetricsCounter();
 
   gfx->drawFastHLine(10, screenH - 29, screenW - 20, PANEL);
   drawTabIndicator();
@@ -983,7 +1179,30 @@ void handleGesture(uint8_t gesture) {
   }
 
   if (currentTab == 0) {
-    Serial.println("Action: vertical gesture ignored on current-weather screen");
+    if (gesture == GESTURE_SCREEN_UP) {
+      int maxOffset = max(
+        0,
+        WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+      if (weatherMetricOffset < maxOffset) {
+        animateWeatherMetricsScroll(1);
+        Serial.printf(
+          "Action: scrolled current-weather metrics forward; offset=%d\\n",
+          weatherMetricOffset);
+      } else {
+        Serial.println("Action: already at last current-weather metric");
+      }
+    } else if (gesture == GESTURE_SCREEN_DOWN) {
+      if (weatherMetricOffset > 0) {
+        animateWeatherMetricsScroll(-1);
+        Serial.printf(
+          "Action: scrolled current-weather metrics backward; offset=%d\\n",
+          weatherMetricOffset);
+      } else {
+        Serial.println("Action: already at first current-weather metric");
+      }
+    } else {
+      Serial.println("Action: vertical gesture ignored on current-weather screen");
+    }
     return;
   }
 
@@ -1126,6 +1345,11 @@ bool fetchWeather() {
   feelsLike = doc["main"]["feels_like"] | 0.0f;
   humidity = doc["main"]["humidity"] | 0;
   pressure = doc["main"]["pressure"] | 0;
+  windSpeedKmh = (doc["wind"]["speed"] | 0.0f) * 3.6f;
+  cloudCover = doc["clouds"]["all"] | 0;
+  visibilityAvailable = !doc["visibility"].isNull();
+  visibilityMeters = doc["visibility"] | 0;
+  rainLastHourMm = doc["rain"]["1h"] | 0.0f;
   weatherAvailable = true;
 
   Serial.printf(
@@ -1237,6 +1461,19 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
     const char* desc = item["weather"][0]["main"] | "Unknown";
     float temp = item["temp"] | 0.0f;
 
+    // The first valid hourly record is the nearest available estimate for
+    // current UV index and precipitation probability.
+    if (forecastCount == 0) {
+      if (!item["uvi"].isNull()) {
+        currentUvIndex = item["uvi"].as<float>();
+        uvIndexAvailable = true;
+      }
+      if (!item["pop"].isNull()) {
+        currentRainProbability = item["pop"].as<float>();
+        rainProbabilityAvailable = true;
+      }
+    }
+
     forecast[forecastCount].timestamp = timestamp;
     forecast[forecastCount].timeText = formatForecastTime(timestamp, locationTimezoneOffset);
     forecast[forecastCount].description = String(desc);
@@ -1256,6 +1493,10 @@ bool fetchForecast() {
 
   forecastCount = 0;
   forecastError = "";
+  currentUvIndex = 0.0f;
+  currentRainProbability = 0.0f;
+  uvIndexAvailable = false;
+  rainProbabilityAvailable = false;
 
   String nextUrl =
     "https://api.openweathermap.org/data/4.0/onecall/timeline/1h?lat=" + String(locationLat, 4) + "&lon=" + String(locationLon, 4) + "&units=metric&appid=" + String(apiKey);
