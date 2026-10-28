@@ -14,6 +14,9 @@ const char* wifiSsid = WIFI_SSID;
 const char* wifiPassword = WIFI_PASSWORD;
 const char* apiKey = OPENWEATHER_API_KEY;
 const char* CITY = "Manchester,GB";
+float locationLat = 53.4808f;
+float locationLon = -2.2426f;
+long locationTimezoneOffset = 0;
 const unsigned long UPDATE_INTERVAL = 600000UL;
 
 // =====================================================
@@ -84,6 +87,8 @@ const uint16_t ERROR_COLOUR = 0xF986;
 String weatherCity = "";
 String weatherDescription = "";
 String weatherMain = "";
+String weatherIcon = "03d";
+String forecastError = "";
 float temperature = 0.0;
 float feelsLike = 0.0;
 int humidity = 0;
@@ -92,13 +97,14 @@ bool weatherAvailable = false;
 bool forecastAvailable = false;
 unsigned long lastUpdate = 0;
 
-const int MAX_FORECAST = 40;
+const int MAX_FORECAST = 48;
 const int ITEMS_PER_PAGE = 4;
 
 struct ForecastItem {
   String timeText;
   String description;
   float temp;
+  uint32_t timestamp;
 };
 
 ForecastItem forecast[MAX_FORECAST];
@@ -175,6 +181,98 @@ void drawError(const String& message) {
 }
 
 // =====================================================
+// WEATHER CONDITION ICONS (drawn with Arduino_GFX primitives)
+// =====================================================
+
+void drawSunIcon(int cx, int cy, int radius) {
+  const uint16_t sunColour = UI_YELLOW;
+  gfx->drawLine(cx, cy - radius - 7, cx, cy - radius - 3, sunColour);
+  gfx->drawLine(cx, cy + radius + 3, cx, cy + radius + 7, sunColour);
+  gfx->drawLine(cx - radius - 7, cy, cx - radius - 3, cy, sunColour);
+  gfx->drawLine(cx + radius + 3, cy, cx + radius + 7, cy, sunColour);
+  gfx->drawLine(cx - radius - 5, cy - radius - 5, cx - radius - 2, cy - radius - 2, sunColour);
+  gfx->drawLine(cx + radius + 2, cy - radius - 2, cx + radius + 5, cy - radius - 5, sunColour);
+  gfx->drawLine(cx - radius - 5, cy + radius + 5, cx - radius - 2, cy + radius + 2, sunColour);
+  gfx->drawLine(cx + radius + 2, cy + radius + 2, cx + radius + 5, cy + radius + 5, sunColour);
+  gfx->fillCircle(cx, cy, radius, sunColour);
+}
+
+void drawMoonIcon(int cx, int cy, int radius) {
+  gfx->fillCircle(cx, cy, radius, UI_YELLOW);
+  gfx->fillCircle(cx + radius / 2, cy - radius / 2, radius, BG);
+}
+
+void drawCloudIcon(int x, int y, uint16_t colour) {
+  gfx->fillCircle(x + 13, y + 17, 10, colour);
+  gfx->fillCircle(x + 26, y + 11, 13, colour);
+  gfx->fillCircle(x + 39, y + 18, 9, colour);
+  gfx->fillRoundRect(x + 5, y + 16, 40, 16, 7, colour);
+}
+
+void drawWeatherConditionIcon(const String& iconCode, const String& condition, int x, int y) {
+  String code = iconCode.length() >= 2 ? iconCode.substring(0, 2) : "";
+  bool night = iconCode.endsWith("n");
+  uint16_t cloudColour = MUTED;
+
+  if (code == "01") {
+    if (night) drawMoonIcon(x + 28, y + 25, 10);
+    else drawSunIcon(x + 28, y + 25, 10);
+    return;
+  }
+
+  if (code == "02") {
+    if (night) drawMoonIcon(x + 35, y + 13, 7);
+    else drawSunIcon(x + 35, y + 13, 7);
+    drawCloudIcon(x + 1, y + 13, cloudColour);
+    return;
+  }
+
+  if (code == "03" || code == "04" || code == "09" ||
+      code == "10" || code == "11" || code == "13") {
+    drawCloudIcon(x + 1, y + 9, cloudColour);
+  }
+
+  if (code == "09" || code == "10") {
+    gfx->drawLine(x + 15, y + 42, x + 11, y + 48, ACCENT);
+    gfx->drawLine(x + 28, y + 42, x + 24, y + 48, ACCENT);
+    gfx->drawLine(x + 40, y + 42, x + 36, y + 48, ACCENT);
+    return;
+  }
+
+  if (code == "11") {
+    gfx->fillTriangle(x + 27, y + 34, x + 19, y + 44, x + 26, y + 44, UI_YELLOW);
+    gfx->fillTriangle(x + 26, y + 42, x + 31, y + 42, x + 22, y + 51, UI_YELLOW);
+    return;
+  }
+
+  if (code == "13") {
+    gfx->fillCircle(x + 16, y + 42, 2, UI_WHITE);
+    gfx->fillCircle(x + 28, y + 46, 2, UI_WHITE);
+    gfx->fillCircle(x + 39, y + 41, 2, UI_WHITE);
+    gfx->drawLine(x + 28, y + 42, x + 28, y + 49, UI_WHITE);
+    gfx->drawLine(x + 24, y + 46, x + 32, y + 46, UI_WHITE);
+    return;
+  }
+
+  if (code == "50") {
+    gfx->drawFastHLine(x + 2, y + 14, 48, MUTED);
+    gfx->drawFastHLine(x + 7, y + 24, 40, MUTED);
+    gfx->drawFastHLine(x + 1, y + 34, 46, MUTED);
+    return;
+  }
+
+  if (code == "03" || code == "04") {
+    // A second, darker cloud gives overcast conditions more visual weight.
+    gfx->drawFastHLine(x + 8, y + 42, 38, cloudColour);
+  } else if (condition.equalsIgnoreCase("Clear")) {
+    if (night) drawMoonIcon(x + 28, y + 25, 10);
+    else drawSunIcon(x + 28, y + 25, 10);
+  } else {
+    drawCloudIcon(x + 1, y + 9, cloudColour);
+  }
+}
+
+// =====================================================
 // CURRENT WEATHER SCREEN
 // =====================================================
 
@@ -191,8 +289,9 @@ void drawWeather() {
   if (description.length() > 23) description = description.substring(0, 22) + ".";
   drawText(description, 12, 73, 1, MUTED);
 
-  drawText(String(temperature, 1) + " C", 12, 91, 4, UI_YELLOW);
-  drawText("Feels " + String(feelsLike, 1) + " C", 12, 137, 1, MUTED);
+  drawWeatherConditionIcon(weatherIcon, weatherMain, 14, 83);
+  drawText(String(temperature, 1) + " C", 80, 96, 3, UI_YELLOW);
+  drawText("Feels " + String(feelsLike, 1) + " C", 80, 135, 1, MUTED);
 
   int cardX = (screenW * 60) / 100;
   int cardW = screenW - cardX - 10;
@@ -225,13 +324,13 @@ void drawForecast() {
   currentTab = 1;
   gfx->fillScreen(BG);
   drawHeader();
-  drawText("UPCOMING FORECAST", 10, 44, 1, UI_WHITE);
+  drawText("UPCOMING HOURLY FORECAST", 10, 44, 1, UI_WHITE);
 
   int visible = forecastCount - forecastOffset;
   if (visible > ITEMS_PER_PAGE) visible = ITEMS_PER_PAGE;
 
   if (!forecastAvailable || forecastCount == 0) {
-    drawCenteredText("No forecast data", 100, 1, MUTED);
+    drawCenteredText(forecastError.length() ? forecastError : "No hourly data", 100, 1, MUTED);
   } else {
     for (int i = 0; i < visible; i++) {
       int index = forecastOffset + i;
@@ -456,6 +555,10 @@ bool fetchWeather() {
   weatherCity = doc["name"] | "Unknown";
   weatherDescription = doc["weather"][0]["description"] | "Unknown";
   weatherMain = doc["weather"][0]["main"] | "Unknown";
+  weatherIcon = doc["weather"][0]["icon"] | "03d";
+  locationLat = doc["coord"]["lat"] | locationLat;
+  locationLon = doc["coord"]["lon"] | locationLon;
+  locationTimezoneOffset = doc["timezone"] | locationTimezoneOffset;
   temperature = doc["main"]["temp"] | 0.0f;
   feelsLike = doc["main"]["feels_like"] | 0.0f;
   humidity = doc["main"]["humidity"] | 0;
@@ -470,28 +573,39 @@ bool fetchWeather() {
 }
 
 // =====================================================
-// FETCH FORECAST
+// FETCH ONE CALL 4.0 HOURLY FORECAST
 // =====================================================
 
-bool fetchForecast() {
-  if (!connectWiFi()) {
-    forecastAvailable = false;
-    return false;
+String formatForecastTime(uint32_t timestamp, long timezoneOffset) {
+  time_t localTimestamp = (time_t)timestamp + (time_t)timezoneOffset;
+  struct tm localTime;
+  gmtime_r(&localTimestamp, &localTime);
+
+  char clockText[8];
+  snprintf(clockText, sizeof(clockText), "%02d:%02d", localTime.tm_hour, localTime.tm_min);
+
+  if (forecastCount > 0) {
+    time_t firstTimestamp = (time_t)forecast[0].timestamp + (time_t)timezoneOffset;
+    struct tm firstTime;
+    gmtime_r(&firstTimestamp, &firstTime);
+
+    if (localTime.tm_yday != firstTime.tm_yday || localTime.tm_year != firstTime.tm_year) {
+      const char* dayNames[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+      return String(dayNames[localTime.tm_wday]) + " " + String(clockText);
+    }
   }
 
+  return String(clockText);
+}
+
+bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
   WiFiClientSecure client;
   client.setInsecure();
+
   HTTPClient http;
-
-  String url =
-    "https://api.openweathermap.org/data/2.5/forecast?q=" +
-    String(CITY) +
-    "&appid=" + String(apiKey) +
-    "&units=metric";
-
-  Serial.println("Requesting forecast...");
   if (!http.begin(client, url)) {
-    forecastAvailable = false;
+    forecastError = "Hourly API unavailable";
+    Serial.println("One Call HTTP initialisation failed");
     return false;
   }
 
@@ -500,9 +614,16 @@ bool fetchForecast() {
   int code = http.GET();
 
   if (code != HTTP_CODE_OK) {
-    Serial.printf("Forecast HTTP status: %d\n", code);
+    Serial.printf("One Call hourly HTTP status: %d\n", code);
     http.end();
-    forecastAvailable = false;
+
+    if (code == 401 || code == 403) {
+      forecastError = "Enable One Call API";
+    } else if (code == 429) {
+      forecastError = "Hourly API rate limit";
+    } else {
+      forecastError = "Hourly API request failed";
+    }
     return false;
   }
 
@@ -511,33 +632,89 @@ bool fetchForecast() {
   http.end();
 
   if (error) {
-    Serial.printf("Forecast JSON error: %s\n", error.c_str());
-    forecastAvailable = false;
+    Serial.printf("One Call hourly JSON error: %s\n", error.c_str());
+    forecastError = "Hourly data parse failed";
     return false;
   }
 
-  JsonArray list = doc["list"].as<JsonArray>();
-  forecastCount = 0;
+  locationTimezoneOffset = doc["timezone_offset"] | locationTimezoneOffset;
+  nextUrl = doc["next"] | "";
+
+  JsonArray list = doc["data"].as<JsonArray>();
   for (JsonObject item : list) {
     if (forecastCount >= MAX_FORECAST) break;
 
-    const char* dtText = item["dt_txt"] | "";
-    const char* desc = item["weather"][0]["main"] | "Unknown";
-    float temp = item["main"]["temp"] | 0.0f;
-    String timeText = String(dtText);
+    uint32_t timestamp = item["dt"] | 0UL;
+    if (timestamp == 0) continue;
 
-    if (timeText.length() >= 16) {
-      timeText = timeText.substring(5, 10) + " " + timeText.substring(11, 16);
+    bool duplicate = false;
+    for (int i = 0; i < forecastCount; i++) {
+      if (forecast[i].timestamp == timestamp) {
+        duplicate = true;
+        break;
+      }
     }
+    if (duplicate) continue;
 
-    forecast[forecastCount].timeText = timeText;
+    const char* desc = item["weather"][0]["main"] | "Unknown";
+    float temp = item["temp"] | 0.0f;
+
+    forecast[forecastCount].timestamp = timestamp;
+    forecast[forecastCount].timeText = formatForecastTime(timestamp, locationTimezoneOffset);
     forecast[forecastCount].description = String(desc);
     forecast[forecastCount].temp = temp;
     forecastCount++;
   }
 
+  return true;
+}
+
+bool fetchForecast() {
+  if (!connectWiFi()) {
+    forecastAvailable = false;
+    forecastError = "Wi-Fi unavailable";
+    return false;
+  }
+
+  forecastCount = 0;
+  forecastOffset = 0;
+  forecastError = "";
+
+  String nextUrl =
+    "https://api.openweathermap.org/data/4.0/onecall/timeline/1h?lat=" +
+    String(locationLat, 4) +
+    "&lon=" + String(locationLon, 4) +
+    "&units=metric&appid=" + String(apiKey);
+
+  // The 1-hour endpoint returns up to 20 entries per request. Follow its
+  // prepared pagination URL until we have up to 48 hours or no next page.
+  int pageCount = 0;
+  const int MAX_HOURLY_PAGES = 3;
+
+  while (nextUrl.length() > 0 &&
+         forecastCount < MAX_FORECAST &&
+         pageCount < MAX_HOURLY_PAGES) {
+    String pageUrl = nextUrl;
+    String pageNext = "";
+    if (!fetchOneCallForecastPage(pageUrl, pageNext)) {
+      if (forecastCount == 0) {
+        forecastAvailable = false;
+        Serial.println("Hourly forecast unavailable. Check One Call API 4.0 subscription and API key.");
+        return false;
+      }
+      break;
+    }
+
+    nextUrl = pageNext;
+    pageCount++;
+  }
+
   forecastAvailable = forecastCount > 0;
-  Serial.printf("Forecast periods received: %d\n", forecastCount);
+  if (!forecastAvailable && forecastError.length() == 0) {
+    forecastError = "No hourly data";
+  }
+
+  Serial.printf("Hourly forecast records received: %d across %d page(s)\n", forecastCount, pageCount);
   return forecastAvailable;
 }
 
