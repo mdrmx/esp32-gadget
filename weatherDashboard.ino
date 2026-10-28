@@ -139,7 +139,7 @@ const int ITEMS_PER_PAGE = 3;
 const int WEATHER_METRIC_COUNT = 8;
 const int WEATHER_METRICS_VISIBLE = 3;
 const int WEATHER_METRIC_PANEL_TOP = 47;
-const int WEATHER_METRIC_PANEL_HEIGHT = 153;
+const int WEATHER_METRIC_PANEL_HEIGHT = 152;
 const int WEATHER_METRIC_PANEL_BOTTOM =
   WEATHER_METRIC_PANEL_TOP + WEATHER_METRIC_PANEL_HEIGHT;
 const int WEATHER_METRIC_CARD_HEIGHT = 46;
@@ -1574,7 +1574,7 @@ void setup() {
       FORECAST_VIEWPORT_HEIGHT);
   }
 
-  // Buffer just the narrow metrics column (about 36 KB at 118x153 RGB565).
+  // Buffer just the narrow metrics column (about 35 KB at 118x152 RGB565).
   weatherMetricsCanvas = new Arduino_Canvas(
     weatherMetricsPanelWidth(),
     WEATHER_METRIC_PANEL_HEIGHT,
