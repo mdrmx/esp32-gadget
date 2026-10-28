@@ -65,6 +65,10 @@ Arduino_DataBus* bus = new Arduino_ESP32SPI(
 Arduino_GFX* gfx = new Arduino_ST7789(
   bus, LCD_RST, LCD_ROTATION, true, LCD_WIDTH, LCD_HEIGHT);
 
+// Buffered forecast viewport used to render each scroll frame off-screen,
+// then send it to the ST7789 as one bitmap transfer.
+Arduino_Canvas* forecastCanvas = nullptr;
+
 int screenW = 320;
 int screenH = 240;
 
@@ -121,9 +125,16 @@ unsigned long lastUpdate = 0;
 
 const int MAX_FORECAST = 48;
 const int ITEMS_PER_PAGE = 3;
-const int FORECAST_ROW_TOP = 62;
-const int FORECAST_ROW_STEP = 39;
-const int FORECAST_CARD_HEIGHT = 33;
+
+// Keep the title above and the range/navigation footer below the scrolling
+// viewport. Three taller cards use the available height evenly.
+const int FORECAST_VIEWPORT_TOP = 60;
+const int FORECAST_VIEWPORT_HEIGHT = 147;
+const int FORECAST_VIEWPORT_BOTTOM =
+  FORECAST_VIEWPORT_TOP + FORECAST_VIEWPORT_HEIGHT;
+const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 3;
+const int FORECAST_ROW_STEP = 49;
+const int FORECAST_CARD_HEIGHT = 43;
 
 struct ForecastItem {
   String timeText;
@@ -783,22 +794,27 @@ void drawWeather() {
 // FORECAST SCREEN
 // =====================================================
 
-void drawForecastItem(int index, int y) {
-  gfx->fillRoundRect(8, y, screenW - 16, FORECAST_CARD_HEIGHT, 6, PANEL);
-  drawText(forecast[index].timeText, 16, y + 11, 1, UI_WHITE);
+void drawForecastItem(Arduino_GFX* target, int index, int y) {
+  target->fillRoundRect(8, y, screenW - 16, FORECAST_CARD_HEIGHT, 6, PANEL);
+
+  target->setTextSize(1);
+  target->setTextColor(UI_WHITE);
+  target->setCursor(16, y + (FORECAST_CARD_HEIGHT - 8) / 2);
+  target->print(forecast[index].timeText);
 
   String desc = forecast[index].description;
   if (desc.length() > 12) desc = desc.substring(0, 11) + ".";
-  drawText(desc, 90, y + 11, 1, MUTED);
+  target->setTextColor(MUTED);
+  target->setCursor(90, y + (FORECAST_CARD_HEIGHT - 8) / 2);
+  target->print(desc);
 
   String temp = String(forecast[index].temp, 1) + "C";
-  gfx->setTextSize(1);
-  gfx->setTextColor(UI_YELLOW);
+  target->setTextColor(UI_YELLOW);
   int16_t x1, y1;
   uint16_t w, h;
-  gfx->getTextBounds(temp.c_str(), 0, y + 11, &x1, &y1, &w, &h);
-  gfx->setCursor(screenW - 16 - w, y + 11);
-  gfx->print(temp);
+  target->getTextBounds(temp.c_str(), 0, 0, &x1, &y1, &w, &h);
+  target->setCursor(screenW - 16 - w, y + (FORECAST_CARD_HEIGHT - 8) / 2);
+  target->print(temp);
 }
 
 void drawForecastFooter() {
@@ -810,68 +826,104 @@ void drawForecastFooter() {
   drawTabIndicator();
 }
 
-// Render one scrolling frame. scrollPixels moves the records vertically while
-// the header and footer are redrawn afterwards, masking anything that travels
-// outside the three-row viewport.
-void drawForecastFrame(int baseOffset, int scrollPixels) {
-  const int viewportTop = FORECAST_ROW_TOP;
-  const int viewportBottom = FORECAST_ROW_TOP + ITEMS_PER_PAGE * FORECAST_ROW_STEP;
+// Render the moving region off-screen, then flush it to the LCD as one RGB565
+// bitmap. This avoids the many separate SPI drawing operations that caused
+// visible tearing/flicker during the earlier direct-to-display animation.
+void drawForecastViewport(int baseOffset, int scrollPixels) {
+  if (forecastCanvas != nullptr) {
+    forecastCanvas->fillScreen(BG);
 
-  gfx->fillRect(0, viewportTop, screenW, viewportBottom - viewportTop, BG);
+    int firstIndex = max(0, baseOffset - 1);
+    int lastIndex = min(forecastCount, baseOffset + ITEMS_PER_PAGE + 1);
+    for (int index = firstIndex; index < lastIndex; index++) {
+      int y = FORECAST_ROW_TOP +
+              (index - baseOffset) * FORECAST_ROW_STEP -
+              scrollPixels;
 
-  int firstIndex = max(0, baseOffset - 1);
-  int lastIndex = min(forecastCount, baseOffset + ITEMS_PER_PAGE + 1);
-  for (int index = firstIndex; index < lastIndex; index++) {
-    int y = FORECAST_ROW_TOP + (index - baseOffset) * FORECAST_ROW_STEP - scrollPixels;
-    if (y + FORECAST_CARD_HEIGHT < 0 || y >= screenH) continue;
-    drawForecastItem(index, y);
+      // Ignore fully off-screen cards. The canvas clips any partial card
+      // at its edges, so no card can overwrite the fixed title or footer.
+      if (y + FORECAST_CARD_HEIGHT <= FORECAST_VIEWPORT_TOP ||
+          y >= FORECAST_VIEWPORT_BOTTOM) {
+        continue;
+      }
+
+      drawForecastItem(forecastCanvas, index, y - FORECAST_VIEWPORT_TOP);
+    }
+
+    forecastCanvas->flush();
+    return;
   }
 
-  // Redraw the fixed header/title and footer after moving rows; these areas
-  // also mask rows that slide outside the viewport.
-  gfx->fillRect(0, 0, screenW, viewportTop, BG);
-  drawHeader();
-  drawText("UPCOMING HOURLY FORECAST", 10, 44, 1, UI_WHITE);
+  // Safe fallback if the canvas buffer could not be allocated: render the
+  // three settled rows directly and disable frame-by-frame animation below.
+  gfx->fillRect(
+    0,
+    FORECAST_VIEWPORT_TOP,
+    screenW,
+    FORECAST_VIEWPORT_HEIGHT,
+    BG);
 
-  gfx->fillRect(0, viewportBottom, screenW, screenH - viewportBottom, BG);
-  drawForecastFooter();
+  int visible = min(ITEMS_PER_PAGE, max(0, forecastCount - baseOffset));
+  for (int i = 0; i < visible; i++) {
+    int y = FORECAST_ROW_TOP + i * FORECAST_ROW_STEP;
+    drawForecastItem(gfx, baseOffset + i, y);
+  }
 }
 
 void drawForecast() {
   currentTab = 1;
+  gfx->fillScreen(BG);
+  drawHeader();
+  drawText("UPCOMING HOURLY FORECAST", 10, 44, 1, UI_WHITE);
+
   if (!forecastAvailable || forecastCount == 0) {
-    gfx->fillScreen(BG);
-    drawHeader();
-    drawText("UPCOMING HOURLY FORECAST", 10, 44, 1, UI_WHITE);
     drawCenteredText(forecastError.length() ? forecastError : "No hourly data", 100, 1, MUTED);
     drawForecastFooter();
     return;
   }
 
-  drawForecastFrame(forecastOffset, 0);
+  // Clear only the forecast area; the static header/title/footer remain fixed.
+  gfx->fillRect(
+    0,
+    FORECAST_VIEWPORT_TOP,
+    screenW,
+    FORECAST_VIEWPORT_HEIGHT,
+    BG);
+  drawForecastViewport(forecastOffset, 0);
+  drawForecastFooter();
 }
 
-// Animate a one-row scroll with easing so the relationship between the swipe
-// and the changing forecast position is visible without a sudden jump.
+// Animate one row with easing. Each frame is drawn into the off-screen canvas
+// and transferred as a single viewport bitmap; the header does not repaint.
 void animateForecastScroll(int direction) {
   int targetOffset = forecastOffset + direction;
   int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
   if (targetOffset < 0 || targetOffset > maxOffset) return;
 
-  const int animationFrames = 6;
-  const int animationDelayMs = 12;
+  // If memory is unavailable, prefer a single clean page redraw over a
+  // visibly flickering multi-frame direct-render animation.
+  if (forecastCanvas == nullptr) {
+    forecastOffset = targetOffset;
+    drawForecast();
+    return;
+  }
+
+  const int animationFrames = 7;
+  const int animationDelayMs = 8;
   int startOffset = forecastOffset;
 
   for (int frame = 1; frame <= animationFrames; frame++) {
     float progress = (float)frame / animationFrames;
     float easedProgress = progress * progress * (3.0f - 2.0f * progress);
     int scrollPixels = (int)(direction * FORECAST_ROW_STEP * easedProgress);
-    drawForecastFrame(startOffset, scrollPixels);
+    drawForecastViewport(startOffset, scrollPixels);
     delay(animationDelayMs);
   }
 
   forecastOffset = targetOffset;
-  drawForecast();
+  // Only the counter needs updating after the last frame; the final animated
+  // viewport already matches the target offset.
+  drawForecastFooter();
 }
 
 // =====================================================
@@ -1258,6 +1310,29 @@ void setup() {
   digitalWrite(LCD_BL, HIGH);
   screenW = gfx->width();
   screenH = gfx->height();
+
+  // Buffer only the scrolling forecast viewport, not the entire 320x240 UI.
+  // This keeps memory use modest while letting each animation frame flush
+  // as one rectangular bitmap to the ST7789.
+  forecastCanvas = new Arduino_Canvas(
+    screenW,
+    FORECAST_VIEWPORT_HEIGHT,
+    gfx,
+    0,
+    FORECAST_VIEWPORT_TOP,
+    0);
+
+  if (forecastCanvas == nullptr ||
+      !forecastCanvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
+    Serial.println("Forecast canvas unavailable; animated scrolling disabled.");
+    delete forecastCanvas;
+    forecastCanvas = nullptr;
+  } else {
+    Serial.printf(
+      "Forecast canvas ready: %d x %d\n",
+      screenW,
+      FORECAST_VIEWPORT_HEIGHT);
+  }
 
   Serial.printf("Logical display size: %d x %d\n", screenW, screenH);
   Wire.begin(TOUCH_SDA, TOUCH_SCL);
