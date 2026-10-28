@@ -741,54 +741,6 @@ int drawOpenWeatherIcon(int x, int y) {
 // CURRENT WEATHER SCREEN
 // =====================================================
 
-void drawWeather() {
-  currentTab = 0;
-  gfx->fillScreen(BG);
-  drawHeader();
-
-  // Lay out the weather stack from top to bottom. Each element's measured
-  // height determines where the next element begins, so a wrapped description
-  // moves the temperature and feels-like value down without overlapping.
-  const int contentCentreX = 96;
-  const int descriptionMaxWidth = 176;
-
-  // Adjust these gaps independently (all values are pixels).
-  // Adjust these gaps independently (all values are pixels).
-  const int iconDescriptionGap = -7;
-  const int descriptionTemperatureGap = 10;
-  const int temperatureFeelsGap = 8;
-
-  int contentY = 37;
-
-  int iconHeight = drawOpenWeatherIcon(46, contentY);
-  contentY += (iconHeight > 0 ? iconHeight : 0) + iconDescriptionGap;
-
-  int descriptionHeight = drawWrappedCenteredText(
-    weatherDescription,
-    contentCentreX,
-    descriptionMaxWidth,
-    contentY,
-    2,
-    MUTED);
-  contentY += descriptionHeight + descriptionTemperatureGap;
-
-  String temperatureText = String(temperature, 1) + " C";
-  int temperatureHeight = drawCenteredWeatherLine(
-    temperatureText,
-    contentCentreX,
-    contentY,
-    2,
-    UI_YELLOW);
-  contentY += temperatureHeight + temperatureFeelsGap;
-
-  String feelsText = "Feels " + String(feelsLike, 1) + " C";
-  drawCenteredWeatherLine(
-    feelsText,
-    contentCentreX,
-    contentY,
-    1,
-    MUTED);
-
 int weatherMetricsPanelX() {
   return (screenW * 60) / 100;
 }
@@ -957,7 +909,56 @@ void animateWeatherMetricsScroll(int direction) {
   // redraw rather than using a multi-frame direct-render animation.
   if (weatherMetricsCanvas == nullptr) {
     weatherMetricOffset = targetOffset;
-    drawWeatherMetricsPanel(weatherMetricOffset, 0);
+  
+void drawWeather() {
+  currentTab = 0;
+  gfx->fillScreen(BG);
+  drawHeader();
+
+  // Lay out the weather stack from top to bottom. Each element's measured
+  // height determines where the next element begins, so a wrapped description
+  // moves the temperature and feels-like value down without overlapping.
+  const int contentCentreX = 96;
+  const int descriptionMaxWidth = 176;
+
+  // Adjust these gaps independently (all values are pixels).
+  // Adjust these gaps independently (all values are pixels).
+  const int iconDescriptionGap = -7;
+  const int descriptionTemperatureGap = 10;
+  const int temperatureFeelsGap = 8;
+
+  int contentY = 37;
+
+  int iconHeight = drawOpenWeatherIcon(46, contentY);
+  contentY += (iconHeight > 0 ? iconHeight : 0) + iconDescriptionGap;
+
+  int descriptionHeight = drawWrappedCenteredText(
+    weatherDescription,
+    contentCentreX,
+    descriptionMaxWidth,
+    contentY,
+    2,
+    MUTED);
+  contentY += descriptionHeight + descriptionTemperatureGap;
+
+  String temperatureText = String(temperature, 1) + " C";
+  int temperatureHeight = drawCenteredWeatherLine(
+    temperatureText,
+    contentCentreX,
+    contentY,
+    2,
+    UI_YELLOW);
+  contentY += temperatureHeight + temperatureFeelsGap;
+
+  String feelsText = "Feels " + String(feelsLike, 1) + " C";
+  drawCenteredWeatherLine(
+    feelsText,
+    contentCentreX,
+    contentY,
+    1,
+    MUTED);
+
+  drawWeatherMetricsPanel(weatherMetricOffset, 0);
     drawWeatherMetricsCounter();
     return;
   }
@@ -1186,7 +1187,7 @@ void handleGesture(uint8_t gesture) {
       if (weatherMetricOffset < maxOffset) {
         animateWeatherMetricsScroll(1);
         Serial.printf(
-          "Action: scrolled current-weather metrics forward; offset=%d\\n",
+          "Action: scrolled current-weather metrics forward; offset=%d\n",
           weatherMetricOffset);
       } else {
         Serial.println("Action: already at last current-weather metric");
@@ -1195,7 +1196,7 @@ void handleGesture(uint8_t gesture) {
       if (weatherMetricOffset > 0) {
         animateWeatherMetricsScroll(-1);
         Serial.printf(
-          "Action: scrolled current-weather metrics backward; offset=%d\\n",
+          "Action: scrolled current-weather metrics backward; offset=%d\n",
           weatherMetricOffset);
       } else {
         Serial.println("Action: already at first current-weather metric");
@@ -1591,7 +1592,7 @@ void setup() {
     weatherMetricsCanvas = nullptr;
   } else {
     Serial.printf(
-      "Weather-metrics canvas ready: %d x %d\\n",
+      "Weather-metrics canvas ready: %d x %d\n",
       weatherMetricsPanelWidth(),
       WEATHER_METRIC_PANEL_HEIGHT);
   }
