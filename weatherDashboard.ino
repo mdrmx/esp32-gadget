@@ -358,7 +358,6 @@ void drawForecast() {
   String rangeText = String(firstItem) + "-" + String(lastItem) + "/" + String(forecastCount);
   drawText("UP/DOWN SCROLL", 10, screenH - 25, 1, MUTED);
   drawText(rangeText, screenW - 58, screenH - 25, 1, UI_YELLOW);
-  drawText("LEFT/RIGHT TABS", 10, screenH - 12, 1, MUTED);
   drawTabIndicator();
 }
 
@@ -677,7 +676,6 @@ bool fetchForecast() {
   }
 
   forecastCount = 0;
-  forecastOffset = 0;
   forecastError = "";
 
   String nextUrl =
