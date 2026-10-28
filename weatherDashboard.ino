@@ -671,7 +671,7 @@ int drawOpenWeatherIcon(int x, int y) {
     drawWeatherPngLine);
 
   if (openResult != PNG_SUCCESS) {
-    Serial.printf("OpenWeather PNG open failed: %d\\n", openResult);
+    Serial.printf("OpenWeather PNG open failed: %d\n", openResult);
     return 0;
   }
 
@@ -679,7 +679,7 @@ int drawOpenWeatherIcon(int x, int y) {
   int iconHeight = weatherPngDecoder.getHeight();
 
   if (iconWidth > 100 || iconHeight > 100) {
-    Serial.printf("OpenWeather PNG dimensions unexpected: %d x %d\\n", iconWidth, iconHeight);
+    Serial.printf("OpenWeather PNG dimensions unexpected: %d x %d\n", iconWidth, iconHeight);
     weatherPngDecoder.close();
     return 0;
   }
@@ -693,7 +693,7 @@ int drawOpenWeatherIcon(int x, int y) {
 
   int decodeResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
   if (decodeResult != PNG_SUCCESS) {
-    Serial.printf("OpenWeather PNG decode failed: %d\\n", decodeResult);
+    Serial.printf("OpenWeather PNG decode failed: %d\n", decodeResult);
   }
 
   weatherPngDecoder.close();
