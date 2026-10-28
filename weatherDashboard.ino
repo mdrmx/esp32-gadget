@@ -14,6 +14,10 @@
 // CONFIGURATION
 // =====================================================
 
+// Development switch: 1 uses deterministic local sample data and makes NO
+// weather, time, or icon HTTP requests. Set to 0 for live API-backed weather.
+#define USE_DEMO_WEATHER_DATA 1
+
 const char* wifiSsid = WIFI_SSID;
 const char* wifiPassword = WIFI_PASSWORD;
 const char* apiKey = OPENWEATHER_API_KEY;
@@ -132,6 +136,8 @@ bool rainProbabilityAvailable = false;
 bool weatherAvailable = false;
 bool forecastAvailable = false;
 unsigned long lastUpdate = 0;
+
+bool loadDemoWeatherData();
 
 const int MAX_FORECAST = 48;
 const int ITEMS_PER_PAGE = 3;
@@ -373,6 +379,10 @@ void refreshHeaderClock() {
 }
 
 bool fetchTimeFromAPI() {
+#if USE_DEMO_WEATHER_DATA
+  Serial.println("Demo mode: skipping TimeAPI.io request.");
+  return false;
+#endif
   lastTimeApiAttemptMs = millis();
 
   if (WiFi.status() != WL_CONNECTED) {
@@ -484,6 +494,9 @@ bool fetchTimeFromAPI() {
 }
 
 void maybeSyncTimeFromAPI() {
+#if USE_DEMO_WEATHER_DATA
+  return;
+#endif
   if (WiFi.status() != WL_CONNECTED) {
     return;
   }
@@ -604,6 +617,9 @@ int drawWeatherPngLine(PNGDRAW* pDraw) {
 }
 
 bool loadOpenWeatherIconPNG() {
+#if USE_DEMO_WEATHER_DATA
+  return false;  // Keep demo mode completely offline.
+#endif
   if (weatherIcon.length() != 3) {
     Serial.printf("Invalid OpenWeather icon code: %s\n", weatherIcon.c_str());
     return false;
@@ -1291,6 +1307,9 @@ bool connectWiFi() {
 // =====================================================
 
 bool fetchWeather() {
+#if USE_DEMO_WEATHER_DATA
+  return loadDemoWeatherData();
+#endif
   if (!connectWiFi()) {
     if (weatherAvailable) drawWeather();
     else drawError("Wi-Fi unavailable");
@@ -1384,6 +1403,56 @@ String formatForecastTime(uint32_t timestamp, long timezoneOffset) {
   }
 
   return String(clockText);
+}
+
+// Deterministic UI fixture for feature development. This intentionally fills
+// every metric and several forecast states without connecting to Wi-Fi.
+bool loadDemoWeatherData() {
+  weatherCity = "Manchester";
+  weatherDescription = "scattered clouds";
+  weatherMain = "Clouds";
+  weatherIcon = "03d";
+  locationLat = 53.4808f;
+  locationLon = -2.2426f;
+  locationTimezoneOffset = 0;
+  temperature = 14.6f;
+  feelsLike = 13.8f;
+  humidity = 68;
+  pressure = 1014;
+  windSpeedKmh = 16.2f;
+  cloudCover = 40;
+  visibilityMeters = 10000;
+  rainLastHourMm = 0.2f;
+  currentUvIndex = 1.4f;
+  currentRainProbability = 0.25f;
+  visibilityAvailable = true;
+  uvIndexAvailable = true;
+  rainProbabilityAvailable = true;
+  weatherAvailable = true;
+  forecastError = "";
+  forecastCount = 24;
+  forecastOffset = min(forecastOffset, max(0, forecastCount - ITEMS_PER_PAGE));
+
+  const char* descriptions[] = {
+    "Clouds", "Clouds", "Rain", "Clouds", "Clear", "Clear",
+    "Clouds", "Rain", "Clouds", "Clear", "Clouds", "Clouds"
+  };
+  const float temperatures[] = {
+    14.6f, 14.1f, 13.8f, 13.2f, 12.9f, 12.5f,
+    12.1f, 11.8f, 11.6f, 11.9f, 12.4f, 13.0f
+  };
+  const time_t now = time(nullptr);
+  for (int i = 0; i < forecastCount; i++) {
+    int sample = i % 12;
+    forecast[i].timestamp = (uint32_t)(now + (time_t)i * 3600);
+    forecast[i].timeText = formatForecastTime(
+      forecast[i].timestamp, locationTimezoneOffset);
+    forecast[i].description = descriptions[sample];
+    forecast[i].temp = temperatures[sample];
+  }
+  forecastAvailable = true;
+  Serial.println("Demo mode: loaded local weather and 24 sample forecast entries; no API calls.");
+  return true;
 }
 
 bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
@@ -1487,6 +1556,9 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
 }
 
 bool fetchForecast() {
+#if USE_DEMO_WEATHER_DATA
+  return loadDemoWeatherData();
+#endif
   if (!connectWiFi()) {
     forecastAvailable = false;
     forecastError = "Wi-Fi unavailable";
@@ -1608,8 +1680,26 @@ void setup() {
 
   initialiseTimeZone();
 
+#if USE_DEMO_WEATHER_DATA
+  // Set a repeatable local clock so the header and forecast time labels render
+  // during offline UI development. The clock advances normally after setup.
+  struct tm demoClock = {};
+  demoClock.tm_year = 2026 - 1900;
+  demoClock.tm_mon = 9;
+  demoClock.tm_mday = 28;
+  demoClock.tm_hour = 18;
+  demoClock.tm_min = 0;
+  demoClock.tm_isdst = -1;
+  time_t demoEpoch = mktime(&demoClock);
+  struct timeval demoSystemTime;
+  demoSystemTime.tv_sec = demoEpoch;
+  demoSystemTime.tv_usec = 0;
+  settimeofday(&demoSystemTime, nullptr);
+  Serial.println("DEMO MODE ENABLED: network and API calls are disabled.");
+#else
   drawLoading("Starting up...");
   connectWiFi();  // Starts a time API request when connectivity is available.
+#endif
   fetchWeather();
   fetchForecast();
 
