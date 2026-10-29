@@ -230,11 +230,11 @@ const int FORECAST_ROW_STEP = 52;
 const int FORECAST_CARD_HEIGHT = 48;
 const int FORECAST_GRAPH_POINTS = 6;
 const int FORECAST_CONTROL_TOP = 37;
-const int FORECAST_CONTROL_BOTTOM = 59;
-// Slightly expand the tap target beyond the larger segmented control, while
-// stopping before the forecast viewport so vertical list drags remain distinct.
+const int FORECAST_CONTROL_BOTTOM = 60;
+// The enlarged buttons end at y=60. Keep a small dead zone before the list
+// viewport so the control's expanded hit target cannot begin a forecast drag.
 const int FORECAST_CONTROL_HIT_TOP = FORECAST_CONTROL_TOP - 3;
-const int FORECAST_CONTROL_HIT_BOTTOM = FORECAST_VIEWPORT_TOP;
+const int FORECAST_CONTROL_HIT_BOTTOM = 60;
 // Let small touchscreen coordinate jitter count as a button tap, but cancel
 // a deliberate swipe/drag that starts on the control strip.
 const int FORECAST_CONTROL_TAP_SLOP_PX = 14;
