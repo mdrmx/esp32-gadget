@@ -186,7 +186,7 @@ unsigned long lastUpdate = 0;
 bool loadDemoWeatherData();
 
 const int MAX_FORECAST = 48;
-const int ITEMS_PER_PAGE = 4;
+const int ITEMS_PER_PAGE = 3;
 
 const int WEATHER_METRIC_COUNT = 8;
 const int WEATHER_METRICS_VISIBLE = 3;
