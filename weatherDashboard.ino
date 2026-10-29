@@ -203,6 +203,10 @@ const int WEATHER_METRIC_PANEL_BOTTOM =
   WEATHER_METRIC_PANEL_TOP + WEATHER_METRIC_PANEL_HEIGHT;
 const int WEATHER_METRIC_CARD_HEIGHT = 54;
 const int WEATHER_METRIC_ROW_STEP = 59;
+// Keep overscroll smaller than half a card step so release always snaps to
+// the first/last card at the boundary instead of advancing to another row.
+const int WEATHER_METRIC_OVERSCROLL_MAX_PX = 20;
+const int WEATHER_METRIC_OVERSCROLL_RESISTANCE_DIVISOR = 3;
 const int WEATHER_METRIC_ROW_TOP = 2;
 int weatherMetricOffset = 0;
 
@@ -1016,23 +1020,39 @@ int maxWeatherMetricScrollPixels() {
   return maxOffset * WEATHER_METRIC_ROW_STEP;
 }
 
-int clampWeatherMetricScrollPixels(int pixels) {
-  return constrain(pixels, 0, maxWeatherMetricScrollPixels());
+// Convert finger-driven scroll into a resisted position beyond the limits.
+// Normal scrolling remains 1:1; only the excess beyond either boundary is
+// damped and capped so the cards move a little without disappearing off-screen.
+int elasticWeatherMetricScrollPixels(int pixels) {
+  const int maxScroll = maxWeatherMetricScrollPixels();
+
+  if (pixels < 0) {
+    const int excess = -pixels;
+    const int resisted = excess / WEATHER_METRIC_OVERSCROLL_RESISTANCE_DIVISOR;
+    return -min(WEATHER_METRIC_OVERSCROLL_MAX_PX, resisted);
+  }
+
+  if (pixels > maxScroll) {
+    const int excess = pixels - maxScroll;
+    const int resisted = excess / WEATHER_METRIC_OVERSCROLL_RESISTANCE_DIVISOR;
+    return maxScroll +
+      min(WEATHER_METRIC_OVERSCROLL_MAX_PX, resisted);
+  }
+
+  return pixels;
 }
 
 void drawWeatherMetricsAtScrollPosition(int pixels) {
-  pixels = clampWeatherMetricScrollPixels(pixels);
+  // Snap animation also starts from the elastic position, so allow a small
+  // bounded overrun here and rely on the off-screen panel to clip the cards.
+  const int maxScroll = maxWeatherMetricScrollPixels();
+  pixels = constrain(
+    pixels,
+    -WEATHER_METRIC_OVERSCROLL_MAX_PX,
+    maxScroll + WEATHER_METRIC_OVERSCROLL_MAX_PX);
 
   int baseOffset = pixels / WEATHER_METRIC_ROW_STEP;
   int scrollPixels = pixels % WEATHER_METRIC_ROW_STEP;
-  int maxOffset = max(
-    0,
-    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
-
-  if (baseOffset > maxOffset) {
-    baseOffset = maxOffset;
-    scrollPixels = 0;
-  }
   drawWeatherMetricsViewport(baseOffset, scrollPixels);
 }
 
@@ -1589,7 +1609,7 @@ void updateTouchDrag(const TouchSample& sample) {
   }
 
   if (metricsTouchDragActive && touchPresent) {
-    int nextScroll = clampWeatherMetricScrollPixels(
+    int nextScroll = elasticWeatherMetricScrollPixels(
       metricsDragStartScroll + metricsDragStartY - touchY);
 
     if (nextScroll != metricsDragCurrentScroll) {
