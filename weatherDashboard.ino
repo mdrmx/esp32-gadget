@@ -199,10 +199,10 @@ const int WEATHER_METRIC_ROW_STEP = 59;
 const int WEATHER_METRIC_ROW_TOP = 2;
 int weatherMetricOffset = 0;
 
-// Keep four forecast cards in the expanded content area, leaving a compact
-// 12 px footer for the tab indicator only.
+// Show three larger forecast cards in a shorter buffered viewport, leaving
+// the compact 12 px footer for the tab indicator only.
 const int FORECAST_VIEWPORT_TOP = 60;
-const int FORECAST_VIEWPORT_HEIGHT = 168;
+const int FORECAST_VIEWPORT_HEIGHT = 156;
 const int FORECAST_VIEWPORT_BOTTOM =
   FORECAST_VIEWPORT_TOP + FORECAST_VIEWPORT_HEIGHT;
 
@@ -210,9 +210,9 @@ const int FORECAST_VIEWPORT_BOTTOM =
 const int TAB_TRANSITION_CONTENT_TOP = 37;
 const int TAB_TRANSITION_FOOTER_HEIGHT = 12;
 
-const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 3;
-const int FORECAST_ROW_STEP = 42;
-const int FORECAST_CARD_HEIGHT = 39;
+const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP;
+const int FORECAST_ROW_STEP = 52;
+const int FORECAST_CARD_HEIGHT = 48;
 // Limit full-viewport bitmap transfers during fast finger drags.
 const unsigned long FORECAST_DRAG_RENDER_INTERVAL_MS = 50UL;
 
@@ -1142,24 +1142,28 @@ void drawWeather() {
 void drawForecastItem(Arduino_GFX* target, int index, int y) {
   target->fillRoundRect(8, y, screenW - 16, FORECAST_CARD_HEIGHT, 6, PANEL);
 
-  target->setTextSize(1);
+  // Put the time and temperature on a prominent first line.
+  target->setTextSize(2);
   target->setTextColor(UI_WHITE);
-  target->setCursor(16, y + (FORECAST_CARD_HEIGHT - 8) / 2);
+  target->setCursor(16, y + 5);
   target->print(forecast[index].timeText);
-
-  String desc = forecast[index].description;
-  if (desc.length() > 12) desc = desc.substring(0, 11) + ".";
-  target->setTextColor(MUTED);
-  target->setCursor(90, y + (FORECAST_CARD_HEIGHT - 8) / 2);
-  target->print(desc);
 
   String temp = String(forecast[index].temp, 1) + "C";
   target->setTextColor(UI_YELLOW);
   int16_t x1, y1;
   uint16_t w, h;
   target->getTextBounds(temp.c_str(), 0, 0, &x1, &y1, &w, &h);
-  target->setCursor(screenW - 16 - w, y + (FORECAST_CARD_HEIGHT - 8) / 2);
+  target->setCursor(screenW - 16 - w, y + 5);
   target->print(temp);
+
+  // Keep the description on its own line so it remains readable without
+  // competing for horizontal space with the larger temperature.
+  String desc = forecast[index].description;
+  if (desc.length() > 34) desc = desc.substring(0, 33) + ".";
+  target->setTextSize(1);
+  target->setTextColor(MUTED);
+  target->setCursor(16, y + 30);
+  target->print(desc);
 }
 
 void drawForecastFooter() {
