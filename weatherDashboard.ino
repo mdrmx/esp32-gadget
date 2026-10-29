@@ -2013,6 +2013,7 @@ void updateTouchDrag(const TouchSample& sample) {
     forecastGraphTouchStartedMs = millis();
     forecastGraphTouchStartX = touchX;
     forecastGraphTouchStartY = touchY;
+    forecastGraphTouchStartScroll = forecastGraphScrollPixels;
     forecastGraphDragActive = false;
     forecastGraphDragMoved = false;
     forecastGraphDragHasRendered = false;
