@@ -1682,20 +1682,16 @@ void animateForecastGraphSnap(int startPixels, int targetPixels) {
 }
 
 void handleForecastControlTap(uint8_t control) {
-  if (control == 3) {
-    forecastOffset = constrain(
-      forecastGraphOffset, 0, max(0, forecastCount - ITEMS_PER_PAGE));
-    forecastGraphView = false;
-  } else if (control == 4) {
-    forecastGraphScrollPixels = constrain(
-      forecastOffset * FORECAST_GRAPH_POINT_SPACING,
-      0,
-      maxForecastGraphScrollPixels());
-    syncForecastGraphOffsetFromScroll();
-    forecastGraphView = true;
-  } else {
-    return;
-  }
+  if (control != 3 && control != 4) return;
+
+  // List and Graph are separate views of the hourly forecast. Switching
+  // between them always starts at the first hour rather than carrying across
+  // the other view's scroll position.
+  forecastOffset = 0;
+  forecastGraphOffset = 0;
+  forecastGraphScrollPixels = 0;
+  forecastGraphDragCurrentScroll = 0;
+  forecastGraphView = control == 4;
 
   drawForecast();
   // Prevent a selector tap from being reinterpreted as a controller swipe.
@@ -1804,11 +1800,29 @@ void drawForecast() {
   drawForecastFooter();
 }
 
+// Reset every scroll position whenever the user changes the main tab.
+// This keeps each screen predictable when revisiting it, rather than restoring
+// the previous scroll position from the last visit.
+void resetScrollableViewPositions() {
+  weatherMetricOffset = 0;
+  forecastOffset = 0;
+  forecastGraphOffset = 0;
+  forecastGraphScrollPixels = 0;
+
+  // Keep the transient pixel positions in sync with their canonical offsets.
+  metricsDragCurrentScroll = 0;
+  forecastDragCurrentScroll = 0;
+  forecastGraphDragCurrentScroll = 0;
+}
+
 // Render the destination tab off-screen, then slide it over the current tab.
 // The viewport renderers bypass their own canvases during composition so they
 // cannot flush partial content to the physical display mid-transition.
 void animateTabTransition(int targetTab, int direction) {
   if (targetTab == currentTab) return;
+
+  // Reset outgoing and incoming content before composing the destination frame.
+  resetScrollableViewPositions();
 
   if (tabTransitionCanvas == nullptr) {
     if (targetTab == 0) drawWeather();
