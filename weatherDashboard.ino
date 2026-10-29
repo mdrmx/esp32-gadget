@@ -16,9 +16,9 @@
 // CONFIGURATION
 // =====================================================
 
-// Development switch: 1 uses deterministic local sample data and makes NO
-// weather, time, or icon HTTP requests. Set to 0 for live API-backed weather.
-#define USE_DEMO_WEATHER_DATA 1
+// Set to 1 for deterministic offline UI development. Live weather and
+// IP-based location are enabled by default for normal device use.
+#define USE_DEMO_WEATHER_DATA 0
 
 #if USE_DEMO_WEATHER_DATA
   #define DEBUG_PRINT(...) Serial.print(__VA_ARGS__)
@@ -37,6 +37,10 @@ const char* CITY = "Manchester,GB";
 float locationLat = 53.4808f;
 float locationLon = -2.2426f;
 long locationTimezoneOffset = 0;
+// Keep the display name supplied by IP geolocation separate from the weather
+// provider's place/station name, which can be broader than the actual location.
+String ipLocationCity = "";
+bool locationCoordinatesFromIP = false;
 const unsigned long UPDATE_INTERVAL = 600000UL;
 
 // =====================================================
@@ -432,9 +436,11 @@ void reportHeapSummary() {
 }
 
 String getHeaderLocationText() {
-  String label = weatherCity;
+  // Prefer the resolved IP location in the UI. The weather provider's "name"
+  // may instead identify a nearby reporting station or larger city.
+  String label = ipLocationCity.length() > 0 ? ipLocationCity : weatherCity;
 
-  // Before the current-weather response arrives, use the configured city.
+  // Before either response arrives, use the configured city.
   if (label.length() == 0) {
     label = String(CITY);
     int comma = label.indexOf(',');
@@ -1869,6 +1875,131 @@ bool connectWiFi() {
 // FETCH CURRENT WEATHER
 // =====================================================
 
+// Resolve the nearest named place for IP-derived coordinates through
+// OpenWeather's reverse-geocoding endpoint. Keep the IP provider's city as a
+// fallback if reverse geocoding fails.
+bool resolveLocationNameFromCoordinates() {
+#if USE_DEMO_WEATHER_DATA
+  Serial.println("[LOCATION] Demo mode: skipping OpenWeather reverse geocoding.");
+  return false;
+#endif
+  Serial.printf("[LOCATION] Reverse geocoding coordinates %.5f, %.5f...\n",
+                locationLat, locationLon);
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[LOCATION] Reverse geocoding skipped: Wi-Fi is not connected.");
+    return false;
+  }
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+
+  String url =
+    "https://api.openweathermap.org/geo/1.0/reverse?lat=" +
+    String(locationLat, 5) + "&lon=" + String(locationLon, 5) +
+    "&limit=1&appid=" + String(apiKey);
+
+  if (!http.begin(client, url)) {
+    Serial.println("[LOCATION] Could not initialise OpenWeather reverse geocoding; keeping IP city.");
+    return false;
+  }
+
+  http.setConnectTimeout(8000);
+  http.setTimeout(8000);
+  const int status = http.GET();
+  if (status != HTTP_CODE_OK) {
+    Serial.printf("OpenWeather reverse geocoding HTTP status: %d; keeping IP city.\n", status);
+    http.end();
+    return false;
+  }
+
+  JsonDocument doc;
+  const DeserializationError error = deserializeJson(doc, http.getStream());
+  http.end();
+
+  if (error || !doc.is<JsonArray>() || doc.size() == 0 || doc[0]["name"].isNull()) {
+    Serial.printf("[LOCATION] Reverse geocoding response had no place name (JSON error: %s); keeping IP city.\n",
+                  error ? error.c_str() : "none");
+    return false;
+  }
+
+  String resolvedName = doc[0]["name"] | "";
+  resolvedName.trim();
+  if (resolvedName.length() == 0) {
+    Serial.println("[LOCATION] Reverse geocoding returned an empty place name; keeping IP city.");
+    return false;
+  }
+
+  ipLocationCity = resolvedName;
+  Serial.printf("[LOCATION] OpenWeather reverse geocoded place: %s\n", ipLocationCity.c_str());
+  return true;
+}
+
+// Resolve a coarse location from the public IP address until GPS is added.
+// IP geolocation can reflect an ISP/VPN exit point rather than the device.
+bool resolveLocationFromIP() {
+#if USE_DEMO_WEATHER_DATA
+  Serial.println("[LOCATION] Demo mode: skipping IP geolocation.");
+  return false;
+#endif
+  Serial.println("[LOCATION] Starting IP geolocation request...");
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.printf("[LOCATION] IP lookup skipped: Wi-Fi status is %d.\n", (int)WiFi.status());
+    return false;
+  }
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  if (!http.begin(client, "https://ipwho.is/")) {
+    Serial.println("[LOCATION] Could not initialise ipwho.is; using configured fallback.");
+    return false;
+  }
+
+  http.setConnectTimeout(8000);
+  http.setTimeout(8000);
+  const int status = http.GET();
+  if (status != HTTP_CODE_OK) {
+    Serial.printf("IP geolocation HTTP status: %d; using configured fallback.\n", status);
+    http.end();
+    return false;
+  }
+
+  JsonDocument doc;
+  const DeserializationError error = deserializeJson(doc, http.getStream());
+  http.end();
+  if (error || !(doc["success"] | false) ||
+      doc["latitude"].isNull() || doc["longitude"].isNull()) {
+    Serial.printf("[LOCATION] ipwho.is response invalid (JSON error: %s, success: %d); using configured fallback.\n",
+                  error ? error.c_str() : "none",
+                  doc["success"] | false);
+    return false;
+  }
+
+  const float resolvedLat = doc["latitude"].as<float>();
+  const float resolvedLon = doc["longitude"].as<float>();
+  if (!isfinite(resolvedLat) || !isfinite(resolvedLon) ||
+      resolvedLat < -90.0f || resolvedLat > 90.0f ||
+      resolvedLon < -180.0f || resolvedLon > 180.0f) {
+    Serial.printf("[LOCATION] ipwho.is coordinates out of range: %.5f, %.5f; using configured fallback.\n", resolvedLat, resolvedLon);
+    return false;
+  }
+
+  locationLat = resolvedLat;
+  locationLon = resolvedLon;
+  locationCoordinatesFromIP = true;
+  ipLocationCity = doc["city"] | "";
+  ipLocationCity.trim();
+  Serial.printf("[LOCATION] IP lookup succeeded: city='%s', latitude=%.5f, longitude=%.5f\n",
+                ipLocationCity.length() > 0 ? ipLocationCity.c_str() : "city unavailable",
+                (double)locationLat, (double)locationLon);
+
+  // Prefer OpenWeather's place name for the dashboard, while retaining the
+  // same IP-derived coordinates for both weather and hourly forecast requests.
+  resolveLocationNameFromCoordinates();
+  return true;
+}
+
 bool fetchWeather() {
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();
@@ -1885,7 +2016,9 @@ bool fetchWeather() {
   HTTPClient http;
 
   String url =
-    "https://api.openweathermap.org/data/2.5/weather?q=" + String(CITY) + "&appid=" + String(apiKey) + "&units=metric";
+    "https://api.openweathermap.org/data/2.5/weather?lat=" +
+    String(locationLat, 4) + "&lon=" + String(locationLon, 4) +
+    "&appid=" + String(apiKey) + "&units=metric";
 
   if (!http.begin(client, url)) {
     if (weatherAvailable) drawWeather();
@@ -1922,8 +2055,12 @@ bool fetchWeather() {
   weatherDescription = doc["weather"][0]["description"] | "Unknown";
   weatherMain = doc["weather"][0]["main"] | "Unknown";
   weatherIcon = doc["weather"][0]["icon"] | "03d";
-  locationLat = doc["coord"]["lat"] | locationLat;
-  locationLon = doc["coord"]["lon"] | locationLon;
+  // Keep the IP-derived coordinates for the forecast. OpenWeather can
+  // return coordinates for a nearby reporting location instead.
+  if (!locationCoordinatesFromIP) {
+    locationLat = doc["coord"]["lat"] | locationLat;
+    locationLon = doc["coord"]["lon"] | locationLon;
+  }
   locationTimezoneOffset = doc["timezone"] | locationTimezoneOffset;
   temperature = doc["main"]["temp"] | 0.0f;
   feelsLike = doc["main"]["feels_like"] | 0.0f;
@@ -2300,7 +2437,10 @@ void setup() {
   DEBUG_PRINTLN("DEMO MODE ENABLED: network and API calls are disabled.");
 #else
   drawLoading("Starting up...");
-  connectWiFi();  // Starts a time API request when connectivity is available.
+  if (connectWiFi()) {
+    // If IP geolocation fails, keep the configured Manchester coordinates.
+    resolveLocationFromIP();
+  }
 #endif
   fetchWeather();
   fetchForecast();
