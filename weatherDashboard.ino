@@ -73,6 +73,8 @@ Arduino_GFX* gfx = new Arduino_ST7789(
 // then send it to the ST7789 as one bitmap transfer.
 Arduino_Canvas* forecastCanvas = nullptr;
 Arduino_Canvas* weatherMetricsCanvas = nullptr;
+Arduino_Canvas* tabTransitionCanvas = nullptr;
+bool renderingTabTransition = false;
 
 int screenW = 320;
 int screenH = 240;
@@ -840,7 +842,7 @@ void drawWeatherMetricItem(
 void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
   int panelWidth = weatherMetricsPanelWidth();
 
-  if (weatherMetricsCanvas != nullptr) {
+  if (weatherMetricsCanvas != nullptr && !renderingTabTransition) {
     weatherMetricsCanvas->fillScreen(BG);
 
     int firstIndex = max(0, baseOffset - 1);
@@ -1044,7 +1046,7 @@ void drawForecastFooter() {
 // bitmap. This avoids the many separate SPI drawing operations that caused
 // visible tearing/flicker during the earlier direct-to-display animation.
 void drawForecastViewport(int baseOffset, int scrollPixels) {
-  if (forecastCanvas != nullptr) {
+  if (forecastCanvas != nullptr && !renderingTabTransition) {
     forecastCanvas->fillScreen(BG);
 
     int firstIndex = max(0, baseOffset - 1);
@@ -1105,6 +1107,57 @@ void drawForecast() {
     BG);
   drawForecastViewport(forecastOffset, 0);
   drawForecastFooter();
+}
+
+// Render the destination tab off-screen, then slide it over the current tab.
+// The viewport renderers bypass their own canvases during composition so they
+// cannot flush partial content to the physical display mid-transition.
+void animateTabTransition(int targetTab, int direction) {
+  if (targetTab == currentTab) return;
+
+  if (tabTransitionCanvas == nullptr) {
+    if (targetTab == 0) drawWeather();
+    else drawForecast();
+    return;
+  }
+
+  Arduino_GFX* liveDisplay = gfx;
+  renderingTabTransition = true;
+  gfx = tabTransitionCanvas;
+
+  if (targetTab == 0) drawWeather();
+  else drawForecast();
+
+  gfx = liveDisplay;
+  renderingTabTransition = false;
+
+  uint16_t* frameBuffer = tabTransitionCanvas->getFramebuffer();
+  if (frameBuffer == nullptr) {
+    // The composed frame is unavailable: redraw directly rather than leave
+    // the previous tab visible.
+    if (targetTab == 0) drawWeather();
+    else drawForecast();
+    return;
+  }
+
+  const int animationFrames = 8;
+  const int animationDelayMs = 9;
+
+  for (int frame = 1; frame <= animationFrames; frame++) {
+    float progress = (float)frame / animationFrames;
+    float easedProgress = progress * progress * (3.0f - 2.0f * progress);
+    int travel = (int)(screenW * easedProgress);
+    int xOffset = direction > 0 ? screenW - travel : -screenW + travel;
+
+    // The GFX bitmap renderer clips the off-screen part of the moving frame.
+    // Pixels not yet covered retain the outgoing tab beneath it.
+    liveDisplay->draw16bitRGBBitmap(
+      xOffset, 0, frameBuffer, screenW, screenH);
+    delay(animationDelayMs);
+  }
+
+  // Ensure the final frame is exactly aligned regardless of integer rounding.
+  liveDisplay->draw16bitRGBBitmap(0, 0, frameBuffer, screenW, screenH);
 }
 
 // Animate one row with easing. Each frame is drawn into the off-screen canvas
@@ -1171,13 +1224,12 @@ void handleGesture(uint8_t gesture) {
   if (gesture == GESTURE_SCREEN_RIGHT) {
     if (currentTab == 0) {
       forecastOffset = 0;
+      animateTabTransition(1, 1);
       if (forecastAvailable && forecastCount > 0) {
-        drawForecast();
         Serial.println("Action: mapped horizontal-left gesture opened forecast");
       } else {
         // Show the forecast screen even when retrieval failed, so the API
         // error message is visible instead of only a generic unavailable log.
-        drawForecast();
         Serial.printf("Action: forecast unavailable; reason: %s\n", forecastError.length() ? forecastError.c_str() : "No hourly records");
       }
     } else {
@@ -1188,7 +1240,7 @@ void handleGesture(uint8_t gesture) {
 
   if (gesture == GESTURE_SCREEN_LEFT) {
     if (currentTab == 1) {
-      drawWeather();
+      animateTabTransition(0, -1);
       Serial.println("Action: mapped horizontal-right gesture returned to weather");
     } else {
       Serial.println("Action: mapped horizontal-right gesture; already on weather");
@@ -1668,6 +1720,28 @@ void setup() {
       "Weather-metrics canvas ready: %d x %d\n",
       weatherMetricsPanelWidth(),
       WEATHER_METRIC_PANEL_HEIGHT);
+  }
+
+  // Full-screen RGB565 buffer used only when changing tabs. This is the
+  // largest canvas, so allocate it last and keep instant-switch fallback.
+  tabTransitionCanvas = new Arduino_Canvas(
+    screenW,
+    screenH,
+    gfx,
+    0,
+    0,
+    0);
+
+  if (tabTransitionCanvas == nullptr ||
+      !tabTransitionCanvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
+    Serial.println("Tab-transition canvas unavailable; tab changes will be instant.");
+    delete tabTransitionCanvas;
+    tabTransitionCanvas = nullptr;
+  } else {
+    Serial.printf(
+      "Tab-transition canvas ready: %d x %d\n",
+      screenW,
+      screenH);
   }
 
   Serial.printf("Logical display size: %d x %d\n", screenW, screenH);
