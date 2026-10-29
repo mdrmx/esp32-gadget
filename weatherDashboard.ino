@@ -1304,7 +1304,7 @@ void drawForecastItem(Arduino_GFX* target, int index, int y) {
   target->setCursor(72, y + 9);
   target->print(temp);
 
-  String feelsText = "F " +
+  String feelsText = "FL " +
     String((int)round(forecast[index].feelsLike)) + "C";
   target->setTextSize(1);
   target->setTextColor(MUTED);
@@ -1313,7 +1313,7 @@ void drawForecastItem(Arduino_GFX* target, int index, int y) {
 
   const int rainPercent = constrain(
     (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
-  String rainText = "R " + String(rainPercent) + "%";
+  String rainText = "POP " + String(rainPercent) + "%";
   int16_t x1, y1;
   uint16_t w, h;
   target->getTextBounds(rainText.c_str(), 0, 0, &x1, &y1, &w, &h);
@@ -1349,7 +1349,7 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
     target->setCursor(10, fieldY);
     target->print(forecastCompactTime(index));
 
-    String feelsText = "F " +
+    String feelsText = "FL " +
       String((int)round(forecast[index].feelsLike)) + "C";
     target->setTextColor(MUTED);
     target->setCursor(145, fieldY);
@@ -1357,7 +1357,7 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
 
     const int rainPercent = constrain(
       (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
-    String rainText = "R " + String(rainPercent) + "%";
+    String rainText = "POP " + String(rainPercent) + "%";
     int16_t x1, y1;
     uint16_t w, h;
     target->getTextBounds(rainText.c_str(), 0, 0, &x1, &y1, &w, &h);
