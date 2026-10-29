@@ -1931,7 +1931,7 @@ bool resolveLocationNameFromCoordinates() {
   }
 
   ipLocationCity = resolvedName;
-  Serial.printf("OpenWeather reverse geocoded place: %s\n", ipLocationCity.c_str());
+  Serial.printf("[LOCATION] OpenWeather reverse geocoded place: %s\n", ipLocationCity.c_str());
   return true;
 }
 
@@ -1990,7 +1990,7 @@ bool resolveLocationFromIP() {
   locationCoordinatesFromIP = true;
   ipLocationCity = doc["city"] | "";
   ipLocationCity.trim();
-  Serial.printf("IP coordinates: (%.5f, %.5f); initial IP city: %s\n",
+  Serial.printf("[LOCATION] IP lookup succeeded: city='%s', latitude=%.5f, longitude=%.5f\n",
                locationLat, locationLon,
                ipLocationCity.length() > 0 ? ipLocationCity.c_str() : "city unavailable");
 
