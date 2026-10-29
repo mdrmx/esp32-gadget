@@ -1463,10 +1463,6 @@ int maxForecastScrollPixels() {
   return max(0, forecastCount - ITEMS_PER_PAGE) * FORECAST_ROW_STEP;
 }
 
-int clampForecastScrollPixels(int pixels) {
-  return constrain(pixels, 0, maxForecastScrollPixels());
-}
-
 void drawForecastAtScrollPosition(int pixels) {
   const int maxScroll = maxForecastScrollPixels();
   const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
@@ -1756,7 +1752,7 @@ void updateTouchDrag(const TouchSample& sample) {
     // Track every changed position, but check the redraw deadline on every
     // touch sample—even when the finger has stopped moving. This ensures a
     // throttled position is eventually painted while the finger is stationary.
-    if (abs(nextScroll - forecastDragCurrentScroll) >= 2) {
+    if (nextScroll != forecastDragCurrentScroll) {
       forecastTouchDragMoved =
         forecastTouchDragMoved ||
         abs(nextScroll - forecastDragStartScroll) >= 3;
