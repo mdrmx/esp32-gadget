@@ -37,9 +37,9 @@ const char* CITY = "Manchester,GB";
 float locationLat = 53.4808f;
 float locationLon = -2.2426f;
 long locationTimezoneOffset = 0;
-// Keep the display name supplied by IP geolocation separate from the weather
-// provider's place/station name, which can be broader than the actual location.
-String ipLocationCity = "";
+// Prefer a reverse-geocoded display name, with the IP provider's city as a
+// fallback. Keep it separate from the weather provider's station name.
+String locationDisplayName = "";
 bool locationCoordinatesResolved = false;
 const unsigned long UPDATE_INTERVAL = 600000UL;
 
@@ -496,7 +496,7 @@ void reportHeapSummary() {
 String getHeaderLocationText() {
   // Prefer the resolved IP location in the UI. The weather provider's "name"
   // may instead identify a nearby reporting station or larger city.
-  String label = ipLocationCity.length() > 0 ? ipLocationCity : weatherCity;
+  String label = locationDisplayName.length() > 0 ? locationDisplayName : weatherCity;
 
   // Before either response arrives, use the configured city.
   if (label.length() == 0) {
@@ -2782,8 +2782,8 @@ bool resolveLocationNameFromCoordinates() {
     return false;
   }
 
-  ipLocationCity = resolvedName;
-  Serial.printf("[LOCATION] OpenWeather reverse geocoded place: %s\n", ipLocationCity.c_str());
+  locationDisplayName = resolvedName;
+  Serial.printf("[LOCATION] OpenWeather reverse geocoded place: %s\n", locationDisplayName.c_str());
   return true;
 }
 
@@ -3000,7 +3000,7 @@ bool resolveLocationFromWiFi() {
   locationLat = (float)resolvedLat;
   locationLon = (float)resolvedLon;
   locationCoordinatesResolved = true;
-  ipLocationCity = "";
+  locationDisplayName = "";
 
   if (accuracyMeters >= 0.0) {
     Serial.printf(
@@ -3073,10 +3073,10 @@ bool resolveLocationFromIP() {
   locationLat = resolvedLat;
   locationLon = resolvedLon;
   locationCoordinatesResolved = true;
-  ipLocationCity = doc["city"] | "";
-  ipLocationCity.trim();
+  locationDisplayName = doc["city"] | "";
+  locationDisplayName.trim();
   Serial.printf("[LOCATION] IP lookup succeeded: city='%s', latitude=%.5f, longitude=%.5f\n",
-                ipLocationCity.length() > 0 ? ipLocationCity.c_str() : "city unavailable",
+                locationDisplayName.length() > 0 ? locationDisplayName.c_str() : "city unavailable",
                 (double)locationLat, (double)locationLon);
 
   // Prefer OpenWeather's place name for the dashboard, while retaining the
