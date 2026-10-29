@@ -1389,6 +1389,21 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
   }
 }
 
+// Draw just the paging controls. This is also called after an in-place graph
+// page redraw, because the arrow enabled states depend on forecastGraphOffset.
+void drawForecastGraphPagingButtons() {
+  if (!forecastGraphView) return;
+
+  const int maxGraphOffset = max(0, forecastCount - FORECAST_GRAPH_POINTS);
+  const bool canGoBack = forecastGraphOffset > 0;
+  const bool canGoForward = forecastGraphOffset < maxGraphOffset;
+
+  gfx->fillRoundRect(4, 40, 37, 26, 6, PANEL);
+  gfx->fillRoundRect(45, 40, 37, 26, 6, PANEL);
+  drawText("<", 16, 46, 2, canGoBack ? UI_WHITE : MUTED);
+  drawText(">", 57, 46, 2, canGoForward ? UI_WHITE : MUTED);
+}
+
 void drawForecastControls() {
   // Both modes share a 32 px control strip. Visible controls sit 2 px below
   // the header and 2 px above the List rows; touch padding follows the same gap.
@@ -1400,15 +1415,7 @@ void drawForecastControls() {
     BG);
 
   if (forecastGraphView) {
-    const int maxGraphOffset = max(0, forecastCount - FORECAST_GRAPH_POINTS);
-    const bool canGoBack = forecastGraphOffset > 0;
-    const bool canGoForward = forecastGraphOffset < maxGraphOffset;
-
-    // Keep the current widths and reduce each button's height by 4 px.
-    gfx->fillRoundRect(4, 40, 37, 26, 6, PANEL);
-    gfx->fillRoundRect(45, 40, 37, 26, 6, PANEL);
-    drawText("<", 16, 46, 2, canGoBack ? UI_WHITE : MUTED);
-    drawText(">", 57, 46, 2, canGoForward ? UI_WHITE : MUTED);
+    drawForecastGraphPagingButtons();
   } else {
     drawText("HOURLY", 8, 50, 1, UI_WHITE);
   }
@@ -1532,6 +1539,10 @@ void redrawForecastGraphPage() {
     // but no canvas flush or header/control repaint is needed for page changes.
     drawForecastGraph(gfx, FORECAST_VIEWPORT_TOP);
   }
+
+  // Paging changes whether either arrow is enabled. Refresh only the two arrow
+  // buttons so their bright/dim feedback follows the new graph offset.
+  drawForecastGraphPagingButtons();
 }
 
 void handleForecastControlTap(uint8_t control) {
