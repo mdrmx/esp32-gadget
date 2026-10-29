@@ -1423,11 +1423,11 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
 void drawForecastModeSelector() {
   // The viewport canvas begins at y=64, so its flush can overwrite the bottom
   // edge of this selector. This small repaint restores it after graph frames.
-  gfx->fillRoundRect(179, 38, 137, 32, 6, PANEL);
+  gfx->fillRoundRect(179, 41, 137, 26, 6, PANEL);
   if (forecastGraphView) {
-    gfx->fillRoundRect(248, 40, 65, 28, 5, UI_WHITE);
+    gfx->fillRoundRect(248, 41, 67, 24, 5, UI_WHITE);
   } else {
-    gfx->fillRoundRect(181, 40, 65, 28, 5, UI_WHITE);
+    gfx->fillRoundRect(181, 41, 67, 24, 5, UI_WHITE);
   }
   drawText("LIST", 201, 50, 1, forecastGraphView ? MUTED : BG);
   drawText("GRAPH", 265, 50, 1, forecastGraphView ? BG : MUTED);
