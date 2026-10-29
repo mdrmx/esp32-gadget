@@ -20,6 +20,16 @@
 // weather, time, or icon HTTP requests. Set to 0 for live API-backed weather.
 #define USE_DEMO_WEATHER_DATA 1
 
+#if USE_DEMO_WEATHER_DATA
+  #define DEBUG_PRINT(...) Serial.print(__VA_ARGS__)
+  #define DEBUG_PRINTLN(...) Serial.println(__VA_ARGS__)
+  #define DEBUG_PRINTF(...) Serial.printf(__VA_ARGS__)
+#else
+  #define DEBUG_PRINT(...) do {} while (0)
+  #define DEBUG_PRINTLN(...) do {} while (0)
+  #define DEBUG_PRINTF(...) do {} while (0)
+#endif
+
 const char* wifiSsid = WIFI_SSID;
 const char* wifiPassword = WIFI_PASSWORD;
 const char* apiKey = OPENWEATHER_API_KEY;
@@ -354,13 +364,13 @@ void reportCanvasAllocation(
   size_t requestedBytes
 ) {
   if (canvas == nullptr) {
-    Serial.printf("Memory: %s canvas unavailable\n", label);
+    DEBUG_PRINTF("Memory: %s canvas unavailable\n", label);
     return;
   }
 
   void* buffer = canvas->getFramebuffer();
   if (buffer == nullptr) {
-    Serial.printf(
+    DEBUG_PRINTF(
       "Memory: %s canvas has no framebuffer (requested %u bytes)\n",
       label,
       (unsigned)requestedBytes);
@@ -370,7 +380,7 @@ void reportCanvasAllocation(
   const char* region = esp_ptr_external_ram(buffer)
     ? "PSRAM"
     : "not PSRAM (internal/other heap)";
-  Serial.printf(
+  DEBUG_PRINTF(
     "Memory: %s framebuffer=%p, %u bytes, region=%s\n",
     label,
     buffer,
@@ -379,7 +389,7 @@ void reportCanvasAllocation(
 }
 
 void reportHeapSummary() {
-  Serial.printf(
+  DEBUG_PRINTF(
     "Memory summary: PSRAM total=%u free=%u; internal 8-bit free=%u, largest block=%u\n",
     (unsigned)heap_caps_get_total_size(MALLOC_CAP_SPIRAM),
     (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
@@ -431,24 +441,24 @@ void refreshHeaderClock() {
 
 bool fetchTimeFromAPI() {
 #if USE_DEMO_WEATHER_DATA
-  Serial.println("Demo mode: skipping TimeAPI.io request.");
+  DEBUG_PRINTLN("Demo mode: skipping TimeAPI.io request.");
   return false;
 #endif
   lastTimeApiAttemptMs = millis();
 
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Time API skipped: Wi-Fi is not connected.");
+    DEBUG_PRINTLN("Time API skipped: Wi-Fi is not connected.");
     return false;
   }
 
-  Serial.println("Requesting current date/time from TimeAPI.io...");
+  DEBUG_PRINTLN("Requesting current date/time from TimeAPI.io...");
 
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
 
   if (!http.begin(client, TIME_API_URL)) {
-    Serial.println("Could not initialise time API request.");
+    DEBUG_PRINTLN("Could not initialise time API request.");
     return false;
   }
 
@@ -457,13 +467,13 @@ bool fetchTimeFromAPI() {
   int status = http.GET();
 
   if (status != HTTP_CODE_OK) {
-    Serial.printf("Time API HTTP status: %d\n", status);
+    DEBUG_PRINTF("Time API HTTP status: %d\n", status);
     String errorBody = http.getString();
     if (errorBody.length() > 0) {
       if (errorBody.length() > 180) {
         errorBody = errorBody.substring(0, 180);
       }
-      Serial.printf("Time API response: %s\n", errorBody.c_str());
+      DEBUG_PRINTF("Time API response: %s\n", errorBody.c_str());
     }
     http.end();
     return false;
@@ -474,18 +484,18 @@ bool fetchTimeFromAPI() {
   String responseBody = http.getString();
   http.end();
 
-  Serial.printf("Time API response length: %u bytes\n", (unsigned)responseBody.length());
+  DEBUG_PRINTF("Time API response length: %u bytes\n", (unsigned)responseBody.length());
 
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, responseBody);
 
   if (error) {
-    Serial.printf("Time API JSON error: %s\n", error.c_str());
+    DEBUG_PRINTF("Time API JSON error: %s\n", error.c_str());
     String preview = responseBody;
     if (preview.length() > 240) {
       preview = preview.substring(0, 240);
     }
-    Serial.printf("Time API body preview: [%s]\n", preview.c_str());
+    DEBUG_PRINTF("Time API body preview: [%s]\n", preview.c_str());
     return false;
   }
 
@@ -502,9 +512,9 @@ bool fetchTimeFromAPI() {
       hour < 0 || hour > 23 ||
       minute < 0 || minute > 59 ||
       second < 0 || second > 60) {
-    Serial.println("Time API response contained invalid date/time fields.");
+    DEBUG_PRINTLN("Time API response contained invalid date/time fields.");
     serializeJson(doc, Serial);
-    Serial.println();
+    DEBUG_PRINTLN();
     return false;
   }
 
@@ -522,7 +532,7 @@ bool fetchTimeFromAPI() {
 
   time_t epoch = mktime(&localTime);
   if (epoch < MIN_VALID_EPOCH) {
-    Serial.println("Time API date could not be converted to a valid epoch.");
+    DEBUG_PRINTLN("Time API date could not be converted to a valid epoch.");
     return false;
   }
 
@@ -531,7 +541,7 @@ bool fetchTimeFromAPI() {
   newSystemTime.tv_usec = 0;
 
   if (settimeofday(&newSystemTime, nullptr) != 0) {
-    Serial.println("Failed to set ESP32 system time from TimeAPI.io.");
+    DEBUG_PRINTLN("Failed to set ESP32 system time from TimeAPI.io.");
     return false;
   }
 
@@ -539,7 +549,7 @@ bool fetchTimeFromAPI() {
   lastTimeApiSyncMs = millis();
   lastHeaderClock = "";
 
-  Serial.printf("System clock set from API: %04d-%02d-%02d %02d:%02d:%02d Europe/London\n",
+  DEBUG_PRINTF("System clock set from API: %04d-%02d-%02d %02d:%02d:%02d Europe/London\n",
                 year, month, day, hour, minute, second);
   return true;
 }
@@ -672,7 +682,7 @@ bool loadOpenWeatherIconPNG() {
   return false;  // Keep demo mode completely offline.
 #endif
   if (weatherIcon.length() != 3) {
-    Serial.printf("Invalid OpenWeather icon code: %s\n", weatherIcon.c_str());
+    DEBUG_PRINTF("Invalid OpenWeather icon code: %s\n", weatherIcon.c_str());
     return false;
   }
 
@@ -681,14 +691,14 @@ bool loadOpenWeatherIconPNG() {
   }
 
 String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
-  Serial.printf("Downloading OpenWeather icon %s\n", weatherIcon.c_str());
+  DEBUG_PRINTF("Downloading OpenWeather icon %s\n", weatherIcon.c_str());
 
   WiFiClientSecure client;
   client.setInsecure();
 
   HTTPClient http;
   if (!http.begin(client, url)) {
-    Serial.println("Could not initialise OpenWeather icon request");
+    DEBUG_PRINTLN("Could not initialise OpenWeather icon request");
     return false;
   }
 
@@ -697,21 +707,21 @@ String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   int status = http.GET();
 
   if (status != HTTP_CODE_OK) {
-    Serial.printf("OpenWeather icon HTTP status: %d\n", status);
+    DEBUG_PRINTF("OpenWeather icon HTTP status: %d\n", status);
     http.end();
     return false;
   }
 
   int contentLength = http.getSize();
   if (contentLength <= 8 || contentLength > 20000) {
-    Serial.printf("Unexpected OpenWeather icon size: %d bytes\n", contentLength);
+    DEBUG_PRINTF("Unexpected OpenWeather icon size: %d bytes\n", contentLength);
     http.end();
     return false;
   }
 
   uint8_t* newData = (uint8_t*)malloc((size_t)contentLength);
   if (newData == nullptr) {
-    Serial.println("Not enough RAM to cache OpenWeather icon");
+    DEBUG_PRINTLN("Not enough RAM to cache OpenWeather icon");
     http.end();
     return false;
   }
@@ -740,7 +750,7 @@ String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   http.end();
 
   if (bytesRead != (size_t)contentLength || newData[0] != 0x89 || newData[1] != 0x50 || newData[2] != 0x4E || newData[3] != 0x47) {
-    Serial.printf(
+    DEBUG_PRINTF(
       "OpenWeather icon download incomplete/invalid: %u of %d bytes\n",
       (unsigned)bytesRead,
       contentLength);
@@ -756,7 +766,7 @@ String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   weatherIconPngLength = bytesRead;
   cachedWeatherIconCode = weatherIcon;
 
-  Serial.printf(
+  DEBUG_PRINTF(
     "Cached OpenWeather icon %s (%u bytes)\n",
     cachedWeatherIconCode.c_str(),
     (unsigned)weatherIconPngLength);
@@ -775,7 +785,7 @@ int drawOpenWeatherIcon(int x, int y) {
     drawWeatherPngLine);
 
   if (openResult != PNG_SUCCESS) {
-    Serial.printf("OpenWeather PNG open failed: %d\n", openResult);
+    DEBUG_PRINTF("OpenWeather PNG open failed: %d\n", openResult);
     return 0;
   }
 
@@ -783,7 +793,7 @@ int drawOpenWeatherIcon(int x, int y) {
   int iconHeight = weatherPngDecoder.getHeight();
 
   if (iconWidth > 100 || iconHeight > 100) {
-    Serial.printf("OpenWeather PNG dimensions unexpected: %d x %d\n", iconWidth, iconHeight);
+    DEBUG_PRINTF("OpenWeather PNG dimensions unexpected: %d x %d\n", iconWidth, iconHeight);
     weatherPngDecoder.close();
     return 0;
   }
@@ -797,7 +807,7 @@ int drawOpenWeatherIcon(int x, int y) {
 
   int decodeResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
   if (decodeResult != PNG_SUCCESS) {
-    Serial.printf("OpenWeather PNG decode failed: %d\n", decodeResult);
+    DEBUG_PRINTF("OpenWeather PNG decode failed: %d\n", decodeResult);
   }
 
   weatherPngDecoder.close();
@@ -1198,7 +1208,7 @@ void animateTabTransition(int targetTab, int direction) {
   const int animationFrames = 8;
   const int animationDelayMs = 9;
 
-  for (int frame = 1; frame <= animationFrames; frame++) {
+  for (int frame = 1; frame < animationFrames; frame++) {
     float progress = (float)frame / animationFrames;
     float easedProgress = progress * progress * (3.0f - 2.0f * progress);
     int travel = (int)(screenW * easedProgress);
@@ -1292,7 +1302,7 @@ void handleGesture(uint8_t gesture) {
   if (now - lastGestureTime < 250UL) return;
   lastGestureTime = now;
 
-  Serial.printf(
+  DEBUG_PRINTF(
     "Navigation gesture accepted: raw=0x%02X; tab=%d; offset=%d\n",
     gesture, currentTab, forecastOffset);
 
@@ -1303,14 +1313,14 @@ void handleGesture(uint8_t gesture) {
       forecastOffset = 0;
       animateTabTransition(1, 1);
       if (forecastAvailable && forecastCount > 0) {
-        Serial.println("Action: mapped horizontal-left gesture opened forecast");
+        DEBUG_PRINTLN("Action: mapped horizontal-left gesture opened forecast");
       } else {
         // Show the forecast screen even when retrieval failed, so the API
         // error message is visible instead of only a generic unavailable log.
-        Serial.printf("Action: forecast unavailable; reason: %s\n", forecastError.length() ? forecastError.c_str() : "No hourly records");
+        DEBUG_PRINTF("Action: forecast unavailable; reason: %s\n", forecastError.length() ? forecastError.c_str() : "No hourly records");
       }
     } else {
-      Serial.println("Action: mapped horizontal-left gesture; already on forecast");
+      DEBUG_PRINTLN("Action: mapped horizontal-left gesture; already on forecast");
     }
     return;
   }
@@ -1318,9 +1328,9 @@ void handleGesture(uint8_t gesture) {
   if (gesture == GESTURE_SCREEN_LEFT) {
     if (currentTab == 1) {
       animateTabTransition(0, -1);
-      Serial.println("Action: mapped horizontal-right gesture returned to weather");
+      DEBUG_PRINTLN("Action: mapped horizontal-right gesture returned to weather");
     } else {
-      Serial.println("Action: mapped horizontal-right gesture; already on weather");
+      DEBUG_PRINTLN("Action: mapped horizontal-right gesture; already on weather");
     }
     return;
   }
@@ -1332,23 +1342,23 @@ void handleGesture(uint8_t gesture) {
         WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
       if (weatherMetricOffset < maxOffset) {
         animateWeatherMetricsScroll(1);
-        Serial.printf(
+        DEBUG_PRINTF(
           "Action: scrolled current-weather metrics forward; offset=%d\n",
           weatherMetricOffset);
       } else {
-        Serial.println("Action: already at last current-weather metric");
+        DEBUG_PRINTLN("Action: already at last current-weather metric");
       }
     } else if (gesture == GESTURE_SCREEN_DOWN) {
       if (weatherMetricOffset > 0) {
         animateWeatherMetricsScroll(-1);
-        Serial.printf(
+        DEBUG_PRINTF(
           "Action: scrolled current-weather metrics backward; offset=%d\n",
           weatherMetricOffset);
       } else {
-        Serial.println("Action: already at first current-weather metric");
+        DEBUG_PRINTLN("Action: already at first current-weather metric");
       }
     } else {
-      Serial.println("Action: vertical gesture ignored on current-weather screen");
+      DEBUG_PRINTLN("Action: vertical gesture ignored on current-weather screen");
     }
     return;
   }
@@ -1357,9 +1367,9 @@ void handleGesture(uint8_t gesture) {
     int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
     if (forecastOffset < maxOffset) {
       animateForecastScroll(1);
-      Serial.printf("Action: mapped vertical-up gesture advanced one entry; offset=%d\n", forecastOffset);
+      DEBUG_PRINTF("Action: mapped vertical-up gesture advanced one entry; offset=%d\n", forecastOffset);
     } else {
-      Serial.println("Action: already at end of forecast");
+      DEBUG_PRINTLN("Action: already at end of forecast");
     }
     return;
   }
@@ -1367,9 +1377,9 @@ void handleGesture(uint8_t gesture) {
   if (gesture == GESTURE_SCREEN_DOWN) {
     if (forecastOffset > 0) {
       animateForecastScroll(-1);
-      Serial.printf("Action: mapped vertical-down gesture moved back one entry; offset=%d\n", forecastOffset);
+      DEBUG_PRINTF("Action: mapped vertical-down gesture moved back one entry; offset=%d\n", forecastOffset);
     } else {
-      Serial.println("Action: already at beginning of forecast");
+      DEBUG_PRINTLN("Action: already at beginning of forecast");
     }
   }
 }
@@ -1383,7 +1393,7 @@ void pollTouch() {
   // Always log transitions, including the return to zero, so a real swipe
   // can be identified from the exact controller code and stale register state.
   if (gesture != previousRawGesture) {
-    Serial.printf("Touch register transition: 0x%02X -> 0x%02X\n", previousRawGesture, gesture);
+    DEBUG_PRINTF("Touch register transition: 0x%02X -> 0x%02X\n", previousRawGesture, gesture);
     previousRawGesture = gesture;
   }
 
@@ -1396,7 +1406,7 @@ void pollTouch() {
   if (gesture == lastHandledGesture) return;
 
   lastHandledGesture = gesture;
-  Serial.printf("Touch raw gesture: 0x%02X\n", gesture);
+  DEBUG_PRINTF("Touch raw gesture: 0x%02X\n", gesture);
   handleGesture(gesture);
 }
 
@@ -1416,18 +1426,18 @@ bool connectWiFi() {
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 20000UL) {
     delay(500);
-    Serial.print(".");
+    DEBUG_PRINT(".");
   }
-  Serial.println();
+  DEBUG_PRINTLN();
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("Wi-Fi connected");
-    Serial.println(WiFi.localIP());
+    DEBUG_PRINTLN("Wi-Fi connected");
+    DEBUG_PRINTLN(WiFi.localIP());
     maybeSyncTimeFromAPI();
     return true;
   }
 
-  Serial.println("Wi-Fi connection timed out");
+  DEBUG_PRINTLN("Wi-Fi connection timed out");
   return false;
 }
 
@@ -1464,7 +1474,7 @@ bool fetchWeather() {
   int code = http.GET();
 
   if (code != HTTP_CODE_OK) {
-    Serial.printf("Weather HTTP status: %d\n", code);
+    DEBUG_PRINTF("Weather HTTP status: %d\n", code);
     http.end();
     if (weatherAvailable) drawWeather();
     else if (code == 401) drawError("Check API key");
@@ -1478,7 +1488,7 @@ bool fetchWeather() {
   http.end();
 
   if (error) {
-    Serial.printf("Weather JSON error: %s\n", error.c_str());
+    DEBUG_PRINTF("Weather JSON error: %s\n", error.c_str());
     if (weatherAvailable) drawWeather();
     else drawError("JSON parse failed");
     return false;
@@ -1502,7 +1512,7 @@ bool fetchWeather() {
   rainLastHourMm = doc["rain"]["1h"] | 0.0f;
   weatherAvailable = true;
 
-  Serial.printf(
+  DEBUG_PRINTF(
     "%s: %.1f C, %s, humidity %d%%, pressure %d hPa\n",
     weatherCity.c_str(), temperature, weatherDescription.c_str(), humidity, pressure);
   return true;
@@ -1580,7 +1590,7 @@ bool loadDemoWeatherData() {
     forecast[i].temp = temperatures[sample];
   }
   forecastAvailable = true;
-  Serial.println("Demo mode: loaded local weather and 24 sample forecast entries; no API calls.");
+  DEBUG_PRINTLN("Demo mode: loaded local weather and 24 sample forecast entries; no API calls.");
   return true;
 }
 
@@ -1591,7 +1601,7 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
   HTTPClient http;
   if (!http.begin(client, url)) {
     forecastError = "Hourly API unavailable";
-    Serial.println("One Call HTTP initialisation failed");
+    DEBUG_PRINTLN("One Call HTTP initialisation failed");
     return false;
   }
 
@@ -1603,10 +1613,10 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
     // Capture the response body before closing HTTP. OpenWeather normally
     // includes a JSON message for rejected keys, subscriptions, and limits.
     String errorBody = http.getString();
-    Serial.printf("One Call hourly HTTP status: %d\n", code);
+    DEBUG_PRINTF("One Call hourly HTTP status: %d\n", code);
     if (errorBody.length() > 0) {
       if (errorBody.length() > 240) errorBody = errorBody.substring(0, 240);
-      Serial.printf("One Call error response: %s\n", errorBody.c_str());
+      DEBUG_PRINTF("One Call error response: %s\n", errorBody.c_str());
     }
     http.end();
 
@@ -1626,7 +1636,7 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
   http.end();
 
   if (error) {
-    Serial.printf("One Call hourly JSON error: %s\n", error.c_str());
+    DEBUG_PRINTF("One Call hourly JSON error: %s\n", error.c_str());
     forecastError = "Hourly data parse failed";
     return false;
   }
@@ -1636,13 +1646,13 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
 
   JsonArray list = doc["data"].as<JsonArray>();
   if (list.isNull()) {
-    Serial.println("One Call response did not contain a data array.");
+    DEBUG_PRINTLN("One Call response did not contain a data array.");
     serializeJson(doc, Serial);
-    Serial.println();
+    DEBUG_PRINTLN();
     forecastError = "Unexpected One Call data";
     return false;
   }
-  Serial.printf("One Call page contains %u record(s).\n", (unsigned)list.size());
+  DEBUG_PRINTF("One Call page contains %u record(s).\n", (unsigned)list.size());
   for (JsonObject item : list) {
     if (forecastCount >= MAX_FORECAST) break;
 
@@ -1715,7 +1725,7 @@ bool fetchForecast() {
     if (!fetchOneCallForecastPage(pageUrl, pageNext)) {
       if (forecastCount == 0) {
         forecastAvailable = false;
-        Serial.println("Hourly forecast unavailable. Check One Call API 4.0 subscription and API key.");
+        DEBUG_PRINTLN("Hourly forecast unavailable. Check One Call API 4.0 subscription and API key.");
         return false;
       }
       break;
@@ -1728,10 +1738,10 @@ bool fetchForecast() {
   forecastAvailable = forecastCount > 0;
   if (!forecastAvailable && forecastError.length() == 0) {
     forecastError = "No hourly records";
-    Serial.println("One Call returned without any parsable hourly records.");
+    DEBUG_PRINTLN("One Call returned without any parsable hourly records.");
   }
 
-  Serial.printf("Hourly forecast records received: %d across %d page(s)\n", forecastCount, pageCount);
+  DEBUG_PRINTF("Hourly forecast records received: %d across %d page(s)\n", forecastCount, pageCount);
   return forecastAvailable;
 }
 
@@ -1742,7 +1752,7 @@ bool fetchForecast() {
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.println();
+  DEBUG_PRINTLN();
   Serial.println("Waveshare Weather Dashboard");
 
   if (!gfx->begin()) {
@@ -1768,11 +1778,11 @@ void setup() {
 
   if (forecastCanvas == nullptr ||
       !forecastCanvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
-    Serial.println("Forecast canvas unavailable; animated scrolling disabled.");
+    DEBUG_PRINTLN("Forecast canvas unavailable; animated scrolling disabled.");
     delete forecastCanvas;
     forecastCanvas = nullptr;
   } else {
-    Serial.printf(
+    DEBUG_PRINTF(
       "Forecast canvas ready: %d x %d\n",
       screenW,
       FORECAST_VIEWPORT_HEIGHT);
@@ -1789,11 +1799,11 @@ void setup() {
 
   if (weatherMetricsCanvas == nullptr ||
       !weatherMetricsCanvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
-    Serial.println("Weather-metrics canvas unavailable; scrolling animation disabled.");
+    DEBUG_PRINTLN("Weather-metrics canvas unavailable; scrolling animation disabled.");
     delete weatherMetricsCanvas;
     weatherMetricsCanvas = nullptr;
   } else {
-    Serial.printf(
+    DEBUG_PRINTF(
       "Weather-metrics canvas ready: %d x %d\n",
       weatherMetricsPanelWidth(),
       WEATHER_METRIC_PANEL_HEIGHT);
@@ -1811,11 +1821,11 @@ void setup() {
 
   if (tabTransitionCanvas == nullptr ||
       !tabTransitionCanvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
-    Serial.println("Tab-transition canvas unavailable; tab changes will be instant.");
+    DEBUG_PRINTLN("Tab-transition canvas unavailable; tab changes will be instant.");
     delete tabTransitionCanvas;
     tabTransitionCanvas = nullptr;
   } else {
-    Serial.printf(
+    DEBUG_PRINTF(
       "Tab-transition canvas ready: %d x %d\n",
       screenW,
       screenH);
@@ -1838,13 +1848,13 @@ void setup() {
     (size_t)screenW * screenH * sizeof(uint16_t));
   reportHeapSummary();
 
-  Serial.printf("Logical display size: %d x %d\n", screenW, screenH);
+  DEBUG_PRINTF("Logical display size: %d x %d\n", screenW, screenH);
   Wire.begin(TOUCH_SDA, TOUCH_SCL);
   Wire.setClock(100000);
 
   Wire.beginTransmission(TOUCH_ADDR);
   touchAvailable = Wire.endTransmission() == 0;
-  Serial.println(touchAvailable ? "CST816 detected at 0x15" : "Touch controller not detected");
+  DEBUG_PRINTLN(touchAvailable ? "CST816 detected at 0x15" : "Touch controller not detected");
 
   initialiseTimeZone();
 
@@ -1863,7 +1873,7 @@ void setup() {
   demoSystemTime.tv_sec = demoEpoch;
   demoSystemTime.tv_usec = 0;
   settimeofday(&demoSystemTime, nullptr);
-  Serial.println("DEMO MODE ENABLED: network and API calls are disabled.");
+  DEBUG_PRINTLN("DEMO MODE ENABLED: network and API calls are disabled.");
 #else
   drawLoading("Starting up...");
   connectWiFi();  // Starts a time API request when connectivity is available.
@@ -1892,7 +1902,7 @@ void loop() {
 
   if (millis() - lastUpdate >= UPDATE_INTERVAL) {
     lastUpdate = millis();
-    Serial.println("Refreshing weather and forecast...");
+    DEBUG_PRINTLN("Refreshing weather and forecast...");
     bool currentOK = fetchWeather();
     fetchForecast();
 
