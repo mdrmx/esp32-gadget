@@ -112,6 +112,38 @@ uint8_t lastHandledGesture = 0;
 uint8_t previousRawGesture = 0;
 unsigned long lastGestureTime = 0;
 
+struct TouchSample {
+  uint8_t gesture;
+  uint8_t fingerCount;
+  uint8_t event;
+  uint16_t rawX;
+  uint16_t rawY;
+};
+
+bool metricsTouchDragActive = false;
+bool metricsTouchCandidate = false;
+bool metricsTouchDragMoved = false;
+bool touchSampleWasDown = false;
+int metricsDragStartX = 0;
+int metricsDragStartY = 0;
+int metricsDragStartScroll = 0;
+int metricsDragCurrentScroll = 0;
+bool suppressMetricGesture = false;
+unsigned long metricsGestureSuppressionStartedMs = 0;
+
+bool forecastTouchDragActive = false;
+bool forecastTouchCandidate = false;
+bool forecastTouchDragMoved = false;
+bool forecastDragHasRendered = false;
+unsigned long lastForecastDragRenderMs = 0;
+int forecastDragLastRenderedScroll = -1;
+int forecastDragStartX = 0;
+int forecastDragStartY = 0;
+int forecastDragStartScroll = 0;
+int forecastDragCurrentScroll = 0;
+bool suppressForecastGesture = false;
+unsigned long forecastGestureSuppressionStartedMs = 0;
+
 // =====================================================
 // COLOURS
 // =====================================================
@@ -159,28 +191,30 @@ const int ITEMS_PER_PAGE = 3;
 const int WEATHER_METRIC_COUNT = 8;
 const int WEATHER_METRICS_VISIBLE = 3;
 const int WEATHER_METRIC_PANEL_TOP = 47;
-const int WEATHER_METRIC_PANEL_HEIGHT = 152;
+const int WEATHER_METRIC_PANEL_HEIGHT = 177;
 const int WEATHER_METRIC_PANEL_BOTTOM =
   WEATHER_METRIC_PANEL_TOP + WEATHER_METRIC_PANEL_HEIGHT;
-const int WEATHER_METRIC_CARD_HEIGHT = 46;
-const int WEATHER_METRIC_ROW_STEP = 50;
+const int WEATHER_METRIC_CARD_HEIGHT = 54;
+const int WEATHER_METRIC_ROW_STEP = 59;
 const int WEATHER_METRIC_ROW_TOP = 2;
 int weatherMetricOffset = 0;
 
-// Keep the title above and the range/navigation footer below the scrolling
-// viewport. Three taller cards use the available height evenly.
+// Show three larger forecast cards in a shorter buffered viewport, leaving
+// the compact 12 px footer for the tab indicator only.
 const int FORECAST_VIEWPORT_TOP = 60;
-const int FORECAST_VIEWPORT_HEIGHT = 147;
+const int FORECAST_VIEWPORT_HEIGHT = 156;
 const int FORECAST_VIEWPORT_BOTTOM =
   FORECAST_VIEWPORT_TOP + FORECAST_VIEWPORT_HEIGHT;
 
 // Keep the shared header and footer fixed while animating only the main body.
 const int TAB_TRANSITION_CONTENT_TOP = 37;
-const int TAB_TRANSITION_FOOTER_HEIGHT = 29;
+const int TAB_TRANSITION_FOOTER_HEIGHT = 12;
 
-const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 3;
-const int FORECAST_ROW_STEP = 49;
-const int FORECAST_CARD_HEIGHT = 43;
+const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP;
+const int FORECAST_ROW_STEP = 52;
+const int FORECAST_CARD_HEIGHT = 48;
+// Limit full-viewport bitmap transfers during fast finger drags.
+const unsigned long FORECAST_DRAG_RENDER_INTERVAL_MS = 50UL;
 
 struct ForecastItem {
   String timeText;
@@ -879,7 +913,7 @@ void drawWeatherMetricItem(
   String label = weatherMetricLabel(index);
   target->setTextSize(1);
   target->setTextColor(MUTED);
-  target->setCursor(x + 9, y + 5);
+  target->setCursor(x + 9, y + 7);
   target->print(label);
 
   String value = weatherMetricValue(index);
@@ -890,7 +924,7 @@ void drawWeatherMetricItem(
   uint16_t w, h;
   target->getTextBounds(value.c_str(), 0, 0, &x1, &y1, &w, &h);
   int valueX = x + (panelWidth - (int)w) / 2;
-  int valueY = y + (valueSize == 2 ? 20 : 25);
+  int valueY = y + (valueSize == 2 ? 23 : 28);
   target->setCursor(valueX, valueY);
   target->print(value);
 }
@@ -925,7 +959,8 @@ void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
     return;
   }
 
-  // Static fallback if the additional canvas could not be allocated.
+  // Direct-render fallback: honour fractional card offsets when PSRAM buffer
+  // allocation fails. Cards are drawn only when fully inside the viewport.
   gfx->fillRect(
     weatherMetricsPanelX(),
     WEATHER_METRIC_PANEL_TOP,
@@ -933,38 +968,26 @@ void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
     WEATHER_METRIC_PANEL_HEIGHT,
     BG);
 
-  int visible = min(
-    WEATHER_METRICS_VISIBLE,
-    max(0, WEATHER_METRIC_COUNT - baseOffset));
-  for (int i = 0; i < visible; i++) {
-    int y = WEATHER_METRIC_PANEL_TOP +
-            WEATHER_METRIC_ROW_TOP +
-            i * WEATHER_METRIC_ROW_STEP;
+  int firstIndex = max(0, baseOffset - 1);
+  int lastIndex = min(
+    WEATHER_METRIC_COUNT,
+    baseOffset + WEATHER_METRICS_VISIBLE + 1);
+  for (int index = firstIndex; index < lastIndex; index++) {
+    int localY = WEATHER_METRIC_ROW_TOP +
+                 (index - baseOffset) * WEATHER_METRIC_ROW_STEP -
+                 scrollPixels;
+    if (localY < 0 ||
+        localY + WEATHER_METRIC_CARD_HEIGHT > WEATHER_METRIC_PANEL_HEIGHT) {
+      continue;
+    }
+
     drawWeatherMetricItem(
       gfx,
-      baseOffset + i,
+      index,
       weatherMetricsPanelX(),
-      y,
+      WEATHER_METRIC_PANEL_TOP + localY,
       panelWidth);
   }
-}
-
-void drawWeatherMetricsCounter() {
-  int firstItem = weatherMetricOffset + 1;
-  int lastItem = min(
-    weatherMetricOffset + WEATHER_METRICS_VISIBLE,
-    WEATHER_METRIC_COUNT);
-  String rangeText = String(firstItem) + "-" + String(lastItem) +
-                     "/" + String(WEATHER_METRIC_COUNT);
-  int x = weatherMetricsPanelX() + 5;
-  int y = WEATHER_METRIC_PANEL_BOTTOM + 2;
-  gfx->fillRect(x, y, 50, 8, BG);
-  drawText(
-    rangeText,
-    x,
-    y,
-    1,
-    UI_YELLOW);
 }
 
 void drawWeatherMetricsPanel(int baseOffset, int scrollPixels) {
@@ -975,6 +998,58 @@ void drawWeatherMetricsPanel(int baseOffset, int scrollPixels) {
   if (baseOffset > maxOffset) baseOffset = maxOffset;
 
   drawWeatherMetricsViewport(baseOffset, scrollPixels);
+}
+
+int maxWeatherMetricScrollPixels() {
+  const int maxOffset = max(
+    0,
+    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+  return maxOffset * WEATHER_METRIC_ROW_STEP;
+}
+
+int clampWeatherMetricScrollPixels(int pixels) {
+  return constrain(pixels, 0, maxWeatherMetricScrollPixels());
+}
+
+void drawWeatherMetricsAtScrollPosition(int pixels) {
+  pixels = clampWeatherMetricScrollPixels(pixels);
+
+  int baseOffset = pixels / WEATHER_METRIC_ROW_STEP;
+  int scrollPixels = pixels % WEATHER_METRIC_ROW_STEP;
+  int maxOffset = max(
+    0,
+    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+
+  if (baseOffset > maxOffset) {
+    baseOffset = maxOffset;
+    scrollPixels = 0;
+  }
+  drawWeatherMetricsViewport(baseOffset, scrollPixels);
+}
+
+void animateWeatherMetricsSnap(int startPixels, int targetOffset) {
+  const int maxOffset = max(
+    0,
+    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+  targetOffset = constrain(targetOffset, 0, maxOffset);
+  int targetPixels = targetOffset * WEATHER_METRIC_ROW_STEP;
+
+  if (startPixels != targetPixels && weatherMetricsCanvas != nullptr) {
+    const int animationFrames = 6;
+    const int animationDelayMs = 8;
+    for (int frame = 1; frame <= animationFrames; frame++) {
+      float progress = (float)frame / animationFrames;
+      float easedProgress = progress * progress * (3.0f - 2.0f * progress);
+      int pixels = startPixels +
+        (int)((targetPixels - startPixels) * easedProgress);
+      drawWeatherMetricsAtScrollPosition(pixels);
+      delay(animationDelayMs);
+    }
+  } else if (startPixels != targetPixels) {
+    drawWeatherMetricsAtScrollPosition(targetPixels);
+  }
+
+  weatherMetricOffset = targetOffset;
 }
 
 void animateWeatherMetricsScroll(int direction) {
@@ -990,7 +1065,6 @@ void animateWeatherMetricsScroll(int direction) {
   if (weatherMetricsCanvas == nullptr) {
     weatherMetricOffset = targetOffset;
     drawWeatherMetricsPanel(weatherMetricOffset, 0);
-    drawWeatherMetricsCounter();
     return;
   }
 
@@ -1008,7 +1082,6 @@ void animateWeatherMetricsScroll(int direction) {
   }
 
   weatherMetricOffset = targetOffset;
-  drawWeatherMetricsCounter();
 }
 
 void drawWeather() {
@@ -1059,9 +1132,6 @@ void drawWeather() {
     MUTED);
 
   drawWeatherMetricsPanel(weatherMetricOffset, 0);
-  drawWeatherMetricsCounter();
-
-  gfx->drawFastHLine(10, screenH - 29, screenW - 20, PANEL);
   drawTabIndicator();
 }
 
@@ -1072,32 +1142,83 @@ void drawWeather() {
 void drawForecastItem(Arduino_GFX* target, int index, int y) {
   target->fillRoundRect(8, y, screenW - 16, FORECAST_CARD_HEIGHT, 6, PANEL);
 
-  target->setTextSize(1);
+  // Put the time and temperature on a prominent first line.
+  target->setTextSize(2);
   target->setTextColor(UI_WHITE);
-  target->setCursor(16, y + (FORECAST_CARD_HEIGHT - 8) / 2);
+  target->setCursor(16, y + 5);
   target->print(forecast[index].timeText);
-
-  String desc = forecast[index].description;
-  if (desc.length() > 12) desc = desc.substring(0, 11) + ".";
-  target->setTextColor(MUTED);
-  target->setCursor(90, y + (FORECAST_CARD_HEIGHT - 8) / 2);
-  target->print(desc);
 
   String temp = String(forecast[index].temp, 1) + "C";
   target->setTextColor(UI_YELLOW);
   int16_t x1, y1;
   uint16_t w, h;
   target->getTextBounds(temp.c_str(), 0, 0, &x1, &y1, &w, &h);
-  target->setCursor(screenW - 16 - w, y + (FORECAST_CARD_HEIGHT - 8) / 2);
+  target->setCursor(screenW - 16 - w, y + 5);
   target->print(temp);
+
+  // Keep the description on its own line so it remains readable without
+  // competing for horizontal space with the larger temperature.
+  String desc = forecast[index].description;
+  if (desc.length() > 34) desc = desc.substring(0, 33) + ".";
+  target->setTextSize(1);
+  target->setTextColor(MUTED);
+  target->setCursor(16, y + 30);
+  target->print(desc);
+}
+
+// Draw a forecast card into the viewport canvas while explicitly clipping
+// edge rows. Avoid passing negative coordinates to rounded-rectangle or text
+// primitives, but keep the visible slice of each card moving smoothly.
+void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
+  const int cardTop = y - FORECAST_VIEWPORT_TOP;
+  const int cardBottom = cardTop + FORECAST_CARD_HEIGHT;
+  const int clippedTop = max(0, cardTop);
+  const int clippedBottom = min(FORECAST_VIEWPORT_HEIGHT, cardBottom);
+  if (clippedTop >= clippedBottom) return;
+
+  if (cardTop >= 0 && cardBottom <= FORECAST_VIEWPORT_HEIGHT) {
+    drawForecastItem(target, index, cardTop);
+    return;
+  }
+
+  // Partial edge cards use a clipped rectangular slice; full cards retain
+  // their rounded styling. This avoids the jagged row replacement during drag.
+  target->fillRect(
+    8,
+    clippedTop,
+    screenW - 16,
+    clippedBottom - clippedTop,
+    PANEL);
+
+  const int timeY = cardTop + 5;
+  if (timeY >= 0 && timeY + 16 <= FORECAST_VIEWPORT_HEIGHT) {
+    target->setTextSize(2);
+    target->setTextColor(UI_WHITE);
+    target->setCursor(16, timeY);
+    target->print(forecast[index].timeText);
+
+    String temp = String(forecast[index].temp, 1) + "C";
+    int16_t x1, y1;
+    uint16_t w, h;
+    target->getTextBounds(temp.c_str(), 0, 0, &x1, &y1, &w, &h);
+    target->setTextColor(UI_YELLOW);
+    target->setCursor(screenW - 16 - w, timeY);
+    target->print(temp);
+  }
+
+  const int descY = cardTop + 30;
+  if (descY >= 0 && descY + 8 <= FORECAST_VIEWPORT_HEIGHT) {
+    String desc = forecast[index].description;
+    if (desc.length() > 34) desc = desc.substring(0, 33) + ".";
+    target->setTextSize(1);
+    target->setTextColor(MUTED);
+    target->setCursor(16, descY);
+    target->print(desc);
+  }
 }
 
 void drawForecastFooter() {
-  int firstItem = forecastCount > 0 ? forecastOffset + 1 : 0;
-  int lastItem = min(forecastOffset + ITEMS_PER_PAGE, forecastCount);
-  String rangeText = String(firstItem) + "-" + String(lastItem) + "/" + String(forecastCount);
-
-  drawText(rangeText, screenW - 58, screenH - 25, 1, UI_YELLOW);
+  // Keep the footer minimal: only the current tab indicator is shown.
   drawTabIndicator();
 }
 
@@ -1105,24 +1226,34 @@ void drawForecastFooter() {
 // bitmap. This avoids the many separate SPI drawing operations that caused
 // visible tearing/flicker during the earlier direct-to-display animation.
 void drawForecastViewport(int baseOffset, int scrollPixels) {
+  // Keep every renderer entry point safe, including touch-drag frames and
+  // redraws immediately after a forecast refresh changes the record count.
+  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  baseOffset = constrain(baseOffset, 0, maxOffset);
+  scrollPixels = constrain(scrollPixels, 0, FORECAST_ROW_STEP - 1);
+
   if (forecastCanvas != nullptr && !renderingTabTransition) {
     forecastCanvas->fillScreen(BG);
 
-    int firstIndex = max(0, baseOffset - 1);
-    int lastIndex = min(forecastCount, baseOffset + ITEMS_PER_PAGE + 1);
+    const int firstIndex = max(0, baseOffset - 1);
+    const int lastIndex = min(forecastCount, baseOffset + ITEMS_PER_PAGE + 1);
     for (int index = firstIndex; index < lastIndex; index++) {
-      int y = FORECAST_ROW_TOP +
-              (index - baseOffset) * FORECAST_ROW_STEP -
-              scrollPixels;
+      if (index < 0 || index >= forecastCount || index >= MAX_FORECAST) {
+        continue;
+      }
 
-      // Ignore fully off-screen cards. The canvas clips any partial card
-      // at its edges, so no card can overwrite the fixed title or footer.
+      const int y = FORECAST_ROW_TOP +
+                    (index - baseOffset) * FORECAST_ROW_STEP -
+                    scrollPixels;
+
+      // Keep partially visible edge cards in the render so they slide
+      // through the viewport instead of popping in/out during a drag.
       if (y + FORECAST_CARD_HEIGHT <= FORECAST_VIEWPORT_TOP ||
           y >= FORECAST_VIEWPORT_BOTTOM) {
         continue;
       }
 
-      drawForecastItem(forecastCanvas, index, y - FORECAST_VIEWPORT_TOP);
+      drawForecastItemClipped(forecastCanvas, index, y);
     }
 
     forecastCanvas->flush();
@@ -1130,7 +1261,7 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
   }
 
   // Safe fallback if the canvas buffer could not be allocated: render the
-  // three settled rows directly and disable frame-by-frame animation below.
+  // four settled rows directly if the canvas buffer is unavailable.
   gfx->fillRect(
     0,
     FORECAST_VIEWPORT_TOP,
@@ -1225,72 +1356,336 @@ void animateTabTransition(int targetTab, int direction) {
     delay(animationDelayMs);
   }
 
-  // Finish at an exact alignment, then update only the footer's small dynamic
-  // range label and tab marker; do not repaint the shared header/footer bars.
+  // Finish at an exact alignment. The compact footer contains only the tab
+  // indicator, so there is no changing range label to repaint.
   liveDisplay->draw16bitRGBBitmap(
     0,
     TAB_TRANSITION_CONTENT_TOP,
     (uint16_t*)contentFrame,
     screenW,
     contentHeight);
-
-  const int footerLabelX = screenW - 64;
-  const int footerLabelY = screenH - 28;
-  liveDisplay->fillRect(footerLabelX, footerLabelY, 64, 14, BG);
-  if (targetTab == 1) {
-    int firstItem = forecastCount > 0 ? forecastOffset + 1 : 0;
-    int lastItem = min(forecastOffset + ITEMS_PER_PAGE, forecastCount);
-    String rangeText = String(firstItem) + "-" + String(lastItem) +
-                       "/" + String(forecastCount);
-    drawText(rangeText, screenW - 58, screenH - 25, 1, UI_YELLOW);
-  }
   drawTabIndicator();
 }
 
-// Animate one row with easing. Each frame is drawn into the off-screen canvas
-// and transferred as a single viewport bitmap; the header does not repaint.
+// Scroll by one hourly record and redraw the complete forecast viewport
+// through its off-screen canvas. The single bitmap flush prevents the tearing
+// caused by clearing the LCD and painting each card in separate operations.
 void animateForecastScroll(int direction) {
-  int targetOffset = forecastOffset + direction;
-  int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  const int targetOffset = forecastOffset + direction;
   if (targetOffset < 0 || targetOffset > maxOffset) return;
 
-  // If memory is unavailable, prefer a single clean page redraw over a
-  // visibly flickering multi-frame direct-render animation.
-  if (forecastCanvas == nullptr) {
-    forecastOffset = targetOffset;
-    drawForecast();
-    return;
-  }
-
-  const int animationFrames = 7;
-  const int animationDelayMs = 8;
-  int startOffset = forecastOffset;
-
-  for (int frame = 1; frame <= animationFrames; frame++) {
-    float progress = (float)frame / animationFrames;
-    float easedProgress = progress * progress * (3.0f - 2.0f * progress);
-    int scrollPixels = (int)(direction * FORECAST_ROW_STEP * easedProgress);
-    drawForecastViewport(startOffset, scrollPixels);
-    delay(animationDelayMs);
-  }
-
   forecastOffset = targetOffset;
-  // Only the counter needs updating after the last frame; the final animated
-  // viewport already matches the target offset.
+  drawForecastViewport(forecastOffset, 0);
   drawForecastFooter();
+}
+
+// Convert a continuous pixel scroll position into the forecast's row offset
+// plus the within-row displacement. Rendering still uses the same buffered
+// viewport and a single bitmap flush.
+int maxForecastScrollPixels() {
+  return max(0, forecastCount - ITEMS_PER_PAGE) * FORECAST_ROW_STEP;
+}
+
+int clampForecastScrollPixels(int pixels) {
+  return constrain(pixels, 0, maxForecastScrollPixels());
+}
+
+void drawForecastAtScrollPosition(int pixels) {
+  pixels = clampForecastScrollPixels(pixels);
+  int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  int baseOffset = pixels / FORECAST_ROW_STEP;
+  int scrollPixels = pixels % FORECAST_ROW_STEP;
+
+  if (baseOffset >= maxOffset) {
+    baseOffset = maxOffset;
+    scrollPixels = 0;
+  }
+
+  forecastOffset = baseOffset;
+  drawForecastViewport(baseOffset, scrollPixels);
 }
 
 // =====================================================
 // TOUCH REGISTER
 // =====================================================
 
-bool readTouchRegister(uint8_t reg, uint8_t& value) {
+bool readTouchSample(TouchSample& sample) {
   Wire.beginTransmission(TOUCH_ADDR);
-  Wire.write(reg);
+  Wire.write(REG_GESTURE);
   if (Wire.endTransmission(false) != 0) return false;
-  if (Wire.requestFrom((uint8_t)TOUCH_ADDR, (uint8_t)1) != 1) return false;
-  value = Wire.read();
+
+  uint8_t data[6];
+  const uint8_t sampleSize = sizeof(data);
+  uint8_t received = Wire.requestFrom(
+    (uint8_t)TOUCH_ADDR,
+    sampleSize);
+  if (received != sampleSize) {
+    while (Wire.available()) Wire.read();
+    return false;
+  }
+  for (uint8_t i = 0; i < sampleSize; i++) {
+    data[i] = (uint8_t)Wire.read();
+  }
+
+  sample.gesture = data[0];
+  sample.fingerCount = data[1] & 0x0F;
+  sample.event = (data[2] >> 6) & 0x03; // 0=down, 1=up, 2=contact
+  sample.rawX = ((uint16_t)(data[2] & 0x0F) << 8) | data[3];
+  sample.rawY = ((uint16_t)(data[4] & 0x0F) << 8) | data[5];
   return true;
+}
+
+// The CST816 coordinates are reported in the panel's portrait-native frame.
+// This board is mounted in landscape. The observed gesture mapping corresponds
+// to screenX = rawY, screenY = reversed rawX for the 320x240 logical display.
+void touchCoordinatesToScreen(
+  const TouchSample& sample,
+  int& screenX,
+  int& screenY
+) {
+  screenX = (int)sample.rawY;
+  screenY = screenH - 1 - (int)sample.rawX;
+
+  screenX = constrain(screenX, 0, screenW - 1);
+  screenY = constrain(screenY, 0, screenH - 1);
+}
+
+void updateTouchDrag(const TouchSample& sample) {
+  const bool touchPresent =
+    sample.fingerCount > 0 && sample.event != 1; // ignore touch-up coordinates
+  int touchX = 0;
+  int touchY = 0;
+  if (touchPresent) {
+    touchCoordinatesToScreen(sample, touchX, touchY);
+  }
+
+  // One diagnostic per touch lets us validate the landscape coordinate mapping
+  // without flooding the Serial Monitor with every movement sample.
+  if (touchPresent && !touchSampleWasDown) {
+    DEBUG_PRINTF(
+      "Touch coordinates raw=(%u,%u), screen=(%d,%d), tab=%d\n",
+      (unsigned)sample.rawX,
+      (unsigned)sample.rawY,
+      touchX,
+      touchY,
+      currentTab);
+  }
+
+  // Don't claim a touch on the metric cards until its intent is clear. This
+  // keeps a horizontal tab swipe starting over the cards from being consumed
+  // as a vertical drag.
+  const bool touchJustStarted = touchPresent && !touchSampleWasDown;
+  touchSampleWasDown = touchPresent;
+
+  // A new contact starts a new gesture sequence. Clear suppression left by a
+  // previous drag so a legitimate horizontal swipe can reach tab navigation.
+  // The stale completed gesture is not carried forward via lastHandledGesture.
+  if (touchJustStarted) {
+    suppressMetricGesture = false;
+    suppressForecastGesture = false;
+    lastHandledGesture = 0;
+  }
+
+  if (!metricsTouchDragActive &&
+      !metricsTouchCandidate &&
+      touchJustStarted &&
+      currentTab == 0 &&
+      weatherMetricsCanvas != nullptr) {
+    bool insideMetricsPanel =
+      touchX >= weatherMetricsPanelX() &&
+      touchY >= WEATHER_METRIC_PANEL_TOP &&
+      touchY < WEATHER_METRIC_PANEL_BOTTOM;
+
+    if (insideMetricsPanel) {
+      metricsTouchCandidate = true;
+      metricsTouchDragMoved = false;
+      metricsDragStartX = touchX;
+      metricsDragStartY = touchY;
+      metricsDragStartScroll =
+        weatherMetricOffset * WEATHER_METRIC_ROW_STEP;
+      metricsDragCurrentScroll = metricsDragStartScroll;
+      DEBUG_PRINTF(
+        "Metric touch candidate at screen (%d,%d), scroll=%d\n",
+        touchX,
+        touchY,
+        metricsDragStartScroll);
+    }
+  }
+
+  // Forecast drag starts only within the visible list and only when its
+  // buffered renderer exists. If it does not, controller gesture scrolling
+  // remains the fallback.
+  if (!forecastTouchDragActive &&
+      !forecastTouchCandidate &&
+      touchJustStarted &&
+      currentTab == 1 &&
+      forecastCanvas != nullptr &&
+      forecastAvailable &&
+      forecastCount > ITEMS_PER_PAGE &&
+      touchX >= 8 &&
+      touchX < screenW - 8 &&
+      touchY >= FORECAST_VIEWPORT_TOP &&
+      touchY < FORECAST_VIEWPORT_BOTTOM) {
+    forecastTouchCandidate = true;
+    forecastTouchDragMoved = false;
+    forecastDragHasRendered = false;
+    lastForecastDragRenderMs = 0;
+    forecastDragLastRenderedScroll = -1;
+    forecastDragStartX = touchX;
+    forecastDragStartY = touchY;
+    forecastDragStartScroll = forecastOffset * FORECAST_ROW_STEP;
+    forecastDragCurrentScroll = forecastDragStartScroll;
+    DEBUG_PRINTF(
+      "Forecast touch candidate at screen (%d,%d), scroll=%d\n",
+      touchX,
+      touchY,
+      forecastDragStartScroll);
+  }
+
+  if (metricsTouchCandidate && touchPresent) {
+    int deltaX = touchX - metricsDragStartX;
+    int deltaY = touchY - metricsDragStartY;
+    int absX = abs(deltaX);
+    int absY = abs(deltaY);
+    const int intentThresholdPx = 8;
+
+    if (absX >= intentThresholdPx && absX > absY) {
+      // Horizontal intent: release the candidate so normal gesture handling
+      // can change tabs when the CST816 reports its completed swipe.
+      metricsTouchCandidate = false;
+      DEBUG_PRINTF(
+        "Metric touch resolved as horizontal swipe (dx=%d, dy=%d)\n",
+        deltaX,
+        deltaY);
+    } else if (absY >= intentThresholdPx && absY >= absX) {
+      // Vertical intent: take ownership of the touch and track the finger.
+      metricsTouchCandidate = false;
+      metricsTouchDragActive = true;
+      DEBUG_PRINTF(
+        "Metric vertical drag started (dx=%d, dy=%d)\n",
+        deltaX,
+        deltaY);
+    }
+  }
+
+  if (metricsTouchDragActive && touchPresent) {
+    int nextScroll = clampWeatherMetricScrollPixels(
+      metricsDragStartScroll + metricsDragStartY - touchY);
+
+    if (nextScroll != metricsDragCurrentScroll) {
+      if (abs(nextScroll - metricsDragStartScroll) >= 3) {
+        metricsTouchDragMoved = true;
+      }
+      metricsDragCurrentScroll = nextScroll;
+      drawWeatherMetricsAtScrollPosition(metricsDragCurrentScroll);
+    }
+  }
+
+  if (metricsTouchDragActive &&
+      (!touchPresent || sample.event == 1)) {
+    const int targetOffset =
+      (metricsDragCurrentScroll + WEATHER_METRIC_ROW_STEP / 2) /
+      WEATHER_METRIC_ROW_STEP;
+    DEBUG_PRINTF(
+      "Metric drag released at scroll=%d; snapping to offset=%d; moved=%d\n",
+      metricsDragCurrentScroll,
+      targetOffset,
+      metricsTouchDragMoved ? 1 : 0);
+    animateWeatherMetricsSnap(metricsDragCurrentScroll, targetOffset);
+    metricsTouchDragActive = false;
+    // The CST816 can publish its completed gesture after touch-up. Ignore that
+    // duplicate for a short grace period so it cannot trigger a second scroll.
+    metricsGestureSuppressionStartedMs = millis();
+    suppressMetricGesture = true;
+  }
+
+  // Forecast gestures use the same axis-intent arbitration as the metric
+  // panel, but scroll the wider hourly list by tracking the finger's Y.
+  if (forecastTouchCandidate && touchPresent) {
+    const int deltaX = touchX - forecastDragStartX;
+    const int deltaY = touchY - forecastDragStartY;
+    const int absX = abs(deltaX);
+    const int absY = abs(deltaY);
+    const int intentThresholdPx = 8;
+
+    if (absX >= intentThresholdPx && absX > absY) {
+      // Leave horizontal intent to the existing tab-switch gesture handler.
+      forecastTouchCandidate = false;
+      DEBUG_PRINTF(
+        "Forecast touch resolved as horizontal swipe (dx=%d, dy=%d)\n",
+        deltaX,
+        deltaY);
+    } else if (absY >= intentThresholdPx && absY >= absX) {
+      forecastTouchCandidate = false;
+      forecastTouchDragActive = true;
+      DEBUG_PRINTF(
+        "Forecast vertical drag started (dx=%d, dy=%d)\n",
+        deltaX,
+        deltaY);
+    }
+  }
+
+  if (forecastTouchDragActive && touchPresent) {
+    const int nextScroll = clampForecastScrollPixels(
+      forecastDragStartScroll + forecastDragStartY - touchY);
+
+    // Track every changed position, but check the redraw deadline on every
+    // touch sample—even when the finger has stopped moving. This ensures a
+    // throttled position is eventually painted while the finger is stationary.
+    if (abs(nextScroll - forecastDragCurrentScroll) >= 2) {
+      forecastTouchDragMoved =
+        forecastTouchDragMoved ||
+        abs(nextScroll - forecastDragStartScroll) >= 3;
+      forecastDragCurrentScroll = nextScroll;
+    }
+
+    const unsigned long nowMs = millis();
+    const bool positionNeedsRender =
+      forecastDragLastRenderedScroll != forecastDragCurrentScroll;
+    const bool renderDue =
+      !forecastDragHasRendered ||
+      nowMs - lastForecastDragRenderMs >= FORECAST_DRAG_RENDER_INTERVAL_MS;
+    if (positionNeedsRender && renderDue) {
+      drawForecastAtScrollPosition(forecastDragCurrentScroll);
+      lastForecastDragRenderMs = nowMs;
+      forecastDragHasRendered = true;
+      forecastDragLastRenderedScroll = forecastDragCurrentScroll;
+    }
+  }
+
+  if (forecastTouchDragActive &&
+      (!touchPresent || sample.event == 1)) {
+    const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+    const int targetOffset = constrain(
+      (forecastDragCurrentScroll + FORECAST_ROW_STEP / 2) /
+        FORECAST_ROW_STEP,
+      0,
+      maxOffset);
+    DEBUG_PRINTF(
+      "Forecast drag released at scroll=%d; snapping to offset=%d; moved=%d\n",
+      forecastDragCurrentScroll,
+      targetOffset,
+      forecastTouchDragMoved ? 1 : 0);
+
+    // Settle with a single buffered flush rather than a multi-frame animation.
+    forecastOffset = targetOffset;
+    drawForecastViewport(forecastOffset, 0);
+    drawForecastFooter();
+    forecastTouchDragActive = false;
+    forecastGestureSuppressionStartedMs = millis();
+    suppressForecastGesture = true;
+  }
+
+  if (forecastTouchCandidate && (!touchPresent || sample.event == 1)) {
+    forecastTouchCandidate = false;
+  }
+
+  // A tap that never crossed the intent threshold wasn't a drag; discard the
+  // candidate but allow any final controller gesture to reach navigation.
+  if (metricsTouchCandidate && (!touchPresent || sample.event == 1)) {
+    metricsTouchCandidate = false;
+  }
 }
 
 // =====================================================
@@ -1387,14 +1782,43 @@ void handleGesture(uint8_t gesture) {
 void pollTouch() {
   if (!touchAvailable) return;
 
-  uint8_t gesture = 0;
-  if (!readTouchRegister(REG_GESTURE, gesture)) return;
+  TouchSample sample;
+  if (!readTouchSample(sample)) return;
+  uint8_t gesture = sample.gesture;
 
-  // Always log transitions, including the return to zero, so a real swipe
-  // can be identified from the exact controller code and stale register state.
+  // Always log transitions in demo mode, including the return to zero.
   if (gesture != previousRawGesture) {
     DEBUG_PRINTF("Touch register transition: 0x%02X -> 0x%02X\n", previousRawGesture, gesture);
     previousRawGesture = gesture;
+  }
+
+  updateTouchDrag(sample);
+
+  // A drag on the metric cards is driven by coordinates. Suppress the
+  // controller's completed swipe code so the same motion is not applied twice.
+  const unsigned long nowMs = millis();
+  const bool metricReleaseGestureSuppressed =
+    suppressMetricGesture &&
+    (nowMs - metricsGestureSuppressionStartedMs < 300UL);
+  const bool forecastReleaseGestureSuppressed =
+    suppressForecastGesture &&
+    (nowMs - forecastGestureSuppressionStartedMs < 300UL);
+  const bool releaseGestureSuppressed =
+    metricReleaseGestureSuppressed || forecastReleaseGestureSuppressed;
+
+  if (suppressMetricGesture && !metricReleaseGestureSuppressed) {
+    suppressMetricGesture = false;
+  }
+  if (suppressForecastGesture && !forecastReleaseGestureSuppressed) {
+    suppressForecastGesture = false;
+  }
+
+  if (metricsTouchDragActive ||
+      forecastTouchDragActive ||
+      releaseGestureSuppressed) {
+    if (gesture != 0) lastHandledGesture = gesture;
+    else lastHandledGesture = 0;
+    return;
   }
 
   if (gesture == 0) {
@@ -1788,7 +2212,7 @@ void setup() {
       FORECAST_VIEWPORT_HEIGHT);
   }
 
-  // Buffer just the narrow metrics column (about 35 KB at 118x152 RGB565).
+  // Buffer just the narrow metrics column (about 42 KB at 118x177 RGB565).
   weatherMetricsCanvas = new Arduino_Canvas(
     weatherMetricsPanelWidth(),
     WEATHER_METRIC_PANEL_HEIGHT,
