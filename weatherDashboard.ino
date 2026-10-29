@@ -234,10 +234,10 @@ const int FORECAST_CONTROL_BOTTOM = 60;
 // The enlarged buttons end at y=60. Keep a small dead zone before the list
 // viewport so the control's expanded hit target cannot begin a forecast drag.
 const int FORECAST_CONTROL_HIT_TOP = FORECAST_CONTROL_TOP - 3;
-const int FORECAST_CONTROL_HIT_BOTTOM = 60;
+const int FORECAST_CONTROL_HIT_BOTTOM = FORECAST_VIEWPORT_TOP;
 // Let small touchscreen coordinate jitter count as a button tap, but cancel
 // a deliberate swipe/drag that starts on the control strip.
-const int FORECAST_CONTROL_TAP_SLOP_PX = 14;
+const int FORECAST_CONTROL_TAP_SLOP_PX = 24;
 // Limit full-viewport bitmap transfers during fast finger drags.
 const unsigned long FORECAST_DRAG_RENDER_INTERVAL_MS = 50UL;
 
@@ -1876,9 +1876,9 @@ void updateTouchDrag(const TouchSample& sample) {
         forecastControlTouch = 1;
       } else if (forecastGraphView && touchX >= 32 && touchX < 53) {
         forecastControlTouch = 2;
-      } else if (touchX >= 182 && touchX < 248) {
+      } else if (touchX >= 180 && touchX < 249) {
         forecastControlTouch = 3;
-      } else if (touchX >= 249 && touchX < 317) {
+      } else if (touchX >= 248 && touchX < 318) {
         forecastControlTouch = 4;
       }
       forecastControlStartX = touchX;
@@ -1925,6 +1925,7 @@ void updateTouchDrag(const TouchSample& sample) {
   if (!forecastGraphView &&
       !forecastTouchDragActive &&
       !forecastTouchCandidate &&
+      forecastControlTouch == 0 &&
       touchJustStarted &&
       currentTab == 1 &&
       forecastCanvas != nullptr &&
