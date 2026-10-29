@@ -1851,6 +1851,23 @@ void updateTouchDrag(const TouchSample& sample) {
     suppressMetricGesture = false;
     suppressForecastGesture = false;
     lastHandledGesture = 0;
+
+    forecastControlTouch = 0;
+    if (currentTab == 1 &&
+        touchY >= FORECAST_CONTROL_TOP &&
+        touchY < FORECAST_CONTROL_BOTTOM) {
+      if (forecastGraphView && touchX >= 7 && touchX < 28) {
+        forecastControlTouch = 1;
+      } else if (forecastGraphView && touchX >= 32 && touchX < 53) {
+        forecastControlTouch = 2;
+      } else if (touchX >= 187 && touchX < 248) {
+        forecastControlTouch = 3;
+      } else if (touchX >= 249 && touchX < 311) {
+        forecastControlTouch = 4;
+      }
+      forecastControlStartX = touchX;
+      forecastControlStartY = touchY;
+    }
   }
 
   if (!metricsTouchDragActive &&
@@ -1879,10 +1896,18 @@ void updateTouchDrag(const TouchSample& sample) {
     }
   }
 
-  // Forecast drag starts only within the visible list and only when its
-  // buffered renderer exists. If it does not, controller gesture scrolling
-  // remains the fallback.
-  if (!forecastTouchDragActive &&
+  // A control tap is cancelled as soon as the finger moves significantly.
+  // Such a movement remains available to the existing tab-swipe handler.
+  if (forecastControlTouch != 0 && touchPresent &&
+      (abs(touchX - forecastControlStartX) > 8 ||
+       abs(touchY - forecastControlStartY) > 8)) {
+    forecastControlTouch = 0;
+  }
+
+  // Forecast list dragging starts only in List mode and inside the list
+  // viewport. Graph paging uses explicit buttons, not horizontal drag gestures.
+  if (!forecastGraphView &&
+      !forecastTouchDragActive &&
       !forecastTouchCandidate &&
       touchJustStarted &&
       currentTab == 1 &&
@@ -2052,6 +2077,13 @@ void updateTouchDrag(const TouchSample& sample) {
   if (metricsTouchCandidate && (!touchPresent || sample.event == 1)) {
     metricsTouchCandidate = false;
   }
+
+  if (forecastControlTouch != 0 &&
+      (!touchPresent || sample.event == 1)) {
+    const uint8_t control = forecastControlTouch;
+    forecastControlTouch = 0;
+    handleForecastControlTap(control);
+  }
 }
 
 // =====================================================
@@ -2206,6 +2238,15 @@ void pollTouch() {
       !metricsGestureStartedInsidePanel) {
     DEBUG_PRINTLN(
       "Ignoring vertical gesture: touch started outside the metrics panel");
+    metricsGestureStartedInsidePanel = false;
+    return;
+  }
+
+  if (currentTab == 1 &&
+      forecastGraphView &&
+      (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN)) {
+    DEBUG_PRINTLN(
+      "Ignoring vertical gesture in graph mode; use graph paging buttons");
     metricsGestureStartedInsidePanel = false;
     return;
   }
@@ -2515,6 +2556,10 @@ bool loadDemoWeatherData() {
     14.6f, 14.1f, 13.8f, 13.2f, 12.9f, 12.5f,
     12.1f, 11.8f, 11.6f, 11.9f, 12.4f, 13.0f
   };
+  const float rainProbabilities[] = {
+    0.05f, 0.10f, 0.35f, 0.55f, 0.18f, 0.05f,
+    0.03f, 0.72f, 0.48f, 0.12f, 0.06f, 0.02f
+  };
   const time_t now = time(nullptr);
   for (int i = 0; i < forecastCount; i++) {
     int sample = i % 12;
@@ -2523,7 +2568,11 @@ bool loadDemoWeatherData() {
       forecast[i].timestamp, locationTimezoneOffset);
     forecast[i].description = descriptions[sample];
     forecast[i].temp = temperatures[sample];
+    forecast[i].feelsLike = temperatures[sample] - (sample % 3 == 0 ? 1.0f : 0.0f);
+    forecast[i].rainProbability = rainProbabilities[sample];
   }
+  forecastGraphOffset = constrain(
+    forecastGraphOffset, 0, max(0, forecastCount - FORECAST_GRAPH_POINTS));
   forecastAvailable = true;
   DEBUG_PRINTLN("Demo mode: loaded local weather and 24 sample forecast entries; no API calls.");
   return true;
@@ -2605,6 +2654,10 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
 
     const char* desc = item["weather"][0]["main"] | "Unknown";
     float temp = item["temp"] | 0.0f;
+    float feelsLikeValue = item["feels_like"] | temp;
+    float precipitationProbability = item["pop"] | 0.0f;
+    precipitationProbability = constrain(
+      precipitationProbability, 0.0f, 1.0f);
 
     // The first valid hourly record is the nearest available estimate for
     // current UV index and precipitation probability.
@@ -2623,6 +2676,8 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
     forecast[forecastCount].timeText = formatForecastTime(timestamp, locationTimezoneOffset);
     forecast[forecastCount].description = String(desc);
     forecast[forecastCount].temp = temp;
+    forecast[forecastCount].feelsLike = feelsLikeValue;
+    forecast[forecastCount].rainProbability = precipitationProbability;
     forecastCount++;
   }
 
@@ -2671,6 +2726,10 @@ bool fetchForecast() {
   }
 
   forecastAvailable = forecastCount > 0;
+  forecastGraphOffset = constrain(
+    forecastGraphOffset, 0, max(0, forecastCount - FORECAST_GRAPH_POINTS));
+  forecastOffset = constrain(
+    forecastOffset, 0, max(0, forecastCount - ITEMS_PER_PAGE));
   if (!forecastAvailable && forecastError.length() == 0) {
     forecastError = "No hourly records";
     DEBUG_PRINTLN("One Call returned without any parsable hourly records.");
