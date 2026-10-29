@@ -1859,10 +1859,12 @@ void pollTouch() {
       !metricsGestureStartedInsidePanel) {
     DEBUG_PRINTLN(
       "Ignoring vertical gesture: touch started outside the metrics panel");
+    metricsGestureStartedInsidePanel = false;
     return;
   }
 
   handleGesture(gesture);
+  metricsGestureStartedInsidePanel = false;
 }
 
 // =====================================================
