@@ -17,7 +17,7 @@
 // =====================================================
 
 // Set to 1 for deterministic offline UI development. Live weather and
-// IP-based location are enabled by default for normal device use.
+// Wi-Fi positioning (with IP geolocation fallback) are enabled by default.
 #define USE_DEMO_WEATHER_DATA 0
 
 #if USE_DEMO_WEATHER_DATA
@@ -40,7 +40,7 @@ long locationTimezoneOffset = 0;
 // Keep the display name supplied by IP geolocation separate from the weather
 // provider's place/station name, which can be broader than the actual location.
 String ipLocationCity = "";
-bool locationCoordinatesFromIP = false;
+bool locationCoordinatesResolved = false;
 const unsigned long UPDATE_INTERVAL = 600000UL;
 
 // =====================================================
@@ -2727,9 +2727,9 @@ bool connectWiFi() {
 // FETCH CURRENT WEATHER
 // =====================================================
 
-// Resolve the nearest named place for IP-derived coordinates through
-// OpenWeather's reverse-geocoding endpoint. Keep the IP provider's city as a
-// fallback if reverse geocoding fails.
+// Resolve the nearest named place for resolved coordinates through
+// OpenWeather's reverse-geocoding endpoint. Keep any existing location name
+// as a fallback if reverse geocoding fails.
 bool resolveLocationNameFromCoordinates() {
 #if USE_DEMO_WEATHER_DATA
   Serial.println("[LOCATION] Demo mode: skipping OpenWeather reverse geocoding.");
@@ -2752,7 +2752,7 @@ bool resolveLocationNameFromCoordinates() {
     "&limit=1&appid=" + String(apiKey);
 
   if (!http.begin(client, url)) {
-    Serial.println("[LOCATION] Could not initialise OpenWeather reverse geocoding; keeping IP city.");
+    Serial.println("[LOCATION] Could not initialise OpenWeather reverse geocoding; keeping existing location name.");
     return false;
   }
 
@@ -2760,7 +2760,7 @@ bool resolveLocationNameFromCoordinates() {
   http.setTimeout(8000);
   const int status = http.GET();
   if (status != HTTP_CODE_OK) {
-    Serial.printf("OpenWeather reverse geocoding HTTP status: %d; keeping IP city.\n", status);
+    Serial.printf("OpenWeather reverse geocoding HTTP status: %d; keeping existing location name.\n", status);
     http.end();
     return false;
   }
@@ -2770,7 +2770,7 @@ bool resolveLocationNameFromCoordinates() {
   http.end();
 
   if (error || !doc.is<JsonArray>() || doc.size() == 0 || doc[0]["name"].isNull()) {
-    Serial.printf("[LOCATION] Reverse geocoding response had no place name (JSON error: %s); keeping IP city.\n",
+    Serial.printf("[LOCATION] Reverse geocoding response had no place name (JSON error: %s); keeping existing location name.\n",
                   error ? error.c_str() : "none");
     return false;
   }
@@ -2778,13 +2778,246 @@ bool resolveLocationNameFromCoordinates() {
   String resolvedName = doc[0]["name"] | "";
   resolvedName.trim();
   if (resolvedName.length() == 0) {
-    Serial.println("[LOCATION] Reverse geocoding returned an empty place name; keeping IP city.");
+    Serial.println("[LOCATION] Reverse geocoding returned an empty place name; keeping existing location name.");
     return false;
   }
 
   ipLocationCity = resolvedName;
   Serial.printf("[LOCATION] OpenWeather reverse geocoded place: %s\n", ipLocationCity.c_str());
   return true;
+}
+
+// Resolve the device from nearby stationary Wi-Fi access points using Google's
+// Geolocation API. No connection to the scanned networks is required: only
+// broadcast BSSIDs and signal measurements are sent with the API request.
+bool resolveLocationFromWiFi() {
+#if USE_DEMO_WEATHER_DATA
+  Serial.println("[LOCATION] Demo mode: skipping Google Wi-Fi positioning.");
+  return false;
+#elif !defined(GOOGLE_GEOLOCATION_API_KEY)
+  Serial.println(
+    "[LOCATION] GOOGLE_GEOLOCATION_API_KEY is missing from secrets.h; "
+    "trying IP geolocation instead.");
+  return false;
+#else
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.printf(
+      "[LOCATION] Google Wi-Fi positioning skipped: Wi-Fi status is %d.\n",
+      (int)WiFi.status());
+    return false;
+  }
+
+  Serial.println("[LOCATION] Scanning nearby Wi-Fi access points...");
+  // A passive scan reads access-point beacons without connecting to them.
+  // Keep the per-channel dwell short because this runs during startup.
+  const int16_t scanCount = WiFi.scanNetworks(false, false, true, 120);
+  if (scanCount < 0) {
+    Serial.printf(
+      "[LOCATION] Wi-Fi scan failed with code %d; trying IP geolocation.\n",
+      scanCount);
+    WiFi.scanDelete();
+    return false;
+  }
+
+  struct WifiCandidate {
+    uint8_t bssid[6];
+    int32_t rssi;
+    int32_t channel;
+  };
+
+  const int MAX_WIFI_GEOLOCATION_APS = 15;
+  WifiCandidate candidates[MAX_WIFI_GEOLOCATION_APS];
+  int candidateCount = 0;
+
+  // Google only locates universally-administered unicast MAC addresses.
+  // Keep the strongest eligible, unique BSSIDs to maximise useful evidence.
+  for (int i = 0; i < scanCount; i++) {
+    uint8_t* bssid = WiFi.BSSID(i);
+    if (bssid == nullptr) continue;
+
+    // Bit 0 set means multicast; bit 1 set means locally administered.
+    if ((bssid[0] & 0x03) != 0) continue;
+
+    // Google documents 00:00:5E:xx:xx:xx as a reserved range to exclude.
+    if (bssid[0] == 0x00 && bssid[1] == 0x00 && bssid[2] == 0x5E) {
+      continue;
+    }
+
+    bool allZero = true;
+    for (int octet = 0; octet < 6; octet++) {
+      if (bssid[octet] != 0) {
+        allZero = false;
+        break;
+      }
+    }
+    if (allZero) continue;
+
+    const int32_t rssi = WiFi.RSSI(i);
+    // Google's endpoint rejects signal strengths above -10 dBm and expects
+    // ordinary Wi-Fi signal measurements in the documented range.
+    if (rssi < -128 || rssi > -10) continue;
+
+    bool duplicate = false;
+    for (int j = 0; j < candidateCount; j++) {
+      bool same = true;
+      for (int octet = 0; octet < 6; octet++) {
+        if (candidates[j].bssid[octet] != bssid[octet]) {
+          same = false;
+          break;
+        }
+      }
+      if (same) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (duplicate) continue;
+
+    WifiCandidate candidate;
+    for (int octet = 0; octet < 6; octet++) {
+      candidate.bssid[octet] = bssid[octet];
+    }
+    candidate.rssi = rssi;
+    candidate.channel = WiFi.channel(i);
+
+    // Insert by descending RSSI so that if there are many networks, the
+    // strongest 15 usable access points are retained.
+    int insertAt = 0;
+    while (insertAt < candidateCount &&
+           candidates[insertAt].rssi >= candidate.rssi) {
+      insertAt++;
+    }
+    if (insertAt >= MAX_WIFI_GEOLOCATION_APS) continue;
+
+    int newCount = candidateCount;
+    if (newCount < MAX_WIFI_GEOLOCATION_APS) newCount++;
+    for (int j = newCount - 1; j > insertAt; j--) {
+      candidates[j] = candidates[j - 1];
+    }
+    candidates[insertAt] = candidate;
+    candidateCount = newCount;
+  }
+
+  WiFi.scanDelete();
+  Serial.printf(
+    "[LOCATION] Wi-Fi scan found %d networks; %d usable BSSIDs.\n",
+    scanCount, candidateCount);
+
+  // Google requires at least two distinct stationary access points.
+  if (candidateCount < 2) {
+    Serial.println(
+      "[LOCATION] Fewer than two usable BSSIDs; trying IP geolocation.");
+    return false;
+  }
+
+  JsonDocument requestDoc;
+  requestDoc["considerIp"] = false;
+  JsonArray wifiPoints = requestDoc["wifiAccessPoints"].to<JsonArray>();
+
+  for (int i = 0; i < candidateCount; i++) {
+    char macAddress[18];
+    snprintf(
+      macAddress, sizeof(macAddress),
+      "%02x:%02x:%02x:%02x:%02x:%02x",
+      candidates[i].bssid[0],
+      candidates[i].bssid[1],
+      candidates[i].bssid[2],
+      candidates[i].bssid[3],
+      candidates[i].bssid[4],
+      candidates[i].bssid[5]);
+
+    JsonObject point = wifiPoints.add<JsonObject>();
+    point["macAddress"] = macAddress;
+    point["signalStrength"] = candidates[i].rssi;
+    point["channel"] = candidates[i].channel;
+    point["age"] = 0;
+  }
+
+  String requestBody;
+  serializeJson(requestDoc, requestBody);
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  String url =
+    "https://www.googleapis.com/geolocation/v1/geolocate?key=" +
+    String(GOOGLE_GEOLOCATION_API_KEY);
+
+  if (!http.begin(client, url)) {
+    Serial.println(
+      "[LOCATION] Could not initialise Google Geolocation request; "
+      "trying IP geolocation.");
+    return false;
+  }
+
+  http.addHeader("Content-Type", "application/json");
+  http.setConnectTimeout(10000);
+  http.setTimeout(12000);
+  const int status = http.POST(requestBody);
+  String responseBody = http.getString();
+  http.end();
+
+  if (status != HTTP_CODE_OK) {
+    if (responseBody.length() > 220) {
+      responseBody = responseBody.substring(0, 220);
+    }
+    Serial.printf(
+      "[LOCATION] Google Geolocation HTTP status %d; trying IP geolocation.\n",
+      status);
+    if (responseBody.length() > 0) {
+      Serial.printf("[LOCATION] Google response: %s\n", responseBody.c_str());
+    }
+    return false;
+  }
+
+  JsonDocument responseDoc;
+  const DeserializationError error =
+    deserializeJson(responseDoc, responseBody);
+  if (error ||
+      responseDoc["location"]["lat"].isNull() ||
+      responseDoc["location"]["lng"].isNull()) {
+    Serial.printf(
+      "[LOCATION] Google response had no valid coordinates (JSON error: %s); "
+      "trying IP geolocation.\n",
+      error ? error.c_str() : "missing location");
+    return false;
+  }
+
+  const double resolvedLat = responseDoc["location"]["lat"].as<double>();
+  const double resolvedLon = responseDoc["location"]["lng"].as<double>();
+  const double accuracyMeters = responseDoc["accuracy"] | -1.0;
+
+  if (!isfinite(resolvedLat) || !isfinite(resolvedLon) ||
+      resolvedLat < -90.0 || resolvedLat > 90.0 ||
+      resolvedLon < -180.0 || resolvedLon > 180.0 ||
+      (accuracyMeters >= 0.0 && !isfinite(accuracyMeters))) {
+    Serial.println(
+      "[LOCATION] Google returned out-of-range coordinates; "
+      "trying IP geolocation.");
+    return false;
+  }
+
+  locationLat = (float)resolvedLat;
+  locationLon = (float)resolvedLon;
+  locationCoordinatesResolved = true;
+  ipLocationCity = "";
+
+  if (accuracyMeters >= 0.0) {
+    Serial.printf(
+      "[LOCATION] Google Wi-Fi positioning succeeded: "
+      "latitude=%.6f, longitude=%.6f, accuracy radius about %.0f m.\n",
+      resolvedLat, resolvedLon, accuracyMeters);
+  } else {
+    Serial.printf(
+      "[LOCATION] Google Wi-Fi positioning succeeded: "
+      "latitude=%.6f, longitude=%.6f.\n",
+      resolvedLat, resolvedLon);
+  }
+
+  // Resolve a human-readable place name without replacing Google's coordinates.
+  resolveLocationNameFromCoordinates();
+  return true;
+#endif
 }
 
 // Resolve a coarse location from the public IP address until GPS is added.
@@ -2839,7 +3072,7 @@ bool resolveLocationFromIP() {
 
   locationLat = resolvedLat;
   locationLon = resolvedLon;
-  locationCoordinatesFromIP = true;
+  locationCoordinatesResolved = true;
   ipLocationCity = doc["city"] | "";
   ipLocationCity.trim();
   Serial.printf("[LOCATION] IP lookup succeeded: city='%s', latitude=%.5f, longitude=%.5f\n",
@@ -2847,7 +3080,7 @@ bool resolveLocationFromIP() {
                 (double)locationLat, (double)locationLon);
 
   // Prefer OpenWeather's place name for the dashboard, while retaining the
-  // same IP-derived coordinates for both weather and hourly forecast requests.
+  // resolved coordinates for both weather and hourly forecast requests.
   resolveLocationNameFromCoordinates();
   return true;
 }
@@ -2907,9 +3140,9 @@ bool fetchWeather() {
   weatherDescription = doc["weather"][0]["description"] | "Unknown";
   weatherMain = doc["weather"][0]["main"] | "Unknown";
   weatherIcon = doc["weather"][0]["icon"] | "03d";
-  // Keep the IP-derived coordinates for the forecast. OpenWeather can
+  // Keep coordinates supplied by the positioning lookup. OpenWeather can
   // return coordinates for a nearby reporting location instead.
-  if (!locationCoordinatesFromIP) {
+  if (!locationCoordinatesResolved) {
     locationLat = doc["coord"]["lat"] | locationLat;
     locationLon = doc["coord"]["lon"] | locationLon;
   }
@@ -3312,8 +3545,12 @@ void setup() {
 #else
   drawLoading("Starting up...");
   if (connectWiFi()) {
-    // If IP geolocation fails, keep the configured Manchester coordinates.
-    resolveLocationFromIP();
+    // Prefer Wi-Fi positioning. Fall back to the existing IP lookup if no
+    // usable Wi-Fi estimate is available; configured coordinates remain the
+    // final fallback if both lookups fail.
+    if (!resolveLocationFromWiFi()) {
+      resolveLocationFromIP();
+    }
   }
 #endif
   fetchWeather();
