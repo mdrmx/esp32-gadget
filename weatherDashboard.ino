@@ -1404,16 +1404,6 @@ void drawForecastControls() {
     drawText("<", 11, 41, 2, canGoBack ? UI_WHITE : MUTED);
     drawText(">", 39, 41, 2, canGoForward ? UI_WHITE : MUTED);
 
-    String rangeText = "No data";
-    if (forecastCount > 0) {
-      const int first = min(forecastCount, forecastGraphOffset + 1);
-      const int last = min(forecastCount,
-                           forecastGraphOffset + FORECAST_GRAPH_POINTS);
-      rangeText = String(first) + "-" + String(last) + "/" +
-                  String(forecastCount);
-    }
-    drawText(rangeText, 59, 44, 1, MUTED);
-    drawText("TEMP / POP", 108, 44, 1, MUTED);
   } else {
     drawText("HOURLY", 8, 44, 1, UI_WHITE);
   }
