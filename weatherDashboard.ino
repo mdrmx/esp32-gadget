@@ -1171,20 +1171,31 @@ void drawForecastFooter() {
 // bitmap. This avoids the many separate SPI drawing operations that caused
 // visible tearing/flicker during the earlier direct-to-display animation.
 void drawForecastViewport(int baseOffset, int scrollPixels) {
+  // Keep every renderer entry point safe, including touch-drag frames and
+  // redraws immediately after a forecast refresh changes the record count.
+  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  baseOffset = constrain(baseOffset, 0, maxOffset);
+  scrollPixels = constrain(scrollPixels, 0, FORECAST_ROW_STEP - 1);
+
   if (forecastCanvas != nullptr && !renderingTabTransition) {
     forecastCanvas->fillScreen(BG);
 
-    int firstIndex = max(0, baseOffset - 1);
-    int lastIndex = min(forecastCount, baseOffset + ITEMS_PER_PAGE + 1);
+    const int firstIndex = max(0, baseOffset - 1);
+    const int lastIndex = min(forecastCount, baseOffset + ITEMS_PER_PAGE + 1);
     for (int index = firstIndex; index < lastIndex; index++) {
-      int y = FORECAST_ROW_TOP +
-              (index - baseOffset) * FORECAST_ROW_STEP -
-              scrollPixels;
+      if (index < 0 || index >= forecastCount || index >= MAX_FORECAST) {
+        continue;
+      }
 
-      // Ignore fully off-screen cards. The canvas clips any partial card
-      // at its edges, so no card can overwrite the fixed title or footer.
-      if (y + FORECAST_CARD_HEIGHT <= FORECAST_VIEWPORT_TOP ||
-          y >= FORECAST_VIEWPORT_BOTTOM) {
+      const int y = FORECAST_ROW_TOP +
+                    (index - baseOffset) * FORECAST_ROW_STEP -
+                    scrollPixels;
+
+      // Do not pass partially clipped/negative card coordinates to the
+      // buffered graphics primitives. Only draw cards wholly inside the
+      // viewport; the viewport itself is cleared on every frame.
+      if (y < FORECAST_VIEWPORT_TOP ||
+          y + FORECAST_CARD_HEIGHT > FORECAST_VIEWPORT_BOTTOM) {
         continue;
       }
 
