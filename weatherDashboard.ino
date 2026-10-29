@@ -1402,6 +1402,7 @@ void drawForecastControls() {
                   String(forecastCount);
     }
     drawText(rangeText, 59, 44, 1, MUTED);
+    drawText("TEMP / POP", 108, 44, 1, MUTED);
   } else {
     drawText("HOURLY", 8, 44, 1, UI_WHITE);
   }
