@@ -140,6 +140,9 @@ unsigned long metricsGestureSuppressionStartedMs = 0;
 
 bool forecastTouchDragActive = false;
 bool forecastTouchCandidate = false;
+// Gate the legacy gesture-only fallback so vertical list scrolling must start
+// in the visible list viewport when coordinate tracking is unavailable.
+bool forecastGestureStartedInsideViewport = false;
 bool forecastTouchDragMoved = false;
 bool forecastDragHasRendered = false;
 unsigned long lastForecastDragRenderMs = 0;
@@ -1848,6 +1851,13 @@ void updateTouchDrag(const TouchSample& sample) {
       touchX < screenW &&
       touchY >= WEATHER_METRIC_PANEL_TOP &&
       touchY < WEATHER_METRIC_PANEL_BOTTOM;
+    forecastGestureStartedInsideViewport =
+      currentTab == 1 &&
+      !forecastGraphView &&
+      touchX >= 8 &&
+      touchX < screenW - 8 &&
+      touchY >= FORECAST_VIEWPORT_TOP &&
+      touchY < FORECAST_VIEWPORT_BOTTOM;
 
     suppressMetricGesture = false;
     suppressForecastGesture = false;
@@ -2244,15 +2254,27 @@ void pollTouch() {
   }
 
   if (currentTab == 1 &&
-      forecastGraphView &&
-      (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN)) {
+      (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN) &&
+      forecastGraphView) {
     DEBUG_PRINTLN(
       "Ignoring vertical gesture in graph mode; use graph paging buttons");
+    forecastGestureStartedInsideViewport = false;
+    metricsGestureStartedInsidePanel = false;
+    return;
+  }
+
+  if (currentTab == 1 &&
+      (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN) &&
+      !forecastGestureStartedInsideViewport) {
+    DEBUG_PRINTLN(
+      "Ignoring vertical forecast gesture started outside the list viewport");
+    forecastGestureStartedInsideViewport = false;
     metricsGestureStartedInsidePanel = false;
     return;
   }
 
   handleGesture(gesture);
+  forecastGestureStartedInsideViewport = false;
   metricsGestureStartedInsidePanel = false;
 }
 
