@@ -1510,24 +1510,61 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
   }
 }
 
+// Redraw only the graph body when paging. Keep the header, page buttons,
+// List/Graph switch and footer out of the repaint to avoid a full-screen flash.
+void redrawForecastGraphPage() {
+  if (!forecastGraphView) return;
+
+  // The controls end at FORECAST_CONTROL_BOTTOM. Preserve the 2 px gap below
+  // them and redraw only the graph region underneath.
+  const int graphRedrawTop = FORECAST_CONTROL_BOTTOM + 2;
+  if (graphRedrawTop >= FORECAST_VIEWPORT_BOTTOM) return;
+
+  gfx->fillRect(
+    0,
+    graphRedrawTop,
+    screenW,
+    FORECAST_VIEWPORT_BOTTOM - graphRedrawTop,
+    BG);
+
+  if (forecastAvailable && forecastCount > 0) {
+    // Direct-to-display coordinates match the offscreen graph's position,
+    // but no canvas flush or header/control repaint is needed for page changes.
+    drawForecastGraph(gfx, FORECAST_VIEWPORT_TOP);
+  }
+}
+
 void handleForecastControlTap(uint8_t control) {
+  bool graphPageChanged = false;
+
   if (control == 1) {
+    const int previousOffset = forecastGraphOffset;
     forecastGraphOffset = max(0, forecastGraphOffset - FORECAST_GRAPH_POINTS);
+    graphPageChanged = forecastGraphOffset != previousOffset;
   } else if (control == 2) {
+    const int previousOffset = forecastGraphOffset;
     const int maxGraphOffset = max(0, forecastCount - FORECAST_GRAPH_POINTS);
     forecastGraphOffset = min(maxGraphOffset,
                               forecastGraphOffset + FORECAST_GRAPH_POINTS);
+    graphPageChanged = forecastGraphOffset != previousOffset;
   } else if (control == 3) {
     forecastOffset = constrain(
       forecastGraphOffset, 0, max(0, forecastCount - ITEMS_PER_PAGE));
     forecastGraphView = false;
+    drawForecast();
   } else if (control == 4) {
     forecastGraphOffset = constrain(
       forecastOffset, 0, max(0, forecastCount - FORECAST_GRAPH_POINTS));
     forecastGraphView = true;
+    drawForecast();
   }
 
-  drawForecast();
+  // Only repaint the chart after a successful page change. Pressing a disabled
+  // arrow at either end does no drawing at all.
+  if ((control == 1 || control == 2) && graphPageChanged) {
+    redrawForecastGraphPage();
+  }
+
   // Prevent a button tap from being reinterpreted as a controller swipe.
   forecastGestureSuppressionStartedMs = millis();
   suppressForecastGesture = true;
