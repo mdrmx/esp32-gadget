@@ -2927,7 +2927,7 @@ bool resolveLocationFromWiFi() {
       candidates[i].bssid[5]);
 
     JsonObject point = wifiPoints.add<JsonObject>();
-    point["macAddress"] = macAddress;
+    point["macAddress"] = String(macAddress);
     point["signalStrength"] = candidates[i].rssi;
     point["channel"] = candidates[i].channel;
     point["age"] = 0;
