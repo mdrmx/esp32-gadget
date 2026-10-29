@@ -1246,15 +1246,14 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
                     (index - baseOffset) * FORECAST_ROW_STEP -
                     scrollPixels;
 
-      // Do not pass partially clipped/negative card coordinates to the
-      // buffered graphics primitives. Only draw cards wholly inside the
-      // viewport; the viewport itself is cleared on every frame.
-      if (y < FORECAST_VIEWPORT_TOP ||
-          y + FORECAST_CARD_HEIGHT > FORECAST_VIEWPORT_BOTTOM) {
+      // Keep partially visible edge cards in the render so they slide
+      // through the viewport instead of popping in/out during a drag.
+      if (y + FORECAST_CARD_HEIGHT <= FORECAST_VIEWPORT_TOP ||
+          y >= FORECAST_VIEWPORT_BOTTOM) {
         continue;
       }
 
-      drawForecastItem(forecastCanvas, index, y - FORECAST_VIEWPORT_TOP);
+      drawForecastItemClipped(forecastCanvas, index, y);
     }
 
     forecastCanvas->flush();
