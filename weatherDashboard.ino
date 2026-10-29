@@ -1875,7 +1875,60 @@ bool connectWiFi() {
 // FETCH CURRENT WEATHER
 // =====================================================
 
-// Resolve a coarse fallback from the public IP address until GPS is added.
+// Resolve the nearest named place for IP-derived coordinates through
+// OpenWeather's reverse-geocoding endpoint. Keep the IP provider's city as a
+// fallback if reverse geocoding fails.
+bool resolveLocationNameFromCoordinates() {
+#if USE_DEMO_WEATHER_DATA
+  return false;
+#endif
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+
+  String url =
+    "https://api.openweathermap.org/geo/1.0/reverse?lat=" +
+    String(locationLat, 5) + "&lon=" + String(locationLon, 5) +
+    "&limit=1&appid=" + String(apiKey);
+
+  if (!http.begin(client, url)) {
+    DEBUG_PRINTLN("OpenWeather reverse geocoding init failed; keeping IP city.");
+    return false;
+  }
+
+  http.setConnectTimeout(8000);
+  http.setTimeout(8000);
+  const int status = http.GET();
+  if (status != HTTP_CODE_OK) {
+    DEBUG_PRINTF("OpenWeather reverse geocoding HTTP status: %d; keeping IP city.\n", status);
+    http.end();
+    return false;
+  }
+
+  JsonDocument doc;
+  const DeserializationError error = deserializeJson(doc, http.getStream());
+  http.end();
+
+  if (error || !doc.is<JsonArray>() || doc.size() == 0 || doc[0]["name"].isNull()) {
+    DEBUG_PRINTLN("OpenWeather reverse geocoding returned no place; keeping IP city.");
+    return false;
+  }
+
+  String resolvedName = doc[0]["name"] | "";
+  resolvedName.trim();
+  if (resolvedName.length() == 0) {
+    DEBUG_PRINTLN("OpenWeather reverse geocoding returned an empty place name.");
+    return false;
+  }
+
+  ipLocationCity = resolvedName;
+  DEBUG_PRINTF("OpenWeather reverse geocoded place: %s\n", ipLocationCity.c_str());
+  return true;
+}
+
+// Resolve a coarse location from the public IP address until GPS is added.
 // IP geolocation can reflect an ISP/VPN exit point rather than the device.
 bool resolveLocationFromIP() {
 #if USE_DEMO_WEATHER_DATA
@@ -1924,9 +1977,13 @@ bool resolveLocationFromIP() {
   locationCoordinatesFromIP = true;
   ipLocationCity = doc["city"] | "";
   ipLocationCity.trim();
-  DEBUG_PRINTF("IP location: %s (%.4f, %.4f)\n",
-               ipLocationCity.length() > 0 ? ipLocationCity.c_str() : "city unavailable",
-               locationLat, locationLon);
+  DEBUG_PRINTF("IP coordinates: (%.5f, %.5f); initial IP city: %s\n",
+               locationLat, locationLon,
+               ipLocationCity.length() > 0 ? ipLocationCity.c_str() : "city unavailable");
+
+  // Prefer OpenWeather's place name for the dashboard, while retaining the
+  // same IP-derived coordinates for both weather and hourly forecast requests.
+  resolveLocationNameFromCoordinates();
   return true;
 }
 
