@@ -2496,7 +2496,7 @@ void pollTouch() {
       (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN) &&
       forecastGraphView) {
     DEBUG_PRINTLN(
-      "Ignoring vertical gesture in graph mode; use graph paging buttons");
+      "Ignoring vertical gesture in graph mode; horizontal hold-drag scrolls the chart");
     forecastGestureStartedInsideViewport = false;
     metricsGestureStartedInsidePanel = false;
     return;
