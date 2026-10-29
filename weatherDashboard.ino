@@ -1287,36 +1287,47 @@ void animateTabTransition(int targetTab, int direction) {
   drawTabIndicator();
 }
 
-// Animate one row with easing. Each frame is drawn into the off-screen canvas
-// and transferred as a single viewport bitmap; the header does not repaint.
+// Draw a settled forecast page directly to the display. This keeps touch
+// scrolling independent of the large off-screen forecast framebuffer and
+// bounds every card to the viewport before issuing drawing calls.
+void drawForecastPageDirect(int baseOffset) {
+  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  baseOffset = constrain(baseOffset, 0, maxOffset);
+
+  gfx->fillRect(
+    0,
+    FORECAST_VIEWPORT_TOP,
+    screenW,
+    FORECAST_VIEWPORT_HEIGHT,
+    BG);
+
+  const int visible = min(ITEMS_PER_PAGE, max(0, forecastCount - baseOffset));
+  for (int i = 0; i < visible; i++) {
+    const int index = baseOffset + i;
+    const int y = FORECAST_ROW_TOP + i * FORECAST_ROW_STEP;
+
+    // These settled rows should fit exactly inside the expanded viewport.
+    // Retain the bounds check if the card/layout constants change later.
+    if (index < 0 || index >= forecastCount ||
+        y < FORECAST_VIEWPORT_TOP ||
+        y + FORECAST_CARD_HEIGHT > FORECAST_VIEWPORT_BOTTOM) {
+      continue;
+    }
+
+    drawForecastItem(gfx, index, y);
+  }
+}
+
+// Scroll by one hourly record with a single bounded redraw. The expanded
+// four-card viewport is large, so avoid repeatedly flushing its full canvas
+// during the touch handler.
 void animateForecastScroll(int direction) {
-  int targetOffset = forecastOffset + direction;
-  int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  const int targetOffset = forecastOffset + direction;
   if (targetOffset < 0 || targetOffset > maxOffset) return;
 
-  // If memory is unavailable, prefer a single clean page redraw over a
-  // visibly flickering multi-frame direct-render animation.
-  if (forecastCanvas == nullptr) {
-    forecastOffset = targetOffset;
-    drawForecast();
-    return;
-  }
-
-  const int animationFrames = 7;
-  const int animationDelayMs = 8;
-  int startOffset = forecastOffset;
-
-  for (int frame = 1; frame <= animationFrames; frame++) {
-    float progress = (float)frame / animationFrames;
-    float easedProgress = progress * progress * (3.0f - 2.0f * progress);
-    int scrollPixels = (int)(direction * FORECAST_ROW_STEP * easedProgress);
-    drawForecastViewport(startOffset, scrollPixels);
-    delay(animationDelayMs);
-  }
-
   forecastOffset = targetOffset;
-  // Only the counter needs updating after the last frame; the final animated
-  // viewport already matches the target offset.
+  drawForecastPageDirect(forecastOffset);
   drawForecastFooter();
 }
 
