@@ -1991,8 +1991,8 @@ bool resolveLocationFromIP() {
   ipLocationCity = doc["city"] | "";
   ipLocationCity.trim();
   Serial.printf("[LOCATION] IP lookup succeeded: city='%s', latitude=%.5f, longitude=%.5f\n",
-               locationLat, locationLon,
-               ipLocationCity.length() > 0 ? ipLocationCity.c_str() : "city unavailable");
+                ipLocationCity.length() > 0 ? ipLocationCity.c_str() : "city unavailable",
+                (double)locationLat, (double)locationLon);
 
   // Prefer OpenWeather's place name for the dashboard, while retaining the
   // same IP-derived coordinates for both weather and hourly forecast requests.
