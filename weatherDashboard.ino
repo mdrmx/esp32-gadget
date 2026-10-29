@@ -2914,10 +2914,14 @@ bool resolveLocationFromWiFi() {
   requestDoc["considerIp"] = false;
   JsonArray wifiPoints = requestDoc["wifiAccessPoints"].to<JsonArray>();
 
+  // Keep these buffers alive until serializeJson() runs below. ArduinoJson
+  // may retain references to writable char buffers, so their lifetime must
+  // extend beyond the candidate loop.
+  char macAddresses[MAX_WIFI_GEOLOCATION_APS][18] = {};
+
   for (int i = 0; i < candidateCount; i++) {
-    char macAddress[18];
     snprintf(
-      macAddress, sizeof(macAddress),
+      macAddresses[i], sizeof(macAddresses[i]),
       "%02x:%02x:%02x:%02x:%02x:%02x",
       candidates[i].bssid[0],
       candidates[i].bssid[1],
@@ -2927,7 +2931,7 @@ bool resolveLocationFromWiFi() {
       candidates[i].bssid[5]);
 
     JsonObject point = wifiPoints.add<JsonObject>();
-    point["macAddress"] = String(macAddress);
+    point["macAddress"] = macAddresses[i];
     point["signalStrength"] = candidates[i].rssi;
     point["channel"] = candidates[i].channel;
     point["age"] = 0;
