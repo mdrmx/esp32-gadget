@@ -127,6 +127,9 @@ struct TouchSample {
 bool metricsTouchDragActive = false;
 bool metricsTouchCandidate = false;
 bool metricsTouchDragMoved = false;
+// Origin gate for the controller's legacy swipe fallback: metric scrolling is
+// allowed only when the current touch sequence began over the metrics panel.
+bool metricsGestureStartedInsidePanel = false;
 bool touchSampleWasDown = false;
 int metricsDragStartX = 0;
 int metricsDragStartY = 0;
@@ -1488,6 +1491,16 @@ void updateTouchDrag(const TouchSample& sample) {
   // previous drag so a legitimate horizontal swipe can reach tab navigation.
   // The stale completed gesture is not carried forward via lastHandledGesture.
   if (touchJustStarted) {
+    // The CST816 can emit a completed vertical gesture even when coordinate-
+    // tracked dragging never activated. Remember where this contact began so
+    // the legacy gesture fallback cannot scroll cards from other screen areas.
+    metricsGestureStartedInsidePanel =
+      currentTab == 0 &&
+      touchX >= weatherMetricsPanelX() &&
+      touchX < screenW &&
+      touchY >= WEATHER_METRIC_PANEL_TOP &&
+      touchY < WEATHER_METRIC_PANEL_BOTTOM;
+
     suppressMetricGesture = false;
     suppressForecastGesture = false;
     lastHandledGesture = 0;
@@ -1837,7 +1850,21 @@ void pollTouch() {
 
   lastHandledGesture = gesture;
   DEBUG_PRINTF("Touch raw gesture: 0x%02X\n", gesture);
+
+  // On the current-weather screen, vertical scrolling must originate inside
+  // the metric-card panel. This also gates the old gesture-only fallback used
+  // when the buffered canvas is unavailable. Horizontal tab swipes are intact.
+  if (currentTab == 0 &&
+      (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN) &&
+      !metricsGestureStartedInsidePanel) {
+    DEBUG_PRINTLN(
+      "Ignoring vertical gesture: touch started outside the metrics panel");
+    metricsGestureStartedInsidePanel = false;
+    return;
+  }
+
   handleGesture(gesture);
+  metricsGestureStartedInsidePanel = false;
 }
 
 // =====================================================
