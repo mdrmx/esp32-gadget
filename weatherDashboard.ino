@@ -1166,6 +1166,57 @@ void drawForecastItem(Arduino_GFX* target, int index, int y) {
   target->print(desc);
 }
 
+// Draw a forecast card into the viewport canvas while explicitly clipping
+// edge rows. Avoid passing negative coordinates to rounded-rectangle or text
+// primitives, but keep the visible slice of each card moving smoothly.
+void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
+  const int cardTop = y - FORECAST_VIEWPORT_TOP;
+  const int cardBottom = cardTop + FORECAST_CARD_HEIGHT;
+  const int clippedTop = max(0, cardTop);
+  const int clippedBottom = min(FORECAST_VIEWPORT_HEIGHT, cardBottom);
+  if (clippedTop >= clippedBottom) return;
+
+  if (cardTop >= 0 && cardBottom <= FORECAST_VIEWPORT_HEIGHT) {
+    drawForecastItem(target, index, cardTop);
+    return;
+  }
+
+  // Partial edge cards use a clipped rectangular slice; full cards retain
+  // their rounded styling. This avoids the jagged row replacement during drag.
+  target->fillRect(
+    8,
+    clippedTop,
+    screenW - 16,
+    clippedBottom - clippedTop,
+    PANEL);
+
+  const int timeY = cardTop + 5;
+  if (timeY >= 0 && timeY + 16 <= FORECAST_VIEWPORT_HEIGHT) {
+    target->setTextSize(2);
+    target->setTextColor(UI_WHITE);
+    target->setCursor(16, timeY);
+    target->print(forecast[index].timeText);
+
+    String temp = String(forecast[index].temp, 1) + "C";
+    int16_t x1, y1;
+    uint16_t w, h;
+    target->getTextBounds(temp.c_str(), 0, 0, &x1, &y1, &w, &h);
+    target->setTextColor(UI_YELLOW);
+    target->setCursor(screenW - 16 - w, timeY);
+    target->print(temp);
+  }
+
+  const int descY = cardTop + 30;
+  if (descY >= 0 && descY + 8 <= FORECAST_VIEWPORT_HEIGHT) {
+    String desc = forecast[index].description;
+    if (desc.length() > 34) desc = desc.substring(0, 33) + ".";
+    target->setTextSize(1);
+    target->setTextColor(MUTED);
+    target->setCursor(16, descY);
+    target->print(desc);
+  }
+}
+
 void drawForecastFooter() {
   // Keep the footer minimal: only the current tab indicator is shown.
   drawTabIndicator();
