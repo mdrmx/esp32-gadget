@@ -213,9 +213,9 @@ const int SCROLL_OVERSCROLL_RESISTANCE_DIVISOR = 3;
 const int WEATHER_METRIC_ROW_TOP = 2;
 int weatherMetricOffset = 0;
 
-// Reserve a 4 px gap below the enlarged List / Graph control so the touch
-// hit area ends before list dragging can begin. Keep the viewport bottom fixed
-// at y=216 so three 48 px cards with 4 px gaps still fit exactly.
+// Keep three 48 px list cards and their 4 px gaps visible through y=216.
+// Graph mode shifts its upper content down, leaving a blank strip under the
+// header that the oversized graph controls can safely overlap.
 const int FORECAST_VIEWPORT_TOP = 64;
 const int FORECAST_VIEWPORT_HEIGHT = 152;
 const int FORECAST_VIEWPORT_BOTTOM =
@@ -229,15 +229,16 @@ const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP;
 const int FORECAST_ROW_STEP = 52;
 const int FORECAST_CARD_HEIGHT = 48;
 const int FORECAST_GRAPH_POINTS = 6;
-const int FORECAST_CONTROL_TOP = 37;
-const int FORECAST_CONTROL_BOTTOM = 60;
-// The enlarged buttons end at y=60. Keep a small dead zone before the list
-// viewport so the control's expanded hit target cannot begin a forecast drag.
-const int FORECAST_CONTROL_HIT_TOP = FORECAST_CONTROL_TOP - 3;
+const int FORECAST_CONTROL_TOP = 36;
+const int FORECAST_CONTROL_BOTTOM = FORECAST_VIEWPORT_TOP;
+const int FORECAST_GRAPH_CONTROL_BOTTOM = 74; // Exclusive; overlaps blank graph space.
+const int FORECAST_CONTROL_HIT_TOP = 34;
 const int FORECAST_CONTROL_HIT_BOTTOM = FORECAST_VIEWPORT_TOP;
-// Let small touchscreen coordinate jitter count as a button tap, but cancel
-// a deliberate swipe/drag that starts on the control strip.
-const int FORECAST_CONTROL_TAP_SLOP_PX = 30;
+const int FORECAST_GRAPH_CONTROL_HIT_BOTTOM = 76; // Exclusive; oversized 42 px target.
+const int FORECAST_GRAPH_VERTICAL_SHIFT = 12;
+// Generous movement tolerance keeps taps reliable while still allowing a
+// deliberate horizontal tab swipe to cancel a control press.
+const int FORECAST_CONTROL_TAP_SLOP_PX = 40;
 // Limit full-viewport bitmap transfers during fast finger drags.
 const unsigned long FORECAST_DRAG_RENDER_INTERVAL_MS = 50UL;
 
@@ -1391,33 +1392,50 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
 }
 
 void drawForecastControls() {
-  gfx->fillRect(0, FORECAST_CONTROL_TOP - 2, screenW,
-                FORECAST_VIEWPORT_TOP - FORECAST_CONTROL_TOP + 2, BG);
+  // Graph controls are drawn over the viewport's blank top 12 px. In List
+  // mode, stop at the viewport edge so the first card remains unobstructed.
+  const int controlBottom = forecastGraphView
+    ? FORECAST_GRAPH_CONTROL_BOTTOM
+    : FORECAST_CONTROL_BOTTOM;
+  gfx->fillRect(
+    0,
+    FORECAST_CONTROL_TOP - 1,
+    screenW,
+    controlBottom - (FORECAST_CONTROL_TOP - 1),
+    BG);
 
   if (forecastGraphView) {
     const int maxGraphOffset = max(0, forecastCount - FORECAST_GRAPH_POINTS);
     const bool canGoBack = forecastGraphOffset > 0;
     const bool canGoForward = forecastGraphOffset < maxGraphOffset;
 
-    gfx->fillRoundRect(4, 39, 25, 19, 4, PANEL);
-    gfx->fillRoundRect(32, 39, 25, 19, 4, PANEL);
-    drawText("<", 11, 41, 2, canGoBack ? UI_WHITE : MUTED);
-    drawText(">", 39, 41, 2, canGoForward ? UI_WHITE : MUTED);
-
+    // Large, separated targets: roughly 40 x 40 px each, not tiny glyph-sized
+    // buttons. Their touch regions extend slightly beyond the visible bounds.
+    gfx->fillRoundRect(4, 36, 39, 38, 6, PANEL);
+    gfx->fillRoundRect(47, 36, 39, 38, 6, PANEL);
+    drawText("<", 17, 47, 2, canGoBack ? UI_WHITE : MUTED);
+    drawText(">", 60, 47, 2, canGoForward ? UI_WHITE : MUTED);
   } else {
-    drawText("HOURLY", 8, 44, 1, UI_WHITE);
+    drawText("HOURLY", 8, 46, 1, UI_WHITE);
   }
 
-  // Compact segmented List / Graph control. Touching it is independent of the
-  // forecast swipe area, so paging the graph never steals a tab-switch swipe.
-  gfx->fillRoundRect(185, 37, 127, 23, 4, PANEL);
-  if (!forecastGraphView) {
-    gfx->fillRoundRect(187, 39, 61, 19, 3, UI_WHITE);
+  if (forecastGraphView) {
+    // Taller selector in Graph mode shares the expanded control strip.
+    gfx->fillRoundRect(179, 36, 137, 38, 6, PANEL);
+    if (!forecastGraphView) {
+      gfx->fillRoundRect(181, 38, 65, 34, 5, UI_WHITE);
+    } else {
+      gfx->fillRoundRect(248, 38, 65, 34, 5, UI_WHITE);
+    }
+    drawText("LIST", 201, 51, 1, forecastGraphView ? MUTED : BG);
+    drawText("GRAPH", 265, 51, 1, forecastGraphView ? BG : MUTED);
   } else {
-    gfx->fillRoundRect(249, 39, 61, 19, 3, UI_WHITE);
+    // List mode stays above the first row, which is needed to show three cards.
+    gfx->fillRoundRect(185, 36, 127, 28, 4, PANEL);
+    gfx->fillRoundRect(187, 38, 61, 24, 3, UI_WHITE);
+    drawText("LIST", 204, 46, 1, BG);
+    drawText("GRAPH", 260, 46, 1, MUTED);
   }
-  drawText("LIST", 204, 44, 1, forecastGraphView ? MUTED : BG);
-  drawText("GRAPH", 260, 44, 1, forecastGraphView ? BG : MUTED);
 }
 
 void drawForecastGraph(Arduino_GFX* target, int originY) {
@@ -1443,8 +1461,8 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
 
   const int left = 23;
   const int right = screenW - 17;
-  const int plotTop = 37;
-  const int plotBottom = 89;
+  const int plotTop = 37 + FORECAST_GRAPH_VERTICAL_SHIFT;
+  const int plotBottom = 89 + FORECAST_GRAPH_VERTICAL_SHIFT;
   const int plotHeight = plotBottom - plotTop;
   const uint16_t gridColour = PANEL;
   target->drawFastHLine(left, originY + plotTop, right - left,
@@ -1467,7 +1485,8 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     ys[i] = plotBottom - (int)round(ratio * plotHeight);
 
     drawMiniWeatherIcon(
-      target, forecast[index].description, xs[i] - 8, originY + 2);
+      target, forecast[index].description, xs[i] - 8,
+      originY + 2 + FORECAST_GRAPH_VERTICAL_SHIFT);
 
     String tempText = String((int)round(forecast[index].temp)) + "C";
     int16_t x1, y1;
@@ -1487,7 +1506,9 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     String timeLabel = forecastCompactTime(index);
     target->getTextBounds(timeLabel.c_str(), 0, 0, &x1, &y1, &w, &h);
     target->setTextColor(MUTED);
-    target->setCursor(xs[i] - (int)w / 2, originY + 99);
+    target->setCursor(
+      xs[i] - (int)w / 2,
+      originY + 99 + FORECAST_GRAPH_VERTICAL_SHIFT);
     target->print(timeLabel);
 
     const int rainPercent = constrain(
@@ -1604,15 +1625,16 @@ void drawForecast() {
   currentTab = 1;
   gfx->fillScreen(BG);
   drawHeader();
-  drawForecastControls();
 
   if (!forecastAvailable || forecastCount == 0) {
     drawCenteredText(forecastError.length() ? forecastError : "No hourly data", 100, 1, MUTED);
+    drawForecastControls();
     drawForecastFooter();
     return;
   }
 
-  // Clear only the forecast area; the static header/title/footer remain fixed.
+  // Draw the viewport first so the graph controls can safely overlay its blank
+  // top strip without being overwritten by the canvas flush.
   gfx->fillRect(
     0,
     FORECAST_VIEWPORT_TOP,
@@ -1620,6 +1642,7 @@ void drawForecast() {
     FORECAST_VIEWPORT_HEIGHT,
     BG);
   drawForecastViewport(forecastOffset, 0);
+  drawForecastControls();
   drawForecastFooter();
 }
 
@@ -1859,16 +1882,19 @@ void updateTouchDrag(const TouchSample& sample) {
     lastHandledGesture = 0;
 
     forecastControlTouch = 0;
+    const int controlHitBottom = forecastGraphView
+      ? FORECAST_GRAPH_CONTROL_HIT_BOTTOM
+      : FORECAST_CONTROL_HIT_BOTTOM;
     if (currentTab == 1 &&
         touchY >= FORECAST_CONTROL_HIT_TOP &&
-        touchY < FORECAST_CONTROL_HIT_BOTTOM) {
-      if (forecastGraphView && touchX >= 2 && touchX < 30) {
+        touchY < controlHitBottom) {
+      if (forecastGraphView && touchX >= 2 && touchX < 44) {
         forecastControlTouch = 1;
-      } else if (forecastGraphView && touchX >= 30 && touchX < 59) {
+      } else if (forecastGraphView && touchX >= 44 && touchX < 87) {
         forecastControlTouch = 2;
-      } else if (touchX >= 180 && touchX < 249) {
+      } else if (touchX >= 176 && touchX < 247) {
         forecastControlTouch = 3;
-      } else if (touchX >= 248 && touchX < 318) {
+      } else if (touchX >= 247 && touchX < 320) {
         forecastControlTouch = 4;
       }
       forecastControlStartX = touchX;
