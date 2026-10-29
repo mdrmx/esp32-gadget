@@ -196,7 +196,7 @@ unsigned long lastUpdate = 0;
 bool loadDemoWeatherData();
 
 const int MAX_FORECAST = 48;
-const int ITEMS_PER_PAGE = 4;
+const int ITEMS_PER_PAGE = 3;
 
 const int WEATHER_METRIC_COUNT = 8;
 const int WEATHER_METRICS_VISIBLE = 3;
@@ -225,11 +225,14 @@ const int TAB_TRANSITION_CONTENT_TOP = 37;
 const int TAB_TRANSITION_FOOTER_HEIGHT = 12;
 
 const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP;
-const int FORECAST_ROW_STEP = 38;
-const int FORECAST_CARD_HEIGHT = 36;
+const int FORECAST_ROW_STEP = 52;
+const int FORECAST_CARD_HEIGHT = 48;
 const int FORECAST_GRAPH_POINTS = 6;
 const int FORECAST_CONTROL_TOP = 39;
 const int FORECAST_CONTROL_BOTTOM = 59;
+// Let small touchscreen coordinate jitter count as a button tap, but cancel
+// a deliberate swipe/drag that starts on the control strip.
+const int FORECAST_CONTROL_TAP_SLOP_PX = 14;
 // Limit full-viewport bitmap transfers during fast finger drags.
 const unsigned long FORECAST_DRAG_RENDER_INTERVAL_MS = 50UL;
 
@@ -1296,22 +1299,22 @@ void drawForecastItem(Arduino_GFX* target, int index, int y) {
   // temperature, feels-like temperature, and probability of precipitation.
   target->setTextSize(1);
   target->setTextColor(UI_WHITE);
-  target->setCursor(10, y + 13);
+  target->setCursor(10, y + 18);
   target->print(forecastCompactTime(index));
 
-  drawMiniWeatherIcon(target, forecast[index].description, 48, y + 9);
+  drawMiniWeatherIcon(target, forecast[index].description, 48, y + 15);
 
   String temp = String((int)round(forecast[index].temp)) + "C";
   target->setTextSize(2);
   target->setTextColor(UI_YELLOW);
-  target->setCursor(72, y + 9);
+  target->setCursor(72, y + 15);
   target->print(temp);
 
   String feelsText = "FL " +
     String((int)round(forecast[index].feelsLike)) + "C";
   target->setTextSize(1);
   target->setTextColor(MUTED);
-  target->setCursor(145, y + 14);
+  target->setCursor(145, y + 19);
   target->print(feelsText);
 
   const int rainPercent = constrain(
@@ -1321,7 +1324,7 @@ void drawForecastItem(Arduino_GFX* target, int index, int y) {
   uint16_t w, h;
   target->getTextBounds(rainText.c_str(), 0, 0, &x1, &y1, &w, &h);
   target->setTextColor(UI_WHITE);
-  target->setCursor(screenW - 10 - (int)w, y + 14);
+  target->setCursor(screenW - 10 - (int)w, y + 19);
   target->print(rainText);
 }
 
@@ -1345,7 +1348,7 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
   target->fillRect(4, clippedTop, screenW - 8,
                    clippedBottom - clippedTop, PANEL);
 
-  const int fieldY = cardTop + 13;
+  const int fieldY = cardTop + 18;
   if (fieldY >= 0 && fieldY + 8 <= FORECAST_VIEWPORT_HEIGHT) {
     target->setTextSize(1);
     target->setTextColor(UI_WHITE);
@@ -1369,15 +1372,15 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
     target->print(rainText);
   }
 
-  if (cardTop + 9 >= 0 &&
-      cardTop + 26 <= FORECAST_VIEWPORT_HEIGHT) {
+  if (cardTop + 15 >= 0 &&
+      cardTop + 33 <= FORECAST_VIEWPORT_HEIGHT) {
     drawMiniWeatherIcon(
-      target, forecast[index].description, 48, cardTop + 9);
+      target, forecast[index].description, 48, cardTop + 15);
 
     String temp = String((int)round(forecast[index].temp)) + "C";
     target->setTextSize(2);
     target->setTextColor(UI_YELLOW);
-    target->setCursor(72, cardTop + 9);
+    target->setCursor(72, cardTop + 15);
     target->print(temp);
   }
 }
@@ -1438,13 +1441,10 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     minTemp = min(minTemp, value);
     maxTemp = max(maxTemp, value);
   }
-  if (maxTemp - minTemp < 2.0f) {
-    minTemp -= 1.0f;
-    maxTemp += 1.0f;
-  } else {
-    minTemp -= 1.0f;
-    maxTemp += 1.0f;
-  }
+  // Pad the range to keep the chart readable and avoid a zero denominator
+  // when all displayed temperatures are identical.
+  minTemp -= 1.0f;
+  maxTemp += 1.0f;
 
   const int left = 23;
   const int right = screenW - 17;
@@ -1585,7 +1585,7 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
   }
 
   // Safe fallback if the canvas buffer could not be allocated: render the
-  // four settled rows directly if the canvas buffer is unavailable.
+  // three settled rows directly if the canvas buffer is unavailable.
   gfx->fillRect(
     0,
     FORECAST_VIEWPORT_TOP,
@@ -1910,8 +1910,8 @@ void updateTouchDrag(const TouchSample& sample) {
   // A control tap is cancelled as soon as the finger moves significantly.
   // Such a movement remains available to the existing tab-swipe handler.
   if (forecastControlTouch != 0 && touchPresent &&
-      (abs(touchX - forecastControlStartX) > 8 ||
-       abs(touchY - forecastControlStartY) > 8)) {
+      (abs(touchX - forecastControlStartX) > FORECAST_CONTROL_TAP_SLOP_PX ||
+       abs(touchY - forecastControlStartY) > FORECAST_CONTROL_TAP_SLOP_PX)) {
     forecastControlTouch = 0;
   }
 
@@ -2224,6 +2224,7 @@ void pollTouch() {
 
   if (metricsTouchDragActive ||
       forecastTouchDragActive ||
+      forecastControlTouch != 0 ||
       releaseGestureSuppressed) {
     if (gesture != 0) lastHandledGesture = gesture;
     else lastHandledGesture = 0;
