@@ -158,6 +158,10 @@ bool forecastGraphTouchOwned = false;
 bool forecastGraphTouchCandidate = false;
 bool forecastGraphQuickSwipeCandidate = false;
 bool forecastGraphQuickSwipeReady = false;
+bool suppressGraphControllerGestureAfterTouch = false;
+bool graphGestureQuietPeriodActive = false;
+unsigned long graphGestureSuppressionStartedMs = 0;
+unsigned long graphGestureQuietStartedMs = 0;
 bool forecastGraphDragActive = false;
 bool forecastGraphDragMoved = false;
 bool forecastGraphDragHasRendered = false;
@@ -1590,8 +1594,29 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
   }
 }
 
-// Render graph motion into the existing off-screen forecast canvas, then flush
-// one bitmap to the LCD. This avoids flicker from dozens of direct draw calls.
+// Copy only the graph body from the existing canvas. The 8-pixel source crop
+// starts at screen y=72, below the selector, so controls never need repainting.
+bool flushForecastGraphCanvasBody() {
+  if (forecastCanvas == nullptr) return false;
+  uint16_t* framebuffer = forecastCanvas->getFramebuffer();
+  if (framebuffer == nullptr) return false;
+
+  const int graphRedrawTop = FORECAST_CONTROL_BOTTOM + 2;
+  const int sourceTop = graphRedrawTop - FORECAST_VIEWPORT_TOP;
+  const int bodyHeight = FORECAST_VIEWPORT_BOTTOM - graphRedrawTop;
+  if (sourceTop < 0 || bodyHeight <= 0) return false;
+
+  gfx->draw16bitRGBBitmap(
+    0,
+    graphRedrawTop,
+    framebuffer + sourceTop * screenW,
+    screenW,
+    bodyHeight);
+  return true;
+}
+
+// Render graph motion off-screen and copy one cropped bitmap to the LCD. This
+// avoids flicker from dozens of direct draw calls and avoids repainting controls.
 void redrawForecastGraphAtCurrentScroll() {
   if (!forecastGraphView) return;
 
@@ -1600,8 +1625,8 @@ void redrawForecastGraphAtCurrentScroll() {
     if (forecastAvailable && forecastCount > 0) {
       drawForecastGraph(forecastCanvas, 0);
     }
+    if (flushForecastGraphCanvasBody()) return;
     forecastCanvas->flush();
-    // The buffered viewport intersects only the lower 6 px of the selector.
     drawForecastModeSelector();
     return;
   }
@@ -1696,9 +1721,8 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
     forecastCanvas->fillScreen(BG);
     if (forecastGraphView) {
       drawForecastGraph(forecastCanvas, 0);
+      if (flushForecastGraphCanvasBody()) return;
       forecastCanvas->flush();
-      // The canvas covers y=64..215; restore the selector's overlapping lower
-      // edge after the single buffered bitmap transfer.
       drawForecastModeSelector();
       return;
     }
@@ -2030,8 +2054,8 @@ void updateTouchDrag(const TouchSample& sample) {
     forecastGraphTouchOwned =
       currentTab == 1 &&
       forecastGraphView &&
-      touchX >= 8 &&
-      touchX < screenW - 8 &&
+      touchX >= 0 &&
+      touchX < screenW &&
       touchY >= FORECAST_CONTROL_BOTTOM + 2 &&
       touchY < FORECAST_VIEWPORT_BOTTOM;
     forecastGraphTouchCandidate = forecastGraphTouchOwned;
@@ -2217,14 +2241,14 @@ void updateTouchDrag(const TouchSample& sample) {
     const int absY = abs(deltaY);
     const unsigned long heldMs = millis() - forecastGraphTouchStartedMs;
 
+    // Only a large, clearly tracked horizontal movement before the hold delay
+    // can become a tab swipe. Small movement/jitter no longer cancels graph drag.
     if (heldMs < FORECAST_GRAPH_HOLD_MS &&
-        (absX >= FORECAST_GRAPH_TOUCH_INTENT_PX ||
-         absY >= FORECAST_GRAPH_TOUCH_INTENT_PX)) {
-      // Movement before the hold threshold locks this contact into quick-swipe
-      // intent (horizontal) or a cancelled gesture (vertical). It cannot later
-      // turn into a graph drag just because tracking paused.
+        absX >= FORECAST_GRAPH_TAB_SWIPE_PX &&
+        absX > absY) {
       forecastGraphTouchCandidate = false;
-      forecastGraphQuickSwipeCandidate = absX > absY;
+      forecastGraphQuickSwipeCandidate = true;
+      forecastGraphQuickSwipeReady = true;
     } else if (heldMs >= FORECAST_GRAPH_HOLD_MS &&
                absX >= FORECAST_GRAPH_DRAG_START_PX &&
                absX > absY) {
@@ -2242,7 +2266,10 @@ void updateTouchDrag(const TouchSample& sample) {
         "Graph horizontal hold-drag started at x=%d, scroll=%d\n",
         forecastGraphDragStartX,
         forecastGraphDragStartScroll);
-    } else if (absY >= FORECAST_GRAPH_TOUCH_INTENT_PX && absY >= absX) {
+    } else if (heldMs < FORECAST_GRAPH_HOLD_MS &&
+               absY >= 20 && absY > absX) {
+      // Strong vertical intent cancels chart panning, but the contact remains
+      // owned so a controller dropout cannot turn it into a tab switch.
       forecastGraphTouchCandidate = false;
       forecastGraphQuickSwipeCandidate = false;
     }
@@ -2252,14 +2279,13 @@ void updateTouchDrag(const TouchSample& sample) {
     const int deltaX = touchX - forecastGraphTouchStartX;
     const int deltaY = touchY - forecastGraphTouchStartY;
     const unsigned long heldMs = millis() - forecastGraphTouchStartedMs;
-    if (heldMs < FORECAST_GRAPH_HOLD_MS &&
-        abs(deltaX) >= FORECAST_GRAPH_TAB_SWIPE_PX &&
-        abs(deltaX) > abs(deltaY)) {
-      // Defer the tab change until release, but only a clearly tracked fast
-      // horizontal swipe may qualify. Tracking loss on its own never switches tabs.
-      forecastGraphQuickSwipeReady = true;
-    } else if (heldMs >= FORECAST_GRAPH_HOLD_MS) {
+    forecastGraphQuickSwipeReady =
+      heldMs < FORECAST_GRAPH_HOLD_MS &&
+      abs(deltaX) >= FORECAST_GRAPH_TAB_SWIPE_PX &&
+      abs(deltaX) > abs(deltaY);
+    if (heldMs >= FORECAST_GRAPH_HOLD_MS) {
       forecastGraphQuickSwipeCandidate = false;
+      forecastGraphQuickSwipeReady = false;
     }
   }
 
@@ -2384,8 +2410,12 @@ void updateTouchDrag(const TouchSample& sample) {
       animateTabTransition(0, -1);
     }
 
-    // Suppress the CST816's gesture code for every graph-originated contact,
-    // including contacts where tracking dropped before a swipe was confirmed.
+    // Keep suppressing the controller gesture until the gesture register has
+    // returned to zero for a quiet interval. Tracking loss alone must not switch tabs.
+    suppressGraphControllerGestureAfterTouch = true;
+    graphGestureQuietPeriodActive = false;
+    graphGestureSuppressionStartedMs = millis();
+    graphGestureQuietStartedMs = 0;
     forecastGestureSuppressionStartedMs = millis();
     suppressForecastGesture = true;
   }
@@ -2537,6 +2567,30 @@ void pollTouch() {
   const bool releaseGestureSuppressed =
     metricReleaseGestureSuppressed || forecastReleaseGestureSuppressed;
 
+  // A graph-originated contact owns its controller gesture even if finger
+  // tracking briefly disappears. Clear this latch only after a sustained zero.
+  bool graphControllerGestureSuppressed = false;
+  if (suppressGraphControllerGestureAfterTouch) {
+    if (gesture == 0) {
+      if (!graphGestureQuietPeriodActive) {
+        graphGestureQuietPeriodActive = true;
+        graphGestureQuietStartedMs = nowMs;
+      }
+      if (nowMs - graphGestureSuppressionStartedMs >= 450UL &&
+          nowMs - graphGestureQuietStartedMs >= 250UL) {
+        suppressGraphControllerGestureAfterTouch = false;
+        graphGestureQuietPeriodActive = false;
+      } else {
+        graphControllerGestureSuppressed = true;
+      }
+    } else {
+      graphGestureQuietPeriodActive = false;
+      graphGestureQuietStartedMs = 0;
+      graphControllerGestureSuppressed = true;
+      lastHandledGesture = gesture;
+    }
+  }
+
   if (suppressMetricGesture && !metricReleaseGestureSuppressed) {
     suppressMetricGesture = false;
   }
@@ -2549,6 +2603,7 @@ void pollTouch() {
       forecastGraphTouchOwned ||
       forecastGraphDragActive ||
       forecastControlTouch != 0 ||
+      graphControllerGestureSuppressed ||
       releaseGestureSuppressed) {
     if (gesture != 0) lastHandledGesture = gesture;
     else lastHandledGesture = 0;
