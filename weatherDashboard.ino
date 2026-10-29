@@ -193,7 +193,7 @@ unsigned long lastUpdate = 0;
 bool loadDemoWeatherData();
 
 const int MAX_FORECAST = 48;
-const int ITEMS_PER_PAGE = 3;
+const int ITEMS_PER_PAGE = 4;
 
 const int WEATHER_METRIC_COUNT = 8;
 const int WEATHER_METRICS_VISIBLE = 3;
@@ -222,21 +222,31 @@ const int TAB_TRANSITION_CONTENT_TOP = 37;
 const int TAB_TRANSITION_FOOTER_HEIGHT = 12;
 
 const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP;
-const int FORECAST_ROW_STEP = 52;
-const int FORECAST_CARD_HEIGHT = 48;
+const int FORECAST_ROW_STEP = 38;
+const int FORECAST_CARD_HEIGHT = 36;
+const int FORECAST_GRAPH_POINTS = 6;
+const int FORECAST_CONTROL_TOP = 39;
+const int FORECAST_CONTROL_BOTTOM = 59;
 // Limit full-viewport bitmap transfers during fast finger drags.
 const unsigned long FORECAST_DRAG_RENDER_INTERVAL_MS = 50UL;
 
 struct ForecastItem {
   String timeText;
-  String description;
+  String description;  // OpenWeather condition group, e.g. Clouds, Rain, Clear.
   float temp;
+  float feelsLike;
+  float rainProbability; // 0.0 to 1.0 from OpenWeather pop.
   uint32_t timestamp;
 };
 
 ForecastItem forecast[MAX_FORECAST];
 int forecastCount = 0;
 int forecastOffset = 0;
+bool forecastGraphView = false;
+int forecastGraphOffset = 0;
+uint8_t forecastControlTouch = 0; // 1=previous, 2=next, 3=list, 4=graph.
+int forecastControlStartX = 0;
+int forecastControlStartY = 0;
 int currentTab = 0;
 
 // =====================================================
