@@ -1546,7 +1546,10 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
       target->fillCircle(x, originY + y, 2, UI_WHITE);
     }
 
-    if (x >= left + 8 && x <= right - 8) {
+    // The first and sixth visible points sit close to the plot edges. Their
+    // icons still fit on the display, so clip against the screen rather than
+    // hiding them just because they cross the inner plot boundary.
+    if (x >= 8 && x <= screenW - 8) {
       drawMiniWeatherIcon(
         target, forecast[index].description, x - 8,
         originY + 2 + FORECAST_GRAPH_VERTICAL_SHIFT);
@@ -1557,7 +1560,8 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     uint16_t w, h;
     target->setTextSize(1);
     target->getTextBounds(tempText.c_str(), 0, 0, &x1, &y1, &w, &h);
-    if (x - (int)w / 2 >= left && x + ((int)w + 1) / 2 <= right) {
+    if (x - (int)w / 2 >= 2 &&
+        x + ((int)w + 1) / 2 <= screenW - 2) {
       target->setTextColor(UI_WHITE);
       target->setCursor(x - (int)w / 2, originY + y - 10);
       target->print(tempText);
@@ -1565,7 +1569,8 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
 
     String timeLabel = forecastCompactTime(index);
     target->getTextBounds(timeLabel.c_str(), 0, 0, &x1, &y1, &w, &h);
-    if (x - (int)w / 2 >= left && x + ((int)w + 1) / 2 <= right) {
+    if (x - (int)w / 2 >= 2 &&
+        x + ((int)w + 1) / 2 <= screenW - 2) {
       target->setTextColor(MUTED);
       target->setCursor(
         x - (int)w / 2,
@@ -1576,13 +1581,14 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     const int rainPercent = constrain(
       (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
     const int barHeight = (rainPercent * 18) / 100;
-    if (x >= left + 3 && x <= right - 3) {
+    if (x >= 3 && x <= screenW - 3) {
       target->fillRect(
         x - 3, originY + 139 - barHeight, 6, max(1, barHeight), ACCENT);
     }
     String rainLabel = String(rainPercent) + "%";
     target->getTextBounds(rainLabel.c_str(), 0, 0, &x1, &y1, &w, &h);
-    if (x - (int)w / 2 >= left && x + ((int)w + 1) / 2 <= right) {
+    if (x - (int)w / 2 >= 2 &&
+        x + ((int)w + 1) / 2 <= screenW - 2) {
       target->setTextColor(UI_WHITE);
       target->setCursor(x - (int)w / 2, originY + 143);
       target->print(rainLabel);
