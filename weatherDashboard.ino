@@ -1220,31 +1220,106 @@ void drawWeather() {
 // FORECAST SCREEN
 // =====================================================
 
+String forecastCompactTime(int index) {
+  String label = forecast[index].timeText;
+  const int separator = label.lastIndexOf(' ');
+  if (separator >= 0) label = label.substring(separator + 1);
+  return label;
+}
+
+// Small vector weather symbols keep hourly rows compact without downloading and
+// caching a separate PNG for every forecast condition.
+void drawMiniWeatherIcon(
+  Arduino_GFX* target,
+  const String& condition,
+  int x,
+  int y
+) {
+  const bool clear = condition.indexOf("Clear") >= 0;
+  const bool rain = condition.indexOf("Rain") >= 0 ||
+                    condition.indexOf("Drizzle") >= 0;
+  const bool snow = condition.indexOf("Snow") >= 0;
+  const bool thunder = condition.indexOf("Thunder") >= 0;
+  const bool mist = condition.indexOf("Mist") >= 0 ||
+                    condition.indexOf("Fog") >= 0 ||
+                    condition.indexOf("Haze") >= 0;
+
+  if (clear) {
+    target->fillCircle(x + 8, y + 7, 4, UI_YELLOW);
+    target->drawFastHLine(x + 1, y + 7, 3, UI_YELLOW);
+    target->drawFastHLine(x + 12, y + 7, 3, UI_YELLOW);
+    target->drawFastVLine(x + 8, y, 3, UI_YELLOW);
+    target->drawFastVLine(x + 8, y + 11, 3, UI_YELLOW);
+    target->drawLine(x + 3, y + 2, x + 5, y + 4, UI_YELLOW);
+    target->drawLine(x + 11, y + 10, x + 13, y + 12, UI_YELLOW);
+    target->drawLine(x + 11, y + 4, x + 13, y + 2, UI_YELLOW);
+    target->drawLine(x + 3, y + 12, x + 5, y + 10, UI_YELLOW);
+    return;
+  }
+
+  if (mist) {
+    target->drawFastHLine(x + 1, y + 4, 14, MUTED);
+    target->drawFastHLine(x, y + 8, 15, UI_WHITE);
+    target->drawFastHLine(x + 2, y + 12, 12, MUTED);
+    return;
+  }
+
+  // The cloud is shared by cloudy, rain, snow and thunderstorm conditions.
+  target->fillCircle(x + 5, y + 8, 3, UI_WHITE);
+  target->fillCircle(x + 9, y + 5, 4, UI_WHITE);
+  target->fillCircle(x + 13, y + 8, 3, UI_WHITE);
+  target->fillRect(x + 4, y + 7, 10, 5, UI_WHITE);
+
+  if (thunder) {
+    target->drawLine(x + 9, y + 10, x + 6, y + 14, UI_YELLOW);
+    target->drawLine(x + 6, y + 14, x + 9, y + 14, UI_YELLOW);
+    target->drawLine(x + 9, y + 14, x + 7, y + 17, UI_YELLOW);
+  } else if (snow) {
+    target->drawFastVLine(x + 6, y + 13, 4, ACCENT);
+    target->drawFastHLine(x + 4, y + 14, 4, ACCENT);
+    target->drawFastHLine(x + 9, y + 15, 4, ACCENT);
+  } else if (rain) {
+    target->drawLine(x + 5, y + 13, x + 3, y + 16, ACCENT);
+    target->drawLine(x + 10, y + 13, x + 8, y + 16, ACCENT);
+    target->drawLine(x + 14, y + 13, x + 12, y + 16, ACCENT);
+  }
+}
+
 void drawForecastItem(Arduino_GFX* target, int index, int y) {
-  target->fillRoundRect(8, y, screenW - 16, FORECAST_CARD_HEIGHT, 6, PANEL);
+  target->fillRoundRect(
+    4, y, screenW - 8, FORECAST_CARD_HEIGHT, 4, PANEL);
 
-  // Put the time and temperature on a prominent first line.
-  target->setTextSize(2);
+  // Four concise fields fit on the small display: time, condition icon,
+  // temperature, feels-like temperature, and probability of precipitation.
+  target->setTextSize(1);
   target->setTextColor(UI_WHITE);
-  target->setCursor(16, y + 5);
-  target->print(forecast[index].timeText);
+  target->setCursor(10, y + 13);
+  target->print(forecastCompactTime(index));
 
-  String temp = String(forecast[index].temp, 1) + "C";
+  drawMiniWeatherIcon(target, forecast[index].description, 48, y + 9);
+
+  String temp = String((int)round(forecast[index].temp)) + "C";
+  target->setTextSize(2);
   target->setTextColor(UI_YELLOW);
-  int16_t x1, y1;
-  uint16_t w, h;
-  target->getTextBounds(temp.c_str(), 0, 0, &x1, &y1, &w, &h);
-  target->setCursor(screenW - 16 - w, y + 5);
+  target->setCursor(72, y + 9);
   target->print(temp);
 
-  // Keep the description on its own line so it remains readable without
-  // competing for horizontal space with the larger temperature.
-  String desc = forecast[index].description;
-  if (desc.length() > 34) desc = desc.substring(0, 33) + ".";
+  String feelsText = "F " +
+    String((int)round(forecast[index].feelsLike)) + "C";
   target->setTextSize(1);
   target->setTextColor(MUTED);
-  target->setCursor(16, y + 30);
-  target->print(desc);
+  target->setCursor(145, y + 14);
+  target->print(feelsText);
+
+  const int rainPercent = constrain(
+    (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
+  String rainText = "R " + String(rainPercent) + "%";
+  int16_t x1, y1;
+  uint16_t w, h;
+  target->getTextBounds(rainText.c_str(), 0, 0, &x1, &y1, &w, &h);
+  target->setTextColor(UI_WHITE);
+  target->setCursor(screenW - 10 - (int)w, y + 14);
+  target->print(rainText);
 }
 
 // Draw a forecast card into the viewport canvas while explicitly clipping
@@ -1296,6 +1371,154 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
     target->setCursor(16, descY);
     target->print(desc);
   }
+}
+
+void drawForecastControls() {
+  gfx->fillRect(0, FORECAST_CONTROL_TOP - 2, screenW,
+                FORECAST_VIEWPORT_TOP - FORECAST_CONTROL_TOP + 2, BG);
+
+  if (forecastGraphView) {
+    const int maxGraphOffset = max(0, forecastCount - FORECAST_GRAPH_POINTS);
+    const bool canGoBack = forecastGraphOffset > 0;
+    const bool canGoForward = forecastGraphOffset < maxGraphOffset;
+
+    gfx->fillRoundRect(7, 40, 21, 17, 4, PANEL);
+    gfx->fillRoundRect(32, 40, 21, 17, 4, PANEL);
+    drawText("<", 13, 42, 2, canGoBack ? UI_WHITE : MUTED);
+    drawText(">", 38, 42, 2, canGoForward ? UI_WHITE : MUTED);
+
+    String rangeText = "No data";
+    if (forecastCount > 0) {
+      const int first = min(forecastCount, forecastGraphOffset + 1);
+      const int last = min(forecastCount,
+                           forecastGraphOffset + FORECAST_GRAPH_POINTS);
+      rangeText = String(first) + "-" + String(last) + "/" +
+                  String(forecastCount);
+    }
+    drawText(rangeText, 59, 44, 1, MUTED);
+  } else {
+    drawText("HOURLY", 8, 44, 1, UI_WHITE);
+  }
+
+  // Compact segmented List / Graph control. Touching it is independent of the
+  // forecast swipe area, so paging the graph never steals a tab-switch swipe.
+  gfx->fillRoundRect(185, 39, 127, 19, 4, PANEL);
+  if (!forecastGraphView) {
+    gfx->fillRoundRect(187, 41, 61, 15, 3, UI_WHITE);
+  } else {
+    gfx->fillRoundRect(249, 41, 61, 15, 3, UI_WHITE);
+  }
+  drawText("LIST", 204, 44, 1, forecastGraphView ? MUTED : BG);
+  drawText("GRAPH", 260, 44, 1, forecastGraphView ? BG : MUTED);
+}
+
+void drawForecastGraph(Arduino_GFX* target, int originY) {
+  if (forecastCount <= 0) return;
+
+  const int maxStart = max(0, forecastCount - FORECAST_GRAPH_POINTS);
+  const int firstIndex = constrain(forecastGraphOffset, 0, maxStart);
+  const int pointCount = min(FORECAST_GRAPH_POINTS,
+                             forecastCount - firstIndex);
+  if (pointCount <= 0) return;
+
+  float minTemp = forecast[firstIndex].temp;
+  float maxTemp = forecast[firstIndex].temp;
+  for (int i = 1; i < pointCount; i++) {
+    const float value = forecast[firstIndex + i].temp;
+    minTemp = min(minTemp, value);
+    maxTemp = max(maxTemp, value);
+  }
+  if (maxTemp - minTemp < 2.0f) {
+    minTemp -= 1.0f;
+    maxTemp += 1.0f;
+  } else {
+    minTemp -= 1.0f;
+    maxTemp += 1.0f;
+  }
+
+  const int left = 23;
+  const int right = screenW - 17;
+  const int plotTop = 37;
+  const int plotBottom = 89;
+  const int plotHeight = plotBottom - plotTop;
+  const uint16_t gridColour = PANEL;
+  target->drawFastHLine(left, originY + plotTop, right - left,
+                        gridColour);
+  target->drawFastHLine(left, originY + (plotTop + plotBottom) / 2,
+                        right - left, gridColour);
+  target->drawFastHLine(left, originY + plotBottom, right - left,
+                        gridColour);
+
+  int xs[FORECAST_GRAPH_POINTS];
+  int ys[FORECAST_GRAPH_POINTS];
+  for (int i = 0; i < pointCount; i++) {
+    const int index = firstIndex + i;
+    xs[i] = pointCount == 1
+      ? screenW / 2
+      : left + (i * (right - left)) / (pointCount - 1);
+
+    const float ratio = (forecast[index].temp - minTemp) /
+                        (maxTemp - minTemp);
+    ys[i] = plotBottom - (int)round(ratio * plotHeight);
+
+    drawMiniWeatherIcon(
+      target, forecast[index].description, xs[i] - 8, originY + 2);
+
+    String tempText = String((int)round(forecast[index].temp)) + "C";
+    int16_t x1, y1;
+    uint16_t w, h;
+    target->setTextSize(1);
+    target->getTextBounds(tempText.c_str(), 0, 0, &x1, &y1, &w, &h);
+    target->setTextColor(UI_WHITE);
+    target->setCursor(xs[i] - (int)w / 2, originY + ys[i] - 10);
+    target->print(tempText);
+
+    if (i > 0) {
+      target->drawLine(xs[i - 1], originY + ys[i - 1],
+                       xs[i], originY + ys[i], UI_YELLOW);
+    }
+    target->fillCircle(xs[i], originY + ys[i], 2, UI_WHITE);
+
+    String timeLabel = forecastCompactTime(index);
+    target->getTextBounds(timeLabel.c_str(), 0, 0, &x1, &y1, &w, &h);
+    target->setTextColor(MUTED);
+    target->setCursor(xs[i] - (int)w / 2, originY + 99);
+    target->print(timeLabel);
+
+    const int rainPercent = constrain(
+      (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
+    const int barHeight = (rainPercent * 18) / 100;
+    target->fillRect(xs[i] - 3, originY + 139 - barHeight,
+                     6, max(1, barHeight), ACCENT);
+    String rainLabel = String(rainPercent) + "%";
+    target->getTextBounds(rainLabel.c_str(), 0, 0, &x1, &y1, &w, &h);
+    target->setTextColor(UI_WHITE);
+    target->setCursor(xs[i] - (int)w / 2, originY + 143);
+    target->print(rainLabel);
+  }
+}
+
+void handleForecastControlTap(uint8_t control) {
+  if (control == 1) {
+    forecastGraphOffset = max(0, forecastGraphOffset - FORECAST_GRAPH_POINTS);
+  } else if (control == 2) {
+    const int maxGraphOffset = max(0, forecastCount - FORECAST_GRAPH_POINTS);
+    forecastGraphOffset = min(maxGraphOffset,
+                              forecastGraphOffset + FORECAST_GRAPH_POINTS);
+  } else if (control == 3) {
+    forecastOffset = constrain(
+      forecastGraphOffset, 0, max(0, forecastCount - ITEMS_PER_PAGE));
+    forecastGraphView = false;
+  } else if (control == 4) {
+    forecastGraphOffset = constrain(
+      forecastOffset, 0, max(0, forecastCount - FORECAST_GRAPH_POINTS));
+    forecastGraphView = true;
+  }
+
+  drawForecast();
+  // Prevent a button tap from being reinterpreted as a controller swipe.
+  forecastGestureSuppressionStartedMs = millis();
+  suppressForecastGesture = true;
 }
 
 void drawForecastFooter() {
