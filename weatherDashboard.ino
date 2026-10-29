@@ -131,6 +131,16 @@ int metricsDragCurrentScroll = 0;
 bool suppressMetricGesture = false;
 unsigned long metricsGestureSuppressionStartedMs = 0;
 
+bool forecastTouchDragActive = false;
+bool forecastTouchCandidate = false;
+bool forecastTouchDragMoved = false;
+int forecastDragStartX = 0;
+int forecastDragStartY = 0;
+int forecastDragStartScroll = 0;
+int forecastDragCurrentScroll = 0;
+bool suppressForecastGesture = false;
+unsigned long forecastGestureSuppressionStartedMs = 0;
+
 // =====================================================
 // COLOURS
 // =====================================================
@@ -1300,6 +1310,32 @@ void animateForecastScroll(int direction) {
   drawForecastFooter();
 }
 
+// Convert a continuous pixel scroll position into the forecast's row offset
+// plus the within-row displacement. Rendering still uses the same buffered
+// viewport and a single bitmap flush.
+int maxForecastScrollPixels() {
+  return max(0, forecastCount - ITEMS_PER_PAGE) * FORECAST_ROW_STEP;
+}
+
+int clampForecastScrollPixels(int pixels) {
+  return constrain(pixels, 0, maxForecastScrollPixels());
+}
+
+void drawForecastAtScrollPosition(int pixels) {
+  pixels = clampForecastScrollPixels(pixels);
+  int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  int baseOffset = pixels / FORECAST_ROW_STEP;
+  int scrollPixels = pixels % FORECAST_ROW_STEP;
+
+  if (baseOffset >= maxOffset) {
+    baseOffset = maxOffset;
+    scrollPixels = 0;
+  }
+
+  forecastOffset = baseOffset;
+  drawForecastViewport(baseOffset, scrollPixels);
+}
+
 // =====================================================
 // TOUCH REGISTER
 // =====================================================
@@ -1345,7 +1381,7 @@ void touchCoordinatesToScreen(
   screenY = constrain(screenY, 0, screenH - 1);
 }
 
-void updateWeatherMetricsTouchDrag(const TouchSample& sample) {
+void updateTouchDrag(const TouchSample& sample) {
   const bool touchPresent =
     sample.fingerCount > 0 && sample.event != 1; // ignore touch-up coordinates
   int touchX = 0;
@@ -1396,6 +1432,33 @@ void updateWeatherMetricsTouchDrag(const TouchSample& sample) {
         touchY,
         metricsDragStartScroll);
     }
+  }
+
+  // Forecast drag starts only within the visible list and only when its
+  // buffered renderer exists. If it does not, controller gesture scrolling
+  // remains the fallback.
+  if (!forecastTouchDragActive &&
+      !forecastTouchCandidate &&
+      touchJustStarted &&
+      currentTab == 1 &&
+      forecastCanvas != nullptr &&
+      forecastAvailable &&
+      forecastCount > ITEMS_PER_PAGE &&
+      touchX >= 8 &&
+      touchX < screenW - 8 &&
+      touchY >= FORECAST_VIEWPORT_TOP &&
+      touchY < FORECAST_VIEWPORT_BOTTOM) {
+    forecastTouchCandidate = true;
+    forecastTouchDragMoved = false;
+    forecastDragStartX = touchX;
+    forecastDragStartY = touchY;
+    forecastDragStartScroll = forecastOffset * FORECAST_ROW_STEP;
+    forecastDragCurrentScroll = forecastDragStartScroll;
+    DEBUG_PRINTF(
+      "Forecast touch candidate at screen (%d,%d), scroll=%d\n",
+      touchX,
+      touchY,
+      forecastDragStartScroll);
   }
 
   if (metricsTouchCandidate && touchPresent) {
@@ -1453,6 +1516,73 @@ void updateWeatherMetricsTouchDrag(const TouchSample& sample) {
     // duplicate for a short grace period so it cannot trigger a second scroll.
     metricsGestureSuppressionStartedMs = millis();
     suppressMetricGesture = true;
+  }
+
+  // Forecast gestures use the same axis-intent arbitration as the metric
+  // panel, but scroll the wider hourly list by tracking the finger's Y.
+  if (forecastTouchCandidate && touchPresent) {
+    const int deltaX = touchX - forecastDragStartX;
+    const int deltaY = touchY - forecastDragStartY;
+    const int absX = abs(deltaX);
+    const int absY = abs(deltaY);
+    const int intentThresholdPx = 8;
+
+    if (absX >= intentThresholdPx && absX > absY) {
+      // Leave horizontal intent to the existing tab-switch gesture handler.
+      forecastTouchCandidate = false;
+      DEBUG_PRINTF(
+        "Forecast touch resolved as horizontal swipe (dx=%d, dy=%d)\n",
+        deltaX,
+        deltaY);
+    } else if (absY >= intentThresholdPx && absY >= absX) {
+      forecastTouchCandidate = false;
+      forecastTouchDragActive = true;
+      DEBUG_PRINTF(
+        "Forecast vertical drag started (dx=%d, dy=%d)\n",
+        deltaX,
+        deltaY);
+    }
+  }
+
+  if (forecastTouchDragActive && touchPresent) {
+    const int nextScroll = clampForecastScrollPixels(
+      forecastDragStartScroll + forecastDragStartY - touchY);
+
+    // Ignore one-pixel sensor jitter while keeping the content responsive.
+    if (abs(nextScroll - forecastDragCurrentScroll) >= 2) {
+      forecastTouchDragMoved =
+        forecastTouchDragMoved ||
+        abs(nextScroll - forecastDragStartScroll) >= 3;
+      forecastDragCurrentScroll = nextScroll;
+      drawForecastAtScrollPosition(forecastDragCurrentScroll);
+    }
+  }
+
+  if (forecastTouchDragActive &&
+      (!touchPresent || sample.event == 1)) {
+    const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+    const int targetOffset = constrain(
+      (forecastDragCurrentScroll + FORECAST_ROW_STEP / 2) /
+        FORECAST_ROW_STEP,
+      0,
+      maxOffset);
+    DEBUG_PRINTF(
+      "Forecast drag released at scroll=%d; snapping to offset=%d; moved=%d\n",
+      forecastDragCurrentScroll,
+      targetOffset,
+      forecastTouchDragMoved ? 1 : 0);
+
+    // Settle with a single buffered flush rather than a multi-frame animation.
+    forecastOffset = targetOffset;
+    drawForecastViewport(forecastOffset, 0);
+    drawForecastFooter();
+    forecastTouchDragActive = false;
+    forecastGestureSuppressionStartedMs = millis();
+    suppressForecastGesture = true;
+  }
+
+  if (forecastTouchCandidate && (!touchPresent || sample.event == 1)) {
+    forecastTouchCandidate = false;
   }
 
   // A tap that never crossed the intent threshold wasn't a drag; discard the
@@ -1566,18 +1696,30 @@ void pollTouch() {
     previousRawGesture = gesture;
   }
 
-  updateWeatherMetricsTouchDrag(sample);
+  updateTouchDrag(sample);
 
   // A drag on the metric cards is driven by coordinates. Suppress the
   // controller's completed swipe code so the same motion is not applied twice.
-  bool releaseGestureSuppressed =
+  const unsigned long nowMs = millis();
+  const bool metricReleaseGestureSuppressed =
     suppressMetricGesture &&
-    (millis() - metricsGestureSuppressionStartedMs < 300UL);
-  if (suppressMetricGesture && !releaseGestureSuppressed) {
+    (nowMs - metricsGestureSuppressionStartedMs < 300UL);
+  const bool forecastReleaseGestureSuppressed =
+    suppressForecastGesture &&
+    (nowMs - forecastGestureSuppressionStartedMs < 300UL);
+  const bool releaseGestureSuppressed =
+    metricReleaseGestureSuppressed || forecastReleaseGestureSuppressed;
+
+  if (suppressMetricGesture && !metricReleaseGestureSuppressed) {
     suppressMetricGesture = false;
   }
+  if (suppressForecastGesture && !forecastReleaseGestureSuppressed) {
+    suppressForecastGesture = false;
+  }
 
-  if (metricsTouchDragActive || releaseGestureSuppressed) {
+  if (metricsTouchDragActive ||
+      forecastTouchDragActive ||
+      releaseGestureSuppressed) {
     if (gesture != 0) lastHandledGesture = gesture;
     else lastHandledGesture = 0;
     return;
