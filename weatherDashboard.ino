@@ -1337,39 +1337,45 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
     return;
   }
 
-  // Partial edge cards use a clipped rectangular slice; full cards retain
-  // their rounded styling. This avoids the jagged row replacement during drag.
-  target->fillRect(
-    8,
-    clippedTop,
-    screenW - 16,
-    clippedBottom - clippedTop,
-    PANEL);
+  // Partial edge rows get a clipped body and only fields wholly inside the
+  // viewport are drawn. Never pass negative/off-panel Y values to primitives.
+  target->fillRect(4, clippedTop, screenW - 8,
+                   clippedBottom - clippedTop, PANEL);
 
-  const int timeY = cardTop + 5;
-  if (timeY >= 0 && timeY + 16 <= FORECAST_VIEWPORT_HEIGHT) {
-    target->setTextSize(2);
+  const int fieldY = cardTop + 13;
+  if (fieldY >= 0 && fieldY + 8 <= FORECAST_VIEWPORT_HEIGHT) {
+    target->setTextSize(1);
     target->setTextColor(UI_WHITE);
-    target->setCursor(16, timeY);
-    target->print(forecast[index].timeText);
+    target->setCursor(10, fieldY);
+    target->print(forecastCompactTime(index));
 
-    String temp = String(forecast[index].temp, 1) + "C";
+    String feelsText = "F " +
+      String((int)round(forecast[index].feelsLike)) + "C";
+    target->setTextColor(MUTED);
+    target->setCursor(145, fieldY);
+    target->print(feelsText);
+
+    const int rainPercent = constrain(
+      (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
+    String rainText = "R " + String(rainPercent) + "%";
     int16_t x1, y1;
     uint16_t w, h;
-    target->getTextBounds(temp.c_str(), 0, 0, &x1, &y1, &w, &h);
-    target->setTextColor(UI_YELLOW);
-    target->setCursor(screenW - 16 - w, timeY);
-    target->print(temp);
+    target->getTextBounds(rainText.c_str(), 0, 0, &x1, &y1, &w, &h);
+    target->setTextColor(UI_WHITE);
+    target->setCursor(screenW - 10 - (int)w, fieldY);
+    target->print(rainText);
   }
 
-  const int descY = cardTop + 30;
-  if (descY >= 0 && descY + 8 <= FORECAST_VIEWPORT_HEIGHT) {
-    String desc = forecast[index].description;
-    if (desc.length() > 34) desc = desc.substring(0, 33) + ".";
-    target->setTextSize(1);
-    target->setTextColor(MUTED);
-    target->setCursor(16, descY);
-    target->print(desc);
+  if (cardTop + 9 >= 0 &&
+      cardTop + 26 <= FORECAST_VIEWPORT_HEIGHT) {
+    drawMiniWeatherIcon(
+      target, forecast[index].description, 48, cardTop + 9);
+
+    String temp = String((int)round(forecast[index].temp)) + "C";
+    target->setTextSize(2);
+    target->setTextColor(UI_YELLOW);
+    target->setCursor(72, cardTop + 9);
+    target->print(temp);
   }
 }
 
@@ -1543,6 +1549,11 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
 
   if (forecastCanvas != nullptr && !renderingTabTransition) {
     forecastCanvas->fillScreen(BG);
+    if (forecastGraphView) {
+      drawForecastGraph(forecastCanvas, 0);
+      forecastCanvas->flush();
+      return;
+    }
 
     const int firstIndex = max(0, baseOffset - 1);
     const int lastIndex = min(forecastCount, baseOffset + ITEMS_PER_PAGE + 1);
@@ -1578,6 +1589,11 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
     FORECAST_VIEWPORT_HEIGHT,
     BG);
 
+  if (forecastGraphView) {
+    drawForecastGraph(gfx, FORECAST_VIEWPORT_TOP);
+    return;
+  }
+
   int visible = min(ITEMS_PER_PAGE, max(0, forecastCount - baseOffset));
   for (int i = 0; i < visible; i++) {
     int y = FORECAST_ROW_TOP + i * FORECAST_ROW_STEP;
@@ -1589,7 +1605,7 @@ void drawForecast() {
   currentTab = 1;
   gfx->fillScreen(BG);
   drawHeader();
-  drawText("UPCOMING HOURLY FORECAST", 10, 44, 1, UI_WHITE);
+  drawForecastControls();
 
   if (!forecastAvailable || forecastCount == 0) {
     drawCenteredText(forecastError.length() ? forecastError : "No hourly data", 100, 1, MUTED);
