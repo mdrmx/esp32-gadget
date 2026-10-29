@@ -1883,7 +1883,7 @@ bool resolveLocationNameFromCoordinates() {
   Serial.println("[LOCATION] Demo mode: skipping OpenWeather reverse geocoding.");
   return false;
 #endif
-  Serial.printf("[LOCATION] Reverse geocoding coordinates %.5f, %.5f...\\n",
+  Serial.printf("[LOCATION] Reverse geocoding coordinates %.5f, %.5f...\n",
                 locationLat, locationLon);
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[LOCATION] Reverse geocoding skipped: Wi-Fi is not connected.");
@@ -1908,7 +1908,7 @@ bool resolveLocationNameFromCoordinates() {
   http.setTimeout(8000);
   const int status = http.GET();
   if (status != HTTP_CODE_OK) {
-    DEBUG_PRINTF("OpenWeather reverse geocoding HTTP status: %d; keeping IP city.\n", status);
+    Serial.printf("OpenWeather reverse geocoding HTTP status: %d; keeping IP city.\n", status);
     http.end();
     return false;
   }
@@ -1918,7 +1918,7 @@ bool resolveLocationNameFromCoordinates() {
   http.end();
 
   if (error || !doc.is<JsonArray>() || doc.size() == 0 || doc[0]["name"].isNull()) {
-    Serial.printf("[LOCATION] Reverse geocoding response had no place name (JSON error: %s); keeping IP city.\\n",
+    Serial.printf("[LOCATION] Reverse geocoding response had no place name (JSON error: %s); keeping IP city.\n",
                   error ? error.c_str() : "none");
     return false;
   }
@@ -1931,7 +1931,7 @@ bool resolveLocationNameFromCoordinates() {
   }
 
   ipLocationCity = resolvedName;
-  DEBUG_PRINTF("OpenWeather reverse geocoded place: %s\n", ipLocationCity.c_str());
+  Serial.printf("OpenWeather reverse geocoded place: %s\n", ipLocationCity.c_str());
   return true;
 }
 
@@ -1944,7 +1944,7 @@ bool resolveLocationFromIP() {
 #endif
   Serial.println("[LOCATION] Starting IP geolocation request...");
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.printf("[LOCATION] IP lookup skipped: Wi-Fi status is %d.\\n", (int)WiFi.status());
+    Serial.printf("[LOCATION] IP lookup skipped: Wi-Fi status is %d.\n", (int)WiFi.status());
     return false;
   }
 
@@ -1960,7 +1960,7 @@ bool resolveLocationFromIP() {
   http.setTimeout(8000);
   const int status = http.GET();
   if (status != HTTP_CODE_OK) {
-    DEBUG_PRINTF("IP geolocation HTTP status: %d; using configured fallback.\n", status);
+    Serial.printf("IP geolocation HTTP status: %d; using configured fallback.\n", status);
     http.end();
     return false;
   }
@@ -1970,7 +1970,7 @@ bool resolveLocationFromIP() {
   http.end();
   if (error || !(doc["success"] | false) ||
       doc["latitude"].isNull() || doc["longitude"].isNull()) {
-    Serial.printf("[LOCATION] ipwho.is response invalid (JSON error: %s, success: %d); using configured fallback.\\n",
+    Serial.printf("[LOCATION] ipwho.is response invalid (JSON error: %s, success: %d); using configured fallback.\n",
                   error ? error.c_str() : "none",
                   doc["success"] | false);
     return false;
@@ -1981,7 +1981,7 @@ bool resolveLocationFromIP() {
   if (!isfinite(resolvedLat) || !isfinite(resolvedLon) ||
       resolvedLat < -90.0f || resolvedLat > 90.0f ||
       resolvedLon < -180.0f || resolvedLon > 180.0f) {
-    Serial.printf("[LOCATION] ipwho.is coordinates out of range: %.5f, %.5f; using configured fallback.\\n", resolvedLat, resolvedLon);
+    Serial.printf("[LOCATION] ipwho.is coordinates out of range: %.5f, %.5f; using configured fallback.\n", resolvedLat, resolvedLon);
     return false;
   }
 
@@ -1990,7 +1990,7 @@ bool resolveLocationFromIP() {
   locationCoordinatesFromIP = true;
   ipLocationCity = doc["city"] | "";
   ipLocationCity.trim();
-  DEBUG_PRINTF("IP coordinates: (%.5f, %.5f); initial IP city: %s\n",
+  Serial.printf("IP coordinates: (%.5f, %.5f); initial IP city: %s\n",
                locationLat, locationLon,
                ipLocationCity.length() > 0 ? ipLocationCity.c_str() : "city unavailable");
 
