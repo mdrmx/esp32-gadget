@@ -134,6 +134,8 @@ unsigned long metricsGestureSuppressionStartedMs = 0;
 bool forecastTouchDragActive = false;
 bool forecastTouchCandidate = false;
 bool forecastTouchDragMoved = false;
+bool forecastDragHasRendered = false;
+unsigned long lastForecastDragRenderMs = 0;
 int forecastDragStartX = 0;
 int forecastDragStartY = 0;
 int forecastDragStartScroll = 0;
@@ -210,6 +212,8 @@ const int TAB_TRANSITION_FOOTER_HEIGHT = 12;
 const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 3;
 const int FORECAST_ROW_STEP = 42;
 const int FORECAST_CARD_HEIGHT = 39;
+// Limit full-viewport bitmap transfers during fast finger drags.
+const unsigned long FORECAST_DRAG_RENDER_INTERVAL_MS = 50UL;
 
 struct ForecastItem {
   String timeText;
@@ -1450,6 +1454,8 @@ void updateTouchDrag(const TouchSample& sample) {
       touchY < FORECAST_VIEWPORT_BOTTOM) {
     forecastTouchCandidate = true;
     forecastTouchDragMoved = false;
+    forecastDragHasRendered = false;
+    lastForecastDragRenderMs = 0;
     forecastDragStartX = touchX;
     forecastDragStartY = touchY;
     forecastDragStartScroll = forecastOffset * FORECAST_ROW_STEP;
@@ -1548,13 +1554,24 @@ void updateTouchDrag(const TouchSample& sample) {
     const int nextScroll = clampForecastScrollPixels(
       forecastDragStartScroll + forecastDragStartY - touchY);
 
-    // Ignore one-pixel sensor jitter while keeping the content responsive.
+    // Keep the logical position current for every touch sample, but rate-limit
+    // full-viewport canvas flushes. A fast drag can otherwise queue expensive
+    // SPI transfers faster than the display can comfortably complete them.
     if (abs(nextScroll - forecastDragCurrentScroll) >= 2) {
       forecastTouchDragMoved =
         forecastTouchDragMoved ||
         abs(nextScroll - forecastDragStartScroll) >= 3;
       forecastDragCurrentScroll = nextScroll;
-      drawForecastAtScrollPosition(forecastDragCurrentScroll);
+
+      const unsigned long nowMs = millis();
+      const bool renderDue =
+        !forecastDragHasRendered ||
+        nowMs - lastForecastDragRenderMs >= FORECAST_DRAG_RENDER_INTERVAL_MS;
+      if (renderDue) {
+        drawForecastAtScrollPosition(forecastDragCurrentScroll);
+        lastForecastDragRenderMs = nowMs;
+        forecastDragHasRendered = true;
+      }
     }
   }
 
