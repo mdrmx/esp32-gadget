@@ -112,6 +112,21 @@ uint8_t lastHandledGesture = 0;
 uint8_t previousRawGesture = 0;
 unsigned long lastGestureTime = 0;
 
+struct TouchSample {
+  uint8_t gesture;
+  uint8_t fingerCount;
+  uint8_t event;
+  uint16_t rawX;
+  uint16_t rawY;
+};
+
+bool metricsTouchDragActive = false;
+bool metricsTouchDragMoved = false;
+int metricsDragStartY = 0;
+int metricsDragStartScroll = 0;
+int metricsDragCurrentScroll = 0;
+unsigned long suppressMetricGestureUntilMs = 0;
+
 // =====================================================
 // COLOURS
 // =====================================================
@@ -925,7 +940,8 @@ void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
     return;
   }
 
-  // Static fallback if the additional canvas could not be allocated.
+  // Direct-render fallback: honour fractional card offsets when PSRAM buffer
+  // allocation fails. Cards are drawn only when fully inside the viewport.
   gfx->fillRect(
     weatherMetricsPanelX(),
     WEATHER_METRIC_PANEL_TOP,
@@ -933,18 +949,24 @@ void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
     WEATHER_METRIC_PANEL_HEIGHT,
     BG);
 
-  int visible = min(
-    WEATHER_METRICS_VISIBLE,
-    max(0, WEATHER_METRIC_COUNT - baseOffset));
-  for (int i = 0; i < visible; i++) {
-    int y = WEATHER_METRIC_PANEL_TOP +
-            WEATHER_METRIC_ROW_TOP +
-            i * WEATHER_METRIC_ROW_STEP;
+  int firstIndex = max(0, baseOffset - 1);
+  int lastIndex = min(
+    WEATHER_METRIC_COUNT,
+    baseOffset + WEATHER_METRICS_VISIBLE + 1);
+  for (int index = firstIndex; index < lastIndex; index++) {
+    int localY = WEATHER_METRIC_ROW_TOP +
+                 (index - baseOffset) * WEATHER_METRIC_ROW_STEP -
+                 scrollPixels;
+    if (localY < 0 ||
+        localY + WEATHER_METRIC_CARD_HEIGHT > WEATHER_METRIC_PANEL_HEIGHT) {
+      continue;
+    }
+
     drawWeatherMetricItem(
       gfx,
-      baseOffset + i,
+      index,
       weatherMetricsPanelX(),
-      y,
+      WEATHER_METRIC_PANEL_TOP + localY,
       panelWidth);
   }
 }
@@ -975,6 +997,59 @@ void drawWeatherMetricsPanel(int baseOffset, int scrollPixels) {
   if (baseOffset > maxOffset) baseOffset = maxOffset;
 
   drawWeatherMetricsViewport(baseOffset, scrollPixels);
+}
+
+int maxWeatherMetricScrollPixels() {
+  const int maxOffset = max(
+    0,
+    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+  return maxOffset * WEATHER_METRIC_ROW_STEP;
+}
+
+int clampWeatherMetricScrollPixels(int pixels) {
+  return constrain(pixels, 0, maxWeatherMetricScrollPixels());
+}
+
+void drawWeatherMetricsAtScrollPosition(int pixels) {
+  pixels = clampWeatherMetricScrollPixels(pixels);
+
+  int baseOffset = pixels / WEATHER_METRIC_ROW_STEP;
+  int scrollPixels = pixels % WEATHER_METRIC_ROW_STEP;
+  int maxOffset = max(
+    0,
+    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+
+  if (baseOffset > maxOffset) {
+    baseOffset = maxOffset;
+    scrollPixels = 0;
+  }
+  drawWeatherMetricsViewport(baseOffset, scrollPixels);
+}
+
+void animateWeatherMetricsSnap(int startPixels, int targetOffset) {
+  const int maxOffset = max(
+    0,
+    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+  targetOffset = constrain(targetOffset, 0, maxOffset);
+  int targetPixels = targetOffset * WEATHER_METRIC_ROW_STEP;
+
+  if (startPixels != targetPixels && weatherMetricsCanvas != nullptr) {
+    const int animationFrames = 6;
+    const int animationDelayMs = 8;
+    for (int frame = 1; frame <= animationFrames; frame++) {
+      float progress = (float)frame / animationFrames;
+      float easedProgress = progress * progress * (3.0f - 2.0f * progress);
+      int pixels = startPixels +
+        (int)((targetPixels - startPixels) * easedProgress);
+      drawWeatherMetricsAtScrollPosition(pixels);
+      delay(animationDelayMs);
+    }
+  } else if (startPixels != targetPixels) {
+    drawWeatherMetricsAtScrollPosition(targetPixels);
+  }
+
+  weatherMetricOffset = targetOffset;
+  drawWeatherMetricsCounter();
 }
 
 void animateWeatherMetricsScroll(int direction) {
@@ -1284,13 +1359,109 @@ void animateForecastScroll(int direction) {
 // TOUCH REGISTER
 // =====================================================
 
-bool readTouchRegister(uint8_t reg, uint8_t& value) {
+bool readTouchSample(TouchSample& sample) {
   Wire.beginTransmission(TOUCH_ADDR);
-  Wire.write(reg);
+  Wire.write(REG_GESTURE);
   if (Wire.endTransmission(false) != 0) return false;
-  if (Wire.requestFrom((uint8_t)TOUCH_ADDR, (uint8_t)1) != 1) return false;
-  value = Wire.read();
+
+  const uint8_t sampleSize = 6;
+  uint8_t received = Wire.requestFrom(
+    (uint8_t)TOUCH_ADDR,
+    sampleSize);
+  if (received != sampleSize) {
+    while (Wire.available()) Wire.read();
+    return false;
+  }
+
+  uint8_t data[sampleSize];
+  for (uint8_t i = 0; i < sampleSize; i++) {
+    data[i] = (uint8_t)Wire.read();
+  }
+
+  sample.gesture = data[0];
+  sample.fingerCount = data[1] & 0x0F;
+  sample.event = (data[2] >> 6) & 0x03; // 0=down, 1=up, 2=contact
+  sample.rawX = ((uint16_t)(data[2] & 0x0F) << 8) | data[3];
+  sample.rawY = ((uint16_t)(data[4] & 0x0F) << 8) | data[5];
   return true;
+}
+
+// The CST816 coordinates are reported in the panel's portrait-native frame.
+// This board is mounted in landscape; the observed gesture mapping corresponds
+// to screenX = reversed rawY, screenY = rawX.
+void touchCoordinatesToScreen(
+  const TouchSample& sample,
+  int& screenX,
+  int& screenY
+) {
+  screenX = screenW - 1 - (int)sample.rawY;
+  screenY = (int)sample.rawX;
+
+  screenX = constrain(screenX, 0, screenW - 1);
+  screenY = constrain(screenY, 0, screenH - 1);
+}
+
+void updateWeatherMetricsTouchDrag(const TouchSample& sample) {
+  const bool touchPresent =
+    sample.fingerCount > 0 && sample.event != 1; // ignore touch-up coordinates
+
+  if (!metricsTouchDragActive && touchPresent && currentTab == 0) {
+    int touchX = 0;
+    int touchY = 0;
+    touchCoordinatesToScreen(sample, touchX, touchY);
+
+    bool insideMetricsPanel =
+      touchX >= weatherMetricsPanelX() &&
+      touchY >= WEATHER_METRIC_PANEL_TOP &&
+      touchY < WEATHER_METRIC_PANEL_BOTTOM;
+
+    if (insideMetricsPanel) {
+      metricsTouchDragActive = true;
+      metricsTouchDragMoved = false;
+      metricsDragStartY = touchY;
+      metricsDragStartScroll =
+        weatherMetricOffset * WEATHER_METRIC_ROW_STEP;
+      metricsDragCurrentScroll = metricsDragStartScroll;
+      DEBUG_PRINTF(
+        "Metric drag started at screen (%d,%d), scroll=%d\n",
+        touchX,
+        touchY,
+        metricsDragStartScroll);
+    }
+  }
+
+  if (metricsTouchDragActive && touchPresent) {
+    int touchX = 0;
+    int touchY = 0;
+    touchCoordinatesToScreen(sample, touchX, touchY);
+    int nextScroll = clampWeatherMetricScrollPixels(
+      metricsDragStartScroll + metricsDragStartY - touchY);
+
+    if (nextScroll != metricsDragCurrentScroll) {
+      if (abs(nextScroll - metricsDragStartScroll) >= 3) {
+        metricsTouchDragMoved = true;
+      }
+      metricsDragCurrentScroll = nextScroll;
+      drawWeatherMetricsAtScrollPosition(metricsDragCurrentScroll);
+    }
+  }
+
+  if (metricsTouchDragActive &&
+      (!touchPresent || sample.event == 1)) {
+    const int targetOffset =
+      (metricsDragCurrentScroll + WEATHER_METRIC_ROW_STEP / 2) /
+      WEATHER_METRIC_ROW_STEP;
+    DEBUG_PRINTF(
+      "Metric drag released at scroll=%d; snapping to offset=%d; moved=%d\n",
+      metricsDragCurrentScroll,
+      targetOffset,
+      metricsTouchDragMoved ? 1 : 0);
+    animateWeatherMetricsSnap(metricsDragCurrentScroll, targetOffset);
+    metricsTouchDragActive = false;
+    // The CST816 can publish its completed gesture after touch-up. Ignore that
+    // duplicate for a short grace period so it cannot trigger a second scroll.
+    suppressMetricGestureUntilMs = millis() + 300UL;
+  }
 }
 
 // =====================================================
@@ -1387,14 +1558,24 @@ void handleGesture(uint8_t gesture) {
 void pollTouch() {
   if (!touchAvailable) return;
 
-  uint8_t gesture = 0;
-  if (!readTouchRegister(REG_GESTURE, gesture)) return;
+  TouchSample sample;
+  if (!readTouchSample(sample)) return;
+  uint8_t gesture = sample.gesture;
 
-  // Always log transitions, including the return to zero, so a real swipe
-  // can be identified from the exact controller code and stale register state.
+  // Always log transitions in demo mode, including the return to zero.
   if (gesture != previousRawGesture) {
     DEBUG_PRINTF("Touch register transition: 0x%02X -> 0x%02X\n", previousRawGesture, gesture);
     previousRawGesture = gesture;
+  }
+
+  updateWeatherMetricsTouchDrag(sample);
+
+  // A drag on the metric cards is driven by coordinates. Suppress the
+  // controller's completed swipe code so the same motion is not applied twice.
+  if (metricsTouchDragActive || millis() < suppressMetricGestureUntilMs) {
+    if (gesture != 0) lastHandledGesture = gesture;
+    else lastHandledGesture = 0;
+    return;
   }
 
   if (gesture == 0) {
