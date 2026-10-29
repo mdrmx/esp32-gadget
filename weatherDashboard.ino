@@ -1422,13 +1422,9 @@ void drawForecastControls() {
   if (forecastGraphView) {
     // Taller selector in Graph mode shares the expanded control strip.
     gfx->fillRoundRect(179, 36, 137, 38, 6, PANEL);
-    if (!forecastGraphView) {
-      gfx->fillRoundRect(181, 38, 65, 34, 5, UI_WHITE);
-    } else {
-      gfx->fillRoundRect(248, 38, 65, 34, 5, UI_WHITE);
-    }
-    drawText("LIST", 201, 51, 1, forecastGraphView ? MUTED : BG);
-    drawText("GRAPH", 265, 51, 1, forecastGraphView ? BG : MUTED);
+    gfx->fillRoundRect(248, 38, 65, 34, 5, UI_WHITE);
+    drawText("LIST", 201, 51, 1, MUTED);
+    drawText("GRAPH", 265, 51, 1, BG);
   } else {
     // List mode stays above the first row, which is needed to show three cards.
     gfx->fillRoundRect(185, 36, 127, 28, 4, PANEL);
