@@ -1880,9 +1880,15 @@ bool connectWiFi() {
 // fallback if reverse geocoding fails.
 bool resolveLocationNameFromCoordinates() {
 #if USE_DEMO_WEATHER_DATA
+  Serial.println("[LOCATION] Demo mode: skipping OpenWeather reverse geocoding.");
   return false;
 #endif
-  if (WiFi.status() != WL_CONNECTED) return false;
+  Serial.printf("[LOCATION] Reverse geocoding coordinates %.5f, %.5f...\\n",
+                locationLat, locationLon);
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[LOCATION] Reverse geocoding skipped: Wi-Fi is not connected.");
+    return false;
+  }
 
   WiFiClientSecure client;
   client.setInsecure();
@@ -1894,7 +1900,7 @@ bool resolveLocationNameFromCoordinates() {
     "&limit=1&appid=" + String(apiKey);
 
   if (!http.begin(client, url)) {
-    DEBUG_PRINTLN("OpenWeather reverse geocoding init failed; keeping IP city.");
+    Serial.println("[LOCATION] Could not initialise OpenWeather reverse geocoding; keeping IP city.");
     return false;
   }
 
@@ -1912,14 +1918,15 @@ bool resolveLocationNameFromCoordinates() {
   http.end();
 
   if (error || !doc.is<JsonArray>() || doc.size() == 0 || doc[0]["name"].isNull()) {
-    DEBUG_PRINTLN("OpenWeather reverse geocoding returned no place; keeping IP city.");
+    Serial.printf("[LOCATION] Reverse geocoding response had no place name (JSON error: %s); keeping IP city.\\n",
+                  error ? error.c_str() : "none");
     return false;
   }
 
   String resolvedName = doc[0]["name"] | "";
   resolvedName.trim();
   if (resolvedName.length() == 0) {
-    DEBUG_PRINTLN("OpenWeather reverse geocoding returned an empty place name.");
+    Serial.println("[LOCATION] Reverse geocoding returned an empty place name; keeping IP city.");
     return false;
   }
 
@@ -1932,16 +1939,20 @@ bool resolveLocationNameFromCoordinates() {
 // IP geolocation can reflect an ISP/VPN exit point rather than the device.
 bool resolveLocationFromIP() {
 #if USE_DEMO_WEATHER_DATA
-  DEBUG_PRINTLN("Demo mode: skipping IP geolocation.");
+  Serial.println("[LOCATION] Demo mode: skipping IP geolocation.");
   return false;
 #endif
-  if (WiFi.status() != WL_CONNECTED) return false;
+  Serial.println("[LOCATION] Starting IP geolocation request...");
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.printf("[LOCATION] IP lookup skipped: Wi-Fi status is %d.\\n", (int)WiFi.status());
+    return false;
+  }
 
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
   if (!http.begin(client, "https://ipwho.is/")) {
-    DEBUG_PRINTLN("IP geolocation init failed; using configured fallback.");
+    Serial.println("[LOCATION] Could not initialise ipwho.is; using configured fallback.");
     return false;
   }
 
@@ -1959,7 +1970,9 @@ bool resolveLocationFromIP() {
   http.end();
   if (error || !(doc["success"] | false) ||
       doc["latitude"].isNull() || doc["longitude"].isNull()) {
-    DEBUG_PRINTLN("IP geolocation response invalid; using configured fallback.");
+    Serial.printf("[LOCATION] ipwho.is response invalid (JSON error: %s, success: %d); using configured fallback.\\n",
+                  error ? error.c_str() : "none",
+                  doc["success"] | false);
     return false;
   }
 
@@ -1968,7 +1981,7 @@ bool resolveLocationFromIP() {
   if (!isfinite(resolvedLat) || !isfinite(resolvedLon) ||
       resolvedLat < -90.0f || resolvedLat > 90.0f ||
       resolvedLon < -180.0f || resolvedLon > 180.0f) {
-    DEBUG_PRINTLN("IP geolocation coordinates invalid; using configured fallback.");
+    Serial.printf("[LOCATION] ipwho.is coordinates out of range: %.5f, %.5f; using configured fallback.\\n", resolvedLat, resolvedLon);
     return false;
   }
 
