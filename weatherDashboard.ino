@@ -140,6 +140,9 @@ unsigned long metricsGestureSuppressionStartedMs = 0;
 
 bool forecastTouchDragActive = false;
 bool forecastTouchCandidate = false;
+// Gate the legacy gesture-only fallback so vertical list scrolling must start
+// in the visible list viewport when coordinate tracking is unavailable.
+bool forecastGestureStartedInsideViewport = false;
 bool forecastTouchDragMoved = false;
 bool forecastDragHasRendered = false;
 unsigned long lastForecastDragRenderMs = 0;
@@ -148,6 +151,31 @@ int forecastDragStartX = 0;
 int forecastDragStartY = 0;
 int forecastDragStartScroll = 0;
 int forecastDragCurrentScroll = 0;
+
+// Graph-mode contacts are owned by the graph from touch-down to release so a
+// lost coordinate sample cannot fall through to the CST816 tab-swipe event.
+bool forecastGraphTouchOwned = false;
+bool forecastGraphTouchCandidate = false;
+bool forecastGraphQuickSwipeCandidate = false;
+bool forecastGraphQuickSwipeReady = false;
+bool suppressGraphControllerGestureAfterTouch = false;
+bool graphGestureQuietPeriodActive = false;
+unsigned long graphGestureSuppressionStartedMs = 0;
+unsigned long graphGestureQuietStartedMs = 0;
+bool forecastGraphDragActive = false;
+bool forecastGraphDragMoved = false;
+bool forecastGraphDragHasRendered = false;
+unsigned long forecastGraphTouchStartedMs = 0;
+unsigned long lastForecastGraphDragRenderMs = 0;
+int forecastGraphTouchStartX = 0;
+int forecastGraphTouchStartY = 0;
+int forecastGraphTouchLastX = 0;
+int forecastGraphTouchLastY = 0;
+int forecastGraphTouchStartScroll = 0;
+int forecastGraphDragStartX = 0;
+int forecastGraphDragStartScroll = 0;
+int forecastGraphDragCurrentScroll = 0;
+int forecastGraphLastRenderedScroll = -1;
 bool suppressForecastGesture = false;
 unsigned long forecastGestureSuppressionStartedMs = 0;
 
@@ -210,10 +238,11 @@ const int SCROLL_OVERSCROLL_RESISTANCE_DIVISOR = 3;
 const int WEATHER_METRIC_ROW_TOP = 2;
 int weatherMetricOffset = 0;
 
-// Show three larger forecast cards in a shorter buffered viewport, leaving
-// the compact 12 px footer for the tab indicator only.
-const int FORECAST_VIEWPORT_TOP = 60;
-const int FORECAST_VIEWPORT_HEIGHT = 156;
+// Keep three 44 px list cards with 4 px gaps visible through y=212.
+// Controls are 32 px tall, with a 2 px gap below the header and above the List
+// rows. In Graph mode the same controls overlay the chart's blank upper strip.
+const int FORECAST_VIEWPORT_TOP = 64;
+const int FORECAST_VIEWPORT_HEIGHT = 152;
 const int FORECAST_VIEWPORT_BOTTOM =
   FORECAST_VIEWPORT_TOP + FORECAST_VIEWPORT_HEIGHT;
 
@@ -221,22 +250,44 @@ const int FORECAST_VIEWPORT_BOTTOM =
 const int TAB_TRANSITION_CONTENT_TOP = 37;
 const int TAB_TRANSITION_FOOTER_HEIGHT = 12;
 
-const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP;
-const int FORECAST_ROW_STEP = 52;
-const int FORECAST_CARD_HEIGHT = 48;
+const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 8;
+const int FORECAST_ROW_STEP = 48;
+const int FORECAST_CARD_HEIGHT = 44;
+const int FORECAST_GRAPH_POINTS = 6;
+const int FORECAST_GRAPH_POINT_SPACING = 56;
+const unsigned long FORECAST_GRAPH_HOLD_MS = 220UL;
+const int FORECAST_GRAPH_TOUCH_INTENT_PX = 8;
+const int FORECAST_GRAPH_DRAG_START_PX = 4;
+const int FORECAST_GRAPH_TAB_SWIPE_PX = 55;
+const int FORECAST_CONTROL_TOP = 38;
+const int FORECAST_CONTROL_BOTTOM = 70;
+const int FORECAST_CONTROL_HIT_TOP = 36;
+const int FORECAST_CONTROL_HIT_BOTTOM = 72;
+const int FORECAST_GRAPH_VERTICAL_SHIFT = 12;
+// Generous movement tolerance keeps taps reliable while still allowing a
+// deliberate horizontal tab swipe to cancel a control press.
+const int FORECAST_CONTROL_TAP_SLOP_PX = 40;
 // Limit full-viewport bitmap transfers during fast finger drags.
 const unsigned long FORECAST_DRAG_RENDER_INTERVAL_MS = 50UL;
 
 struct ForecastItem {
   String timeText;
-  String description;
+  String description;  // OpenWeather condition group, e.g. Clouds, Rain, Clear.
   float temp;
+  float feelsLike;
+  float rainProbability; // 0.0 to 1.0 from OpenWeather pop.
   uint32_t timestamp;
 };
 
 ForecastItem forecast[MAX_FORECAST];
 int forecastCount = 0;
 int forecastOffset = 0;
+bool forecastGraphView = false;
+int forecastGraphOffset = 0; // First hour currently nearest the left edge.
+int forecastGraphScrollPixels = 0;
+uint8_t forecastControlTouch = 0; // 3=list, 4=graph.
+int forecastControlStartX = 0;
+int forecastControlStartY = 0;
 int currentTab = 0;
 
 // =====================================================
@@ -1210,31 +1261,106 @@ void drawWeather() {
 // FORECAST SCREEN
 // =====================================================
 
+String forecastCompactTime(int index) {
+  String label = forecast[index].timeText;
+  const int separator = label.lastIndexOf(' ');
+  if (separator >= 0) label = label.substring(separator + 1);
+  return label;
+}
+
+// Small vector weather symbols keep hourly rows compact without downloading and
+// caching a separate PNG for every forecast condition.
+void drawMiniWeatherIcon(
+  Arduino_GFX* target,
+  const String& condition,
+  int x,
+  int y
+) {
+  const bool clear = condition.indexOf("Clear") >= 0;
+  const bool rain = condition.indexOf("Rain") >= 0 ||
+                    condition.indexOf("Drizzle") >= 0;
+  const bool snow = condition.indexOf("Snow") >= 0;
+  const bool thunder = condition.indexOf("Thunder") >= 0;
+  const bool mist = condition.indexOf("Mist") >= 0 ||
+                    condition.indexOf("Fog") >= 0 ||
+                    condition.indexOf("Haze") >= 0;
+
+  if (clear) {
+    target->fillCircle(x + 8, y + 7, 4, UI_YELLOW);
+    target->drawFastHLine(x + 1, y + 7, 3, UI_YELLOW);
+    target->drawFastHLine(x + 12, y + 7, 3, UI_YELLOW);
+    target->drawFastVLine(x + 8, y, 3, UI_YELLOW);
+    target->drawFastVLine(x + 8, y + 11, 3, UI_YELLOW);
+    target->drawLine(x + 3, y + 2, x + 5, y + 4, UI_YELLOW);
+    target->drawLine(x + 11, y + 10, x + 13, y + 12, UI_YELLOW);
+    target->drawLine(x + 11, y + 4, x + 13, y + 2, UI_YELLOW);
+    target->drawLine(x + 3, y + 12, x + 5, y + 10, UI_YELLOW);
+    return;
+  }
+
+  if (mist) {
+    target->drawFastHLine(x + 1, y + 4, 14, MUTED);
+    target->drawFastHLine(x, y + 8, 15, UI_WHITE);
+    target->drawFastHLine(x + 2, y + 12, 12, MUTED);
+    return;
+  }
+
+  // The cloud is shared by cloudy, rain, snow and thunderstorm conditions.
+  target->fillCircle(x + 5, y + 8, 3, UI_WHITE);
+  target->fillCircle(x + 9, y + 5, 4, UI_WHITE);
+  target->fillCircle(x + 13, y + 8, 3, UI_WHITE);
+  target->fillRect(x + 4, y + 7, 10, 5, UI_WHITE);
+
+  if (thunder) {
+    target->drawLine(x + 9, y + 10, x + 6, y + 14, UI_YELLOW);
+    target->drawLine(x + 6, y + 14, x + 9, y + 14, UI_YELLOW);
+    target->drawLine(x + 9, y + 14, x + 7, y + 17, UI_YELLOW);
+  } else if (snow) {
+    target->drawFastVLine(x + 6, y + 13, 4, ACCENT);
+    target->drawFastHLine(x + 4, y + 14, 4, ACCENT);
+    target->drawFastHLine(x + 9, y + 15, 4, ACCENT);
+  } else if (rain) {
+    target->drawLine(x + 5, y + 13, x + 3, y + 16, ACCENT);
+    target->drawLine(x + 10, y + 13, x + 8, y + 16, ACCENT);
+    target->drawLine(x + 14, y + 13, x + 12, y + 16, ACCENT);
+  }
+}
+
 void drawForecastItem(Arduino_GFX* target, int index, int y) {
-  target->fillRoundRect(8, y, screenW - 16, FORECAST_CARD_HEIGHT, 6, PANEL);
+  target->fillRoundRect(
+    4, y, screenW - 8, FORECAST_CARD_HEIGHT, 4, PANEL);
 
-  // Put the time and temperature on a prominent first line.
-  target->setTextSize(2);
+  // Four concise fields fit on the small display: time, condition icon,
+  // temperature, feels-like temperature, and probability of precipitation.
+  target->setTextSize(1);
   target->setTextColor(UI_WHITE);
-  target->setCursor(16, y + 5);
-  target->print(forecast[index].timeText);
+  target->setCursor(10, y + 18);
+  target->print(forecastCompactTime(index));
 
-  String temp = String(forecast[index].temp, 1) + "C";
+  drawMiniWeatherIcon(target, forecast[index].description, 48, y + 13);
+
+  String temp = String((int)round(forecast[index].temp)) + "C";
+  target->setTextSize(2);
   target->setTextColor(UI_YELLOW);
-  int16_t x1, y1;
-  uint16_t w, h;
-  target->getTextBounds(temp.c_str(), 0, 0, &x1, &y1, &w, &h);
-  target->setCursor(screenW - 16 - w, y + 5);
+  target->setCursor(72, y + 14);
   target->print(temp);
 
-  // Keep the description on its own line so it remains readable without
-  // competing for horizontal space with the larger temperature.
-  String desc = forecast[index].description;
-  if (desc.length() > 34) desc = desc.substring(0, 33) + ".";
+  String feelsText = "FL " +
+    String((int)round(forecast[index].feelsLike)) + "C";
   target->setTextSize(1);
   target->setTextColor(MUTED);
-  target->setCursor(16, y + 30);
-  target->print(desc);
+  target->setCursor(145, y + 18);
+  target->print(feelsText);
+
+  const int rainPercent = constrain(
+    (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
+  String rainText = "POP " + String(rainPercent) + "%";
+  int16_t x1, y1;
+  uint16_t w, h;
+  target->getTextBounds(rainText.c_str(), 0, 0, &x1, &y1, &w, &h);
+  target->setTextColor(UI_WHITE);
+  target->setCursor(screenW - 10 - (int)w, y + 18);
+  target->print(rainText);
 }
 
 // Draw a forecast card into the viewport canvas while explicitly clipping
@@ -1252,40 +1378,325 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
     return;
   }
 
-  // Partial edge cards use a clipped rectangular slice; full cards retain
-  // their rounded styling. This avoids the jagged row replacement during drag.
-  target->fillRect(
-    8,
-    clippedTop,
-    screenW - 16,
-    clippedBottom - clippedTop,
-    PANEL);
+  // Partial edge rows get a clipped body and only fields wholly inside the
+  // viewport are drawn. Never pass negative/off-panel Y values to primitives.
+  target->fillRect(4, clippedTop, screenW - 8,
+                   clippedBottom - clippedTop, PANEL);
 
-  const int timeY = cardTop + 5;
-  if (timeY >= 0 && timeY + 16 <= FORECAST_VIEWPORT_HEIGHT) {
-    target->setTextSize(2);
+  const int fieldY = cardTop + 18;
+  if (fieldY >= 0 && fieldY + 8 <= FORECAST_VIEWPORT_HEIGHT) {
+    target->setTextSize(1);
     target->setTextColor(UI_WHITE);
-    target->setCursor(16, timeY);
-    target->print(forecast[index].timeText);
+    target->setCursor(10, fieldY);
+    target->print(forecastCompactTime(index));
 
-    String temp = String(forecast[index].temp, 1) + "C";
+    String feelsText = "FL " +
+      String((int)round(forecast[index].feelsLike)) + "C";
+    target->setTextColor(MUTED);
+    target->setCursor(145, fieldY);
+    target->print(feelsText);
+
+    const int rainPercent = constrain(
+      (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
+    String rainText = "POP " + String(rainPercent) + "%";
     int16_t x1, y1;
     uint16_t w, h;
-    target->getTextBounds(temp.c_str(), 0, 0, &x1, &y1, &w, &h);
-    target->setTextColor(UI_YELLOW);
-    target->setCursor(screenW - 16 - w, timeY);
-    target->print(temp);
+    target->getTextBounds(rainText.c_str(), 0, 0, &x1, &y1, &w, &h);
+    target->setTextColor(UI_WHITE);
+    target->setCursor(screenW - 10 - (int)w, fieldY);
+    target->print(rainText);
   }
 
-  const int descY = cardTop + 30;
-  if (descY >= 0 && descY + 8 <= FORECAST_VIEWPORT_HEIGHT) {
-    String desc = forecast[index].description;
-    if (desc.length() > 34) desc = desc.substring(0, 33) + ".";
-    target->setTextSize(1);
-    target->setTextColor(MUTED);
-    target->setCursor(16, descY);
-    target->print(desc);
+  if (cardTop + 13 >= 0 &&
+      cardTop + 31 <= FORECAST_VIEWPORT_HEIGHT) {
+    drawMiniWeatherIcon(
+      target, forecast[index].description, 48, cardTop + 13);
+
+    String temp = String((int)round(forecast[index].temp)) + "C";
+    target->setTextSize(2);
+    target->setTextColor(UI_YELLOW);
+    target->setCursor(72, cardTop + 14);
+    target->print(temp);
   }
+}
+
+void drawForecastModeSelector() {
+  // The viewport canvas begins at y=64, so its flush can overwrite the bottom
+  // edge of this selector. This small repaint restores it after graph frames.
+  gfx->fillRoundRect(179, 38, 137, 32, 6, PANEL);
+  if (forecastGraphView) {
+    gfx->fillRoundRect(248, 40, 65, 28, 5, UI_WHITE);
+  } else {
+    gfx->fillRoundRect(181, 40, 65, 28, 5, UI_WHITE);
+  }
+  drawText("LIST", 201, 50, 1, forecastGraphView ? MUTED : BG);
+  drawText("GRAPH", 265, 50, 1, forecastGraphView ? BG : MUTED);
+}
+
+void drawForecastControls() {
+  // Graph paging is gesture-based; the List/Graph selector stays in the same
+  // position, with the same geometry in both modes.
+  gfx->fillRect(
+    0,
+    FORECAST_CONTROL_TOP - 1,
+    screenW,
+    FORECAST_CONTROL_BOTTOM - (FORECAST_CONTROL_TOP - 1),
+    BG);
+
+  if (!forecastGraphView) {
+    drawText("HOURLY", 8, 50, 1, UI_WHITE);
+  }
+
+  drawForecastModeSelector();
+}
+
+int maxForecastGraphScrollPixels() {
+  return max(0, forecastCount - FORECAST_GRAPH_POINTS) *
+         FORECAST_GRAPH_POINT_SPACING;
+}
+
+void syncForecastGraphOffsetFromScroll() {
+  const int maxOffset = max(0, forecastCount - FORECAST_GRAPH_POINTS);
+  forecastGraphOffset = constrain(
+    max(0, forecastGraphScrollPixels) / FORECAST_GRAPH_POINT_SPACING,
+    0,
+    maxOffset);
+}
+
+void drawForecastGraph(Arduino_GFX* target, int originY) {
+  if (forecastCount <= 0) return;
+
+  const int left = 23;
+  const int right = screenW - 17;
+  const int plotWidth = right - left;
+  const int pointSpacing = FORECAST_GRAPH_POINT_SPACING;
+  const int maxScroll = maxForecastGraphScrollPixels();
+  const int scroll = constrain(
+    forecastGraphScrollPixels,
+    -SCROLL_OVERSCROLL_MAX_PX,
+    maxScroll + SCROLL_OVERSCROLL_MAX_PX);
+  const int visibleScroll = max(0, scroll);
+
+  // Use the visible hours plus their neighbours to keep a consistent vertical
+  // scale while the finger moves between hourly positions.
+  const int rangeStart = constrain(
+    visibleScroll / pointSpacing, 0, max(0, forecastCount - 1));
+  const int rangeEnd = min(
+    forecastCount, rangeStart + FORECAST_GRAPH_POINTS + 1);
+
+  float minTemp = forecast[rangeStart].temp;
+  float maxTemp = forecast[rangeStart].temp;
+  for (int i = rangeStart + 1; i < rangeEnd; i++) {
+    minTemp = min(minTemp, forecast[i].temp);
+    maxTemp = max(maxTemp, forecast[i].temp);
+  }
+  minTemp -= 1.0f;
+  maxTemp += 1.0f;
+
+  const int plotTop = 37 + FORECAST_GRAPH_VERTICAL_SHIFT;
+  const int plotBottom = 89 + FORECAST_GRAPH_VERTICAL_SHIFT;
+  const int plotHeight = plotBottom - plotTop;
+  const uint16_t gridColour = PANEL;
+  target->drawFastHLine(left, originY + plotTop, plotWidth, gridColour);
+  target->drawFastHLine(
+    left, originY + (plotTop + plotBottom) / 2, plotWidth, gridColour);
+  target->drawFastHLine(left, originY + plotBottom, plotWidth, gridColour);
+
+  // Draw one point per forecast hour at a fixed horizontal spacing. This lets
+  // the chart follow the finger pixel-for-pixel rather than jumping by pages.
+  const int firstIndex = max(0, visibleScroll / pointSpacing - 1);
+  const int lastIndex = min(
+    forecastCount, (visibleScroll + plotWidth) / pointSpacing + 2);
+
+  int previousX = 0;
+  int previousY = 0;
+  bool hasPrevious = false;
+  for (int index = firstIndex; index < lastIndex; index++) {
+    const int x = left + index * pointSpacing - scroll;
+    const float ratio = (forecast[index].temp - minTemp) /
+                        (maxTemp - minTemp);
+    const int y = plotBottom - (int)round(ratio * plotHeight);
+
+    if (hasPrevious && previousX <= right && x >= left) {
+      int lineStartX = previousX;
+      int lineStartY = previousY;
+      int lineEndX = x;
+      int lineEndY = y;
+      const int dx = x - previousX;
+      if (dx > 0) {
+        if (lineStartX < left) {
+          lineStartY = previousY +
+            (y - previousY) * (left - previousX) / dx;
+          lineStartX = left;
+        }
+        if (lineEndX > right) {
+          lineEndY = previousY +
+            (y - previousY) * (right - previousX) / dx;
+          lineEndX = right;
+        }
+        if (lineStartX <= lineEndX) {
+          target->drawLine(
+            lineStartX, originY + lineStartY,
+            lineEndX, originY + lineEndY, UI_YELLOW);
+        }
+      }
+    }
+
+    if (x >= left && x <= right) {
+      target->fillCircle(x, originY + y, 2, UI_WHITE);
+    }
+
+    // The first and sixth visible points sit close to the plot edges. Their
+    // icons still fit on the display, so clip against the screen rather than
+    // hiding them just because they cross the inner plot boundary.
+    if (x >= 8 && x <= screenW - 8) {
+      drawMiniWeatherIcon(
+        target, forecast[index].description, x - 8,
+        originY + 2 + FORECAST_GRAPH_VERTICAL_SHIFT);
+    }
+
+    String tempText = String((int)round(forecast[index].temp)) + "C";
+    int16_t x1, y1;
+    uint16_t w, h;
+    target->setTextSize(1);
+    target->getTextBounds(tempText.c_str(), 0, 0, &x1, &y1, &w, &h);
+    if (x - (int)w / 2 >= 2 &&
+        x + ((int)w + 1) / 2 <= screenW - 2) {
+      target->setTextColor(UI_WHITE);
+      target->setCursor(x - (int)w / 2, originY + y - 10);
+      target->print(tempText);
+    }
+
+    String timeLabel = forecastCompactTime(index);
+    target->getTextBounds(timeLabel.c_str(), 0, 0, &x1, &y1, &w, &h);
+    if (x - (int)w / 2 >= 2 &&
+        x + ((int)w + 1) / 2 <= screenW - 2) {
+      target->setTextColor(MUTED);
+      target->setCursor(
+        x - (int)w / 2,
+        originY + 99 + FORECAST_GRAPH_VERTICAL_SHIFT);
+      target->print(timeLabel);
+    }
+
+    const int rainPercent = constrain(
+      (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
+    const int barHeight = (rainPercent * 18) / 100;
+    if (x >= 3 && x <= screenW - 3) {
+      target->fillRect(
+        x - 3, originY + 139 - barHeight, 6, max(1, barHeight), ACCENT);
+    }
+    String rainLabel = String(rainPercent) + "%";
+    target->getTextBounds(rainLabel.c_str(), 0, 0, &x1, &y1, &w, &h);
+    if (x - (int)w / 2 >= 2 &&
+        x + ((int)w + 1) / 2 <= screenW - 2) {
+      target->setTextColor(UI_WHITE);
+      target->setCursor(x - (int)w / 2, originY + 143);
+      target->print(rainLabel);
+    }
+
+    previousX = x;
+    previousY = y;
+    hasPrevious = true;
+  }
+}
+
+// Copy only the graph body from the existing canvas. The 8-pixel source crop
+// starts at screen y=72, below the selector, so controls never need repainting.
+bool flushForecastGraphCanvasBody() {
+  if (forecastCanvas == nullptr) return false;
+  uint16_t* framebuffer = forecastCanvas->getFramebuffer();
+  if (framebuffer == nullptr) return false;
+
+  const int graphRedrawTop = FORECAST_CONTROL_BOTTOM + 2;
+  const int sourceTop = graphRedrawTop - FORECAST_VIEWPORT_TOP;
+  const int bodyHeight = FORECAST_VIEWPORT_BOTTOM - graphRedrawTop;
+  if (sourceTop < 0 || bodyHeight <= 0) return false;
+
+  gfx->draw16bitRGBBitmap(
+    0,
+    graphRedrawTop,
+    framebuffer + sourceTop * screenW,
+    screenW,
+    bodyHeight);
+  return true;
+}
+
+// Render graph motion off-screen and copy one cropped bitmap to the LCD. This
+// avoids flicker from dozens of direct draw calls and avoids repainting controls.
+void redrawForecastGraphAtCurrentScroll() {
+  if (!forecastGraphView) return;
+
+  if (forecastCanvas != nullptr && !renderingTabTransition) {
+    forecastCanvas->fillScreen(BG);
+    if (forecastAvailable && forecastCount > 0) {
+      drawForecastGraph(forecastCanvas, 0);
+    }
+    if (flushForecastGraphCanvasBody()) return;
+    forecastCanvas->flush();
+    drawForecastModeSelector();
+    return;
+  }
+
+  // Safe no-canvas fallback. The normal hardware path uses the buffered branch.
+  const int graphRedrawTop = FORECAST_CONTROL_BOTTOM + 2;
+  if (graphRedrawTop >= FORECAST_VIEWPORT_BOTTOM) return;
+  gfx->fillRect(
+    0, graphRedrawTop, screenW,
+    FORECAST_VIEWPORT_BOTTOM - graphRedrawTop, BG);
+  if (forecastAvailable && forecastCount > 0) {
+    drawForecastGraph(gfx, FORECAST_VIEWPORT_TOP);
+  }
+}
+
+void drawForecastGraphAtScrollPosition(int pixels) {
+  const int maxScroll = maxForecastGraphScrollPixels();
+  forecastGraphScrollPixels = constrain(
+    pixels,
+    -SCROLL_OVERSCROLL_MAX_PX,
+    maxScroll + SCROLL_OVERSCROLL_MAX_PX);
+  syncForecastGraphOffsetFromScroll();
+  redrawForecastGraphAtCurrentScroll();
+}
+
+void animateForecastGraphSnap(int startPixels, int targetPixels) {
+  const int maxScroll = maxForecastGraphScrollPixels();
+  targetPixels = constrain(targetPixels, 0, maxScroll);
+
+  if (startPixels != targetPixels) {
+    const int animationFrames = 6;
+    const int animationDelayMs = 8;
+    for (int frame = 1; frame <= animationFrames; frame++) {
+      const float progress = (float)frame / animationFrames;
+      const float easedProgress =
+        progress * progress * (3.0f - 2.0f * progress);
+      const int pixels = startPixels +
+        (int)((targetPixels - startPixels) * easedProgress);
+      drawForecastGraphAtScrollPosition(pixels);
+      delay(animationDelayMs);
+    }
+  }
+
+  forecastGraphScrollPixels = targetPixels;
+  syncForecastGraphOffsetFromScroll();
+  redrawForecastGraphAtCurrentScroll();
+}
+
+void handleForecastControlTap(uint8_t control) {
+  if (control != 3 && control != 4) return;
+
+  // List and Graph are separate views of the hourly forecast. Switching
+  // between them always starts at the first hour rather than carrying across
+  // the other view's scroll position.
+  forecastOffset = 0;
+  forecastGraphOffset = 0;
+  forecastGraphScrollPixels = 0;
+  forecastGraphDragCurrentScroll = 0;
+  forecastGraphView = control == 4;
+
+  drawForecast();
+  // Prevent a selector tap from being reinterpreted as a controller swipe.
+  forecastGestureSuppressionStartedMs = millis();
+  suppressForecastGesture = true;
 }
 
 void drawForecastFooter() {
@@ -1310,6 +1721,13 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
 
   if (forecastCanvas != nullptr && !renderingTabTransition) {
     forecastCanvas->fillScreen(BG);
+    if (forecastGraphView) {
+      drawForecastGraph(forecastCanvas, 0);
+      if (flushForecastGraphCanvasBody()) return;
+      forecastCanvas->flush();
+      drawForecastModeSelector();
+      return;
+    }
 
     const int firstIndex = max(0, baseOffset - 1);
     const int lastIndex = min(forecastCount, baseOffset + ITEMS_PER_PAGE + 1);
@@ -1337,13 +1755,18 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
   }
 
   // Safe fallback if the canvas buffer could not be allocated: render the
-  // four settled rows directly if the canvas buffer is unavailable.
+  // three settled rows directly if the canvas buffer is unavailable.
   gfx->fillRect(
     0,
     FORECAST_VIEWPORT_TOP,
     screenW,
     FORECAST_VIEWPORT_HEIGHT,
     BG);
+
+  if (forecastGraphView) {
+    drawForecastGraph(gfx, FORECAST_VIEWPORT_TOP);
+    return;
+  }
 
   int visible = min(ITEMS_PER_PAGE, max(0, forecastCount - baseOffset));
   for (int i = 0; i < visible; i++) {
@@ -1356,15 +1779,16 @@ void drawForecast() {
   currentTab = 1;
   gfx->fillScreen(BG);
   drawHeader();
-  drawText("UPCOMING HOURLY FORECAST", 10, 44, 1, UI_WHITE);
 
   if (!forecastAvailable || forecastCount == 0) {
     drawCenteredText(forecastError.length() ? forecastError : "No hourly data", 100, 1, MUTED);
+    drawForecastControls();
     drawForecastFooter();
     return;
   }
 
-  // Clear only the forecast area; the static header/title/footer remain fixed.
+  // Draw the viewport first so the graph controls can safely overlay its blank
+  // top strip without being overwritten by the canvas flush.
   gfx->fillRect(
     0,
     FORECAST_VIEWPORT_TOP,
@@ -1372,7 +1796,23 @@ void drawForecast() {
     FORECAST_VIEWPORT_HEIGHT,
     BG);
   drawForecastViewport(forecastOffset, 0);
+  drawForecastControls();
   drawForecastFooter();
+}
+
+// Reset every scroll position whenever the user changes the main tab.
+// This keeps each screen predictable when revisiting it, rather than restoring
+// the previous scroll position from the last visit.
+void resetScrollableViewPositions() {
+  weatherMetricOffset = 0;
+  forecastOffset = 0;
+  forecastGraphOffset = 0;
+  forecastGraphScrollPixels = 0;
+
+  // Keep the transient pixel positions in sync with their canonical offsets.
+  metricsDragCurrentScroll = 0;
+  forecastDragCurrentScroll = 0;
+  forecastGraphDragCurrentScroll = 0;
 }
 
 // Render the destination tab off-screen, then slide it over the current tab.
@@ -1380,6 +1820,9 @@ void drawForecast() {
 // cannot flush partial content to the physical display mid-transition.
 void animateTabTransition(int targetTab, int direction) {
   if (targetTab == currentTab) return;
+
+  // Reset outgoing and incoming content before composing the destination frame.
+  resetScrollableViewPositions();
 
   if (tabTransitionCanvas == nullptr) {
     if (targetTab == 0) drawWeather();
@@ -1598,10 +2041,73 @@ void updateTouchDrag(const TouchSample& sample) {
       touchX < screenW &&
       touchY >= WEATHER_METRIC_PANEL_TOP &&
       touchY < WEATHER_METRIC_PANEL_BOTTOM;
+    forecastGestureStartedInsideViewport =
+      currentTab == 1 &&
+      !forecastGraphView &&
+      touchX >= 8 &&
+      touchX < screenW - 8 &&
+      touchY >= FORECAST_VIEWPORT_TOP &&
+      touchY < FORECAST_VIEWPORT_BOTTOM;
 
     suppressMetricGesture = false;
     suppressForecastGesture = false;
-    lastHandledGesture = 0;
+
+    // A new physical contact begins a new gesture sequence. Do not let the
+    // previous graph-release suppression latch consume this entire swipe.
+    // Any gesture code already present at touch-down is treated as stale and
+    // marked handled; a fresh event can be handled after the register clears.
+    if (suppressGraphControllerGestureAfterTouch) {
+      suppressGraphControllerGestureAfterTouch = false;
+      graphGestureQuietPeriodActive = false;
+      graphGestureSuppressionStartedMs = 0;
+      graphGestureQuietStartedMs = 0;
+      lastHandledGesture = sample.gesture;
+      DEBUG_PRINTLN("Graph gesture suppression cleared at new touch-down");
+    } else {
+      lastHandledGesture = 0;
+    }
+
+    // Only the List/Graph selector remains in the control strip.
+    forecastControlTouch = 0;
+    if (currentTab == 1 &&
+        touchY >= FORECAST_CONTROL_HIT_TOP &&
+        touchY < FORECAST_CONTROL_HIT_BOTTOM) {
+      if (touchX >= 176 && touchX < 247) {
+        forecastControlTouch = 3;
+      } else if (touchX >= 247 && touchX < 320) {
+        forecastControlTouch = 4;
+      }
+      if (forecastControlTouch != 0) {
+        forecastControlStartX = touchX;
+        forecastControlStartY = touchY;
+      }
+    }
+
+    // A touch beginning in the graph body belongs to the graph until release.
+    // This blocks the controller's coarse swipe event if coordinate tracking drops.
+    forecastGraphTouchOwned =
+      currentTab == 1 &&
+      forecastGraphView &&
+      touchX >= 0 &&
+      touchX < screenW &&
+      touchY >= FORECAST_CONTROL_BOTTOM + 2 &&
+      touchY < FORECAST_VIEWPORT_BOTTOM;
+    forecastGraphTouchCandidate = forecastGraphTouchOwned;
+    forecastGraphQuickSwipeCandidate = false;
+    forecastGraphQuickSwipeReady = false;
+    forecastGraphTouchStartedMs = millis();
+    forecastGraphTouchStartX = touchX;
+    forecastGraphTouchStartY = touchY;
+    forecastGraphTouchLastX = touchX;
+    forecastGraphTouchLastY = touchY;
+    forecastGraphTouchStartScroll = forecastGraphScrollPixels;
+    forecastGraphDragActive = false;
+    forecastGraphDragMoved = false;
+    forecastGraphDragHasRendered = false;
+    forecastGraphLastRenderedScroll = -1;
+    forecastGraphDragStartX = touchX;
+    forecastGraphDragStartScroll = forecastGraphScrollPixels;
+    forecastGraphDragCurrentScroll = forecastGraphScrollPixels;
   }
 
   if (!metricsTouchDragActive &&
@@ -1630,11 +2136,20 @@ void updateTouchDrag(const TouchSample& sample) {
     }
   }
 
-  // Forecast drag starts only within the visible list and only when its
-  // buffered renderer exists. If it does not, controller gesture scrolling
-  // remains the fallback.
-  if (!forecastTouchDragActive &&
+  // A control tap is cancelled as soon as the finger moves significantly.
+  // Such a movement remains available to the existing tab-swipe handler.
+  if (forecastControlTouch != 0 && touchPresent &&
+      (abs(touchX - forecastControlStartX) > FORECAST_CONTROL_TAP_SLOP_PX ||
+       abs(touchY - forecastControlStartY) > FORECAST_CONTROL_TAP_SLOP_PX)) {
+    forecastControlTouch = 0;
+  }
+
+  // Forecast list dragging starts only in List mode and inside the list
+  // viewport. Graph paging uses explicit buttons, not horizontal drag gestures.
+  if (!forecastGraphView &&
+      !forecastTouchDragActive &&
       !forecastTouchCandidate &&
+      forecastControlTouch == 0 &&
       touchJustStarted &&
       currentTab == 1 &&
       forecastCanvas != nullptr &&
@@ -1744,6 +2259,96 @@ void updateTouchDrag(const TouchSample& sample) {
     }
   }
 
+  // Remember the last valid coordinates while a graph-originated contact is down.
+  // If CST816 tracking drops on release, use the last confirmed movement rather
+  // than trusting its coarse gesture code to decide whether to switch tabs.
+  if (forecastGraphTouchOwned && touchPresent) {
+    forecastGraphTouchLastX = touchX;
+    forecastGraphTouchLastY = touchY;
+  }
+
+  if (forecastGraphTouchCandidate && touchPresent &&
+      !forecastGraphDragActive) {
+    const int deltaX = touchX - forecastGraphTouchStartX;
+    const int deltaY = touchY - forecastGraphTouchStartY;
+    const int absX = abs(deltaX);
+    const int absY = abs(deltaY);
+    const unsigned long heldMs = millis() - forecastGraphTouchStartedMs;
+
+    // Only a large, clearly tracked horizontal movement before the hold delay
+    // can become a tab swipe. Small movement/jitter no longer cancels graph drag.
+    if (heldMs < FORECAST_GRAPH_HOLD_MS &&
+        absX >= FORECAST_GRAPH_TAB_SWIPE_PX &&
+        absX > absY) {
+      forecastGraphTouchCandidate = false;
+      forecastGraphQuickSwipeCandidate = true;
+      forecastGraphQuickSwipeReady = true;
+    } else if (heldMs >= FORECAST_GRAPH_HOLD_MS &&
+               absX >= FORECAST_GRAPH_DRAG_START_PX &&
+               absX > absY) {
+      forecastGraphTouchCandidate = false;
+      forecastGraphQuickSwipeCandidate = false;
+      forecastGraphQuickSwipeReady = false;
+      forecastGraphDragActive = true;
+      forecastGraphDragMoved = false;
+      forecastGraphDragHasRendered = false;
+      forecastGraphLastRenderedScroll = -1;
+      forecastGraphDragStartX = forecastGraphTouchStartX;
+      forecastGraphDragStartScroll = forecastGraphTouchStartScroll;
+      forecastGraphDragCurrentScroll = forecastGraphTouchStartScroll;
+      DEBUG_PRINTF(
+        "Graph horizontal hold-drag started at x=%d, scroll=%d\n",
+        forecastGraphDragStartX,
+        forecastGraphDragStartScroll);
+    } else if (heldMs < FORECAST_GRAPH_HOLD_MS &&
+               absY >= 20 && absY > absX) {
+      // Strong vertical intent cancels chart panning, but the contact remains
+      // owned so a controller dropout cannot turn it into a tab switch.
+      forecastGraphTouchCandidate = false;
+      forecastGraphQuickSwipeCandidate = false;
+    }
+  }
+
+  if (forecastGraphQuickSwipeCandidate && touchPresent) {
+    const int deltaX = touchX - forecastGraphTouchStartX;
+    const int deltaY = touchY - forecastGraphTouchStartY;
+    const unsigned long heldMs = millis() - forecastGraphTouchStartedMs;
+    forecastGraphQuickSwipeReady =
+      heldMs < FORECAST_GRAPH_HOLD_MS &&
+      abs(deltaX) >= FORECAST_GRAPH_TAB_SWIPE_PX &&
+      abs(deltaX) > abs(deltaY);
+    if (heldMs >= FORECAST_GRAPH_HOLD_MS) {
+      forecastGraphQuickSwipeCandidate = false;
+      forecastGraphQuickSwipeReady = false;
+    }
+  }
+
+  if (forecastGraphDragActive && touchPresent) {
+    const int nextScroll = elasticScrollPixels(
+      forecastGraphDragStartScroll + forecastGraphDragStartX - touchX,
+      maxForecastGraphScrollPixels());
+
+    if (nextScroll != forecastGraphDragCurrentScroll) {
+      forecastGraphDragMoved =
+        forecastGraphDragMoved ||
+        abs(nextScroll - forecastGraphDragStartScroll) >= 3;
+      forecastGraphDragCurrentScroll = nextScroll;
+    }
+
+    const unsigned long nowMs = millis();
+    const bool positionNeedsRender =
+      forecastGraphLastRenderedScroll != forecastGraphDragCurrentScroll;
+    const bool renderDue =
+      !forecastGraphDragHasRendered ||
+      nowMs - lastForecastGraphDragRenderMs >= FORECAST_DRAG_RENDER_INTERVAL_MS;
+    if (positionNeedsRender && renderDue) {
+      drawForecastGraphAtScrollPosition(forecastGraphDragCurrentScroll);
+      lastForecastGraphDragRenderMs = nowMs;
+      forecastGraphDragHasRendered = true;
+      forecastGraphLastRenderedScroll = forecastGraphDragCurrentScroll;
+    }
+  }
+
   if (forecastTouchDragActive && touchPresent) {
     const int nextScroll = elasticScrollPixels(
       forecastDragStartScroll + forecastDragStartY - touchY,
@@ -1794,6 +2399,65 @@ void updateTouchDrag(const TouchSample& sample) {
     suppressForecastGesture = true;
   }
 
+  if (forecastGraphDragActive &&
+      (!touchPresent || sample.event == 1)) {
+    const int maxScroll = maxForecastGraphScrollPixels();
+    int targetScroll =
+      ((forecastGraphDragCurrentScroll + FORECAST_GRAPH_POINT_SPACING / 2) /
+       FORECAST_GRAPH_POINT_SPACING) * FORECAST_GRAPH_POINT_SPACING;
+    targetScroll = constrain(targetScroll, 0, maxScroll);
+
+    DEBUG_PRINTF(
+      "Graph drag released at scroll=%d; snapping to %d; moved=%d\n",
+      forecastGraphDragCurrentScroll,
+      targetScroll,
+      forecastGraphDragMoved ? 1 : 0);
+
+    animateForecastGraphSnap(forecastGraphDragCurrentScroll, targetScroll);
+    forecastGraphDragActive = false;
+    forecastGraphTouchCandidate = false;
+    forecastGraphQuickSwipeCandidate = false;
+    forecastGraphQuickSwipeReady = false;
+    forecastGestureSuppressionStartedMs = millis();
+    suppressForecastGesture = true;
+  }
+
+  if (forecastGraphTouchOwned && (!touchPresent || sample.event == 1)) {
+    const int deltaX = forecastGraphTouchLastX - forecastGraphTouchStartX;
+    const int deltaY = forecastGraphTouchLastY - forecastGraphTouchStartY;
+    const bool confirmedQuickSwipe =
+      !forecastGraphDragMoved &&
+      !forecastGraphDragActive &&
+      forecastGraphQuickSwipeReady &&
+      abs(deltaX) >= FORECAST_GRAPH_TAB_SWIPE_PX &&
+      abs(deltaX) > abs(deltaY) &&
+      millis() - forecastGraphTouchStartedMs < FORECAST_GRAPH_HOLD_MS;
+
+    forecastGraphTouchOwned = false;
+    forecastGraphTouchCandidate = false;
+    forecastGraphQuickSwipeCandidate = false;
+    forecastGraphQuickSwipeReady = false;
+
+    if (confirmedQuickSwipe && currentTab == 1 && deltaX > 0) {
+      // Match the existing physical swipe mapping: a quick rightward swipe
+      // returns from Forecast to Weather.
+      animateTabTransition(0, -1);
+    }
+
+    // Keep suppressing the controller gesture until the gesture register has
+    // returned to zero for a quiet interval. Tracking loss alone must not switch tabs.
+    suppressGraphControllerGestureAfterTouch = true;
+    graphGestureQuietPeriodActive = false;
+    graphGestureSuppressionStartedMs = millis();
+    graphGestureQuietStartedMs = 0;
+    forecastGestureSuppressionStartedMs = millis();
+    suppressForecastGesture = true;
+  }
+
+  if (forecastGraphTouchCandidate && (!touchPresent || sample.event == 1)) {
+    forecastGraphTouchCandidate = false;
+  }
+
   if (forecastTouchCandidate && (!touchPresent || sample.event == 1)) {
     forecastTouchCandidate = false;
   }
@@ -1802,6 +2466,13 @@ void updateTouchDrag(const TouchSample& sample) {
   // candidate but allow any final controller gesture to reach navigation.
   if (metricsTouchCandidate && (!touchPresent || sample.event == 1)) {
     metricsTouchCandidate = false;
+  }
+
+  if (forecastControlTouch != 0 &&
+      (!touchPresent || sample.event == 1)) {
+    const uint8_t control = forecastControlTouch;
+    forecastControlTouch = 0;
+    handleForecastControlTap(control);
   }
 }
 
@@ -1875,6 +2546,13 @@ void handleGesture(uint8_t gesture) {
     return;
   }
 
+  if (currentTab == 1 && forecastGraphView) {
+    // Graph movement is handled by coordinate-tracked hold-and-drag. Vertical
+    // controller gestures are ignored here; horizontal gestures above still switch tabs.
+    DEBUG_PRINTLN("Ignoring legacy vertical gesture in graph mode");
+    return;
+  }
+
   if (gesture == GESTURE_SCREEN_UP) {
     int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
     if (forecastOffset < maxOffset) {
@@ -1923,6 +2601,30 @@ void pollTouch() {
   const bool releaseGestureSuppressed =
     metricReleaseGestureSuppressed || forecastReleaseGestureSuppressed;
 
+  // A graph-originated contact owns its controller gesture even if finger
+  // tracking briefly disappears. Clear this latch only after a sustained zero.
+  bool graphControllerGestureSuppressed = false;
+  if (suppressGraphControllerGestureAfterTouch) {
+    if (gesture == 0) {
+      if (!graphGestureQuietPeriodActive) {
+        graphGestureQuietPeriodActive = true;
+        graphGestureQuietStartedMs = nowMs;
+      }
+      if (nowMs - graphGestureSuppressionStartedMs >= 450UL &&
+          nowMs - graphGestureQuietStartedMs >= 250UL) {
+        suppressGraphControllerGestureAfterTouch = false;
+        graphGestureQuietPeriodActive = false;
+      } else {
+        graphControllerGestureSuppressed = true;
+      }
+    } else {
+      graphGestureQuietPeriodActive = false;
+      graphGestureQuietStartedMs = 0;
+      graphControllerGestureSuppressed = true;
+      lastHandledGesture = gesture;
+    }
+  }
+
   if (suppressMetricGesture && !metricReleaseGestureSuppressed) {
     suppressMetricGesture = false;
   }
@@ -1932,6 +2634,10 @@ void pollTouch() {
 
   if (metricsTouchDragActive ||
       forecastTouchDragActive ||
+      forecastGraphTouchOwned ||
+      forecastGraphDragActive ||
+      forecastControlTouch != 0 ||
+      graphControllerGestureSuppressed ||
       releaseGestureSuppressed) {
     if (gesture != 0) lastHandledGesture = gesture;
     else lastHandledGesture = 0;
@@ -1961,7 +2667,28 @@ void pollTouch() {
     return;
   }
 
+  if (currentTab == 1 &&
+      (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN) &&
+      forecastGraphView) {
+    DEBUG_PRINTLN(
+      "Ignoring vertical gesture in graph mode; use a held horizontal drag");
+    forecastGestureStartedInsideViewport = false;
+    metricsGestureStartedInsidePanel = false;
+    return;
+  }
+
+  if (currentTab == 1 &&
+      (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN) &&
+      !forecastGestureStartedInsideViewport) {
+    DEBUG_PRINTLN(
+      "Ignoring vertical forecast gesture started outside the list viewport");
+    forecastGestureStartedInsideViewport = false;
+    metricsGestureStartedInsidePanel = false;
+    return;
+  }
+
   handleGesture(gesture);
+  forecastGestureStartedInsideViewport = false;
   metricsGestureStartedInsidePanel = false;
 }
 
@@ -2266,6 +2993,10 @@ bool loadDemoWeatherData() {
     14.6f, 14.1f, 13.8f, 13.2f, 12.9f, 12.5f,
     12.1f, 11.8f, 11.6f, 11.9f, 12.4f, 13.0f
   };
+  const float rainProbabilities[] = {
+    0.05f, 0.10f, 0.35f, 0.55f, 0.18f, 0.05f,
+    0.03f, 0.72f, 0.48f, 0.12f, 0.06f, 0.02f
+  };
   const time_t now = time(nullptr);
   for (int i = 0; i < forecastCount; i++) {
     int sample = i % 12;
@@ -2274,7 +3005,13 @@ bool loadDemoWeatherData() {
       forecast[i].timestamp, locationTimezoneOffset);
     forecast[i].description = descriptions[sample];
     forecast[i].temp = temperatures[sample];
+    forecast[i].feelsLike = temperatures[sample] - (sample % 3 == 0 ? 1.0f : 0.0f);
+    forecast[i].rainProbability = rainProbabilities[sample];
   }
+  forecastGraphOffset = constrain(
+    forecastGraphOffset, 0, max(0, forecastCount - FORECAST_GRAPH_POINTS));
+  forecastGraphScrollPixels =
+    forecastGraphOffset * FORECAST_GRAPH_POINT_SPACING;
   forecastAvailable = true;
   DEBUG_PRINTLN("Demo mode: loaded local weather and 24 sample forecast entries; no API calls.");
   return true;
@@ -2356,6 +3093,10 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
 
     const char* desc = item["weather"][0]["main"] | "Unknown";
     float temp = item["temp"] | 0.0f;
+    float feelsLikeValue = item["feels_like"] | temp;
+    float precipitationProbability = item["pop"] | 0.0f;
+    precipitationProbability = constrain(
+      precipitationProbability, 0.0f, 1.0f);
 
     // The first valid hourly record is the nearest available estimate for
     // current UV index and precipitation probability.
@@ -2374,6 +3115,8 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
     forecast[forecastCount].timeText = formatForecastTime(timestamp, locationTimezoneOffset);
     forecast[forecastCount].description = String(desc);
     forecast[forecastCount].temp = temp;
+    forecast[forecastCount].feelsLike = feelsLikeValue;
+    forecast[forecastCount].rainProbability = precipitationProbability;
     forecastCount++;
   }
 
@@ -2422,6 +3165,12 @@ bool fetchForecast() {
   }
 
   forecastAvailable = forecastCount > 0;
+  forecastGraphOffset = constrain(
+    forecastGraphOffset, 0, max(0, forecastCount - FORECAST_GRAPH_POINTS));
+  forecastGraphScrollPixels =
+    forecastGraphOffset * FORECAST_GRAPH_POINT_SPACING;
+  forecastOffset = constrain(
+    forecastOffset, 0, max(0, forecastCount - ITEMS_PER_PAGE));
   if (!forecastAvailable && forecastError.length() == 0) {
     forecastError = "No hourly records";
     DEBUG_PRINTLN("One Call returned without any parsable hourly records.");
