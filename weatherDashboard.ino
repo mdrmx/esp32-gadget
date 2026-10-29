@@ -1181,7 +1181,7 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
   }
 
   // Safe fallback if the canvas buffer could not be allocated: render the
-  // three settled rows directly and disable frame-by-frame animation below.
+  // four settled rows directly if the canvas buffer is unavailable.
   gfx->fillRect(
     0,
     FORECAST_VIEWPORT_TOP,
@@ -1287,47 +1287,16 @@ void animateTabTransition(int targetTab, int direction) {
   drawTabIndicator();
 }
 
-// Draw a settled forecast page directly to the display. This keeps touch
-// scrolling independent of the large off-screen forecast framebuffer and
-// bounds every card to the viewport before issuing drawing calls.
-void drawForecastPageDirect(int baseOffset) {
-  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
-  baseOffset = constrain(baseOffset, 0, maxOffset);
-
-  gfx->fillRect(
-    0,
-    FORECAST_VIEWPORT_TOP,
-    screenW,
-    FORECAST_VIEWPORT_HEIGHT,
-    BG);
-
-  const int visible = min(ITEMS_PER_PAGE, max(0, forecastCount - baseOffset));
-  for (int i = 0; i < visible; i++) {
-    const int index = baseOffset + i;
-    const int y = FORECAST_ROW_TOP + i * FORECAST_ROW_STEP;
-
-    // These settled rows should fit exactly inside the expanded viewport.
-    // Retain the bounds check if the card/layout constants change later.
-    if (index < 0 || index >= forecastCount ||
-        y < FORECAST_VIEWPORT_TOP ||
-        y + FORECAST_CARD_HEIGHT > FORECAST_VIEWPORT_BOTTOM) {
-      continue;
-    }
-
-    drawForecastItem(gfx, index, y);
-  }
-}
-
-// Scroll by one hourly record with a single bounded redraw. The expanded
-// four-card viewport is large, so avoid repeatedly flushing its full canvas
-// during the touch handler.
+// Scroll by one hourly record and redraw the complete forecast viewport
+// through its off-screen canvas. The single bitmap flush prevents the tearing
+// caused by clearing the LCD and painting each card in separate operations.
 void animateForecastScroll(int direction) {
   const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
   const int targetOffset = forecastOffset + direction;
   if (targetOffset < 0 || targetOffset > maxOffset) return;
 
   forecastOffset = targetOffset;
-  drawForecastPageDirect(forecastOffset);
+  drawForecastViewport(forecastOffset, 0);
   drawForecastFooter();
 }
 
