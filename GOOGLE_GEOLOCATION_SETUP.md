@@ -7,7 +7,7 @@ The dashboard attempts Google Wi-Fi positioning at startup, before using the exi
 The local `secrets.h` file is ignored by Git so credentials are not committed. Add this line to your existing `secrets.h`, alongside the Wi-Fi and OpenWeather credentials:
 
 ```cpp
-#define GOOGLE_GEOLOCATION_API_KEY "YOUR_GOOGLE_GEolocation_API_KEY"
+#define GOOGLE_GEOLOCATION_API_KEY "YOUR_GOOGLE_GEOLOCATION_API_KEY"
 ```
 
 Replace the placeholder with the API key from your Google Cloud project. Do not commit `secrets.h`, paste the key into an issue/PR, or hard-code it in `weatherDashboard.ino`.
