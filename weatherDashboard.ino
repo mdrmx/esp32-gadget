@@ -230,6 +230,10 @@ const int FORECAST_CARD_HEIGHT = 48;
 const int FORECAST_GRAPH_POINTS = 6;
 const int FORECAST_CONTROL_TOP = 39;
 const int FORECAST_CONTROL_BOTTOM = 59;
+// Slightly expand the tap target beyond the drawn segmented control, while
+// stopping before the forecast viewport so vertical list drags remain distinct.
+const int FORECAST_CONTROL_HIT_TOP = FORECAST_CONTROL_TOP - 3;
+const int FORECAST_CONTROL_HIT_BOTTOM = FORECAST_VIEWPORT_TOP;
 // Let small touchscreen coordinate jitter count as a button tap, but cancel
 // a deliberate swipe/drag that starts on the control strip.
 const int FORECAST_CONTROL_TAP_SLOP_PX = 14;
@@ -1865,15 +1869,15 @@ void updateTouchDrag(const TouchSample& sample) {
 
     forecastControlTouch = 0;
     if (currentTab == 1 &&
-        touchY >= FORECAST_CONTROL_TOP &&
-        touchY < FORECAST_CONTROL_BOTTOM) {
+        touchY >= FORECAST_CONTROL_HIT_TOP &&
+        touchY < FORECAST_CONTROL_HIT_BOTTOM) {
       if (forecastGraphView && touchX >= 7 && touchX < 28) {
         forecastControlTouch = 1;
       } else if (forecastGraphView && touchX >= 32 && touchX < 53) {
         forecastControlTouch = 2;
-      } else if (touchX >= 187 && touchX < 248) {
+      } else if (touchX >= 182 && touchX < 248) {
         forecastControlTouch = 3;
-      } else if (touchX >= 249 && touchX < 311) {
+      } else if (touchX >= 249 && touchX < 317) {
         forecastControlTouch = 4;
       }
       forecastControlStartX = touchX;
