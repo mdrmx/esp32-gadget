@@ -37,6 +37,10 @@ const char* CITY = "Manchester,GB";
 float locationLat = 53.4808f;
 float locationLon = -2.2426f;
 long locationTimezoneOffset = 0;
+// Keep the display name supplied by IP geolocation separate from the weather
+// provider's place/station name, which can be broader than the actual location.
+String ipLocationCity = "";
+bool locationCoordinatesFromIP = false;
 const unsigned long UPDATE_INTERVAL = 600000UL;
 
 // =====================================================
@@ -432,9 +436,11 @@ void reportHeapSummary() {
 }
 
 String getHeaderLocationText() {
-  String label = weatherCity;
+  // Prefer the resolved IP location in the UI. The weather provider's "name"
+  // may instead identify a nearby reporting station or larger city.
+  String label = ipLocationCity.length() > 0 ? ipLocationCity : weatherCity;
 
-  // Before the current-weather response arrives, use the configured city.
+  // Before either response arrives, use the configured city.
   if (label.length() == 0) {
     label = String(CITY);
     int comma = label.indexOf(',');
@@ -1915,10 +1921,12 @@ bool resolveLocationFromIP() {
 
   locationLat = resolvedLat;
   locationLon = resolvedLon;
-  weatherCity = doc["city"] | String(CITY);
-  weatherCity.trim();
+  locationCoordinatesFromIP = true;
+  ipLocationCity = doc["city"] | "";
+  ipLocationCity.trim();
   DEBUG_PRINTF("IP location: %s (%.4f, %.4f)\n",
-               weatherCity.c_str(), locationLat, locationLon);
+               ipLocationCity.length() > 0 ? ipLocationCity.c_str() : "city unavailable",
+               locationLat, locationLon);
   return true;
 }
 
@@ -1977,8 +1985,12 @@ bool fetchWeather() {
   weatherDescription = doc["weather"][0]["description"] | "Unknown";
   weatherMain = doc["weather"][0]["main"] | "Unknown";
   weatherIcon = doc["weather"][0]["icon"] | "03d";
-  locationLat = doc["coord"]["lat"] | locationLat;
-  locationLon = doc["coord"]["lon"] | locationLon;
+  // Keep the IP-derived coordinates for the forecast. OpenWeather can
+  // return coordinates for a nearby reporting location instead.
+  if (!locationCoordinatesFromIP) {
+    locationLat = doc["coord"]["lat"] | locationLat;
+    locationLon = doc["coord"]["lon"] | locationLon;
+  }
   locationTimezoneOffset = doc["timezone"] | locationTimezoneOffset;
   temperature = doc["main"]["temp"] | 0.0f;
   feelsLike = doc["main"]["feels_like"] | 0.0f;
