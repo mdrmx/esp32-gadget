@@ -1869,6 +1869,59 @@ bool connectWiFi() {
 // FETCH CURRENT WEATHER
 // =====================================================
 
+// Resolve a coarse fallback from the public IP address until GPS is added.
+// IP geolocation can reflect an ISP/VPN exit point rather than the device.
+bool resolveLocationFromIP() {
+#if USE_DEMO_WEATHER_DATA
+  DEBUG_PRINTLN("Demo mode: skipping IP geolocation.");
+  return false;
+#endif
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  if (!http.begin(client, "https://ipwho.is/")) {
+    DEBUG_PRINTLN("IP geolocation init failed; using configured fallback.");
+    return false;
+  }
+
+  http.setConnectTimeout(8000);
+  http.setTimeout(8000);
+  const int status = http.GET();
+  if (status != HTTP_CODE_OK) {
+    DEBUG_PRINTF("IP geolocation HTTP status: %d; using configured fallback.\n", status);
+    http.end();
+    return false;
+  }
+
+  JsonDocument doc;
+  const DeserializationError error = deserializeJson(doc, http.getStream());
+  http.end();
+  if (error || !(doc["success"] | false) ||
+      doc["latitude"].isNull() || doc["longitude"].isNull()) {
+    DEBUG_PRINTLN("IP geolocation response invalid; using configured fallback.");
+    return false;
+  }
+
+  const float resolvedLat = doc["latitude"].as<float>();
+  const float resolvedLon = doc["longitude"].as<float>();
+  if (!isfinite(resolvedLat) || !isfinite(resolvedLon) ||
+      resolvedLat < -90.0f || resolvedLat > 90.0f ||
+      resolvedLon < -180.0f || resolvedLon > 180.0f) {
+    DEBUG_PRINTLN("IP geolocation coordinates invalid; using configured fallback.");
+    return false;
+  }
+
+  locationLat = resolvedLat;
+  locationLon = resolvedLon;
+  weatherCity = doc["city"] | String(CITY);
+  weatherCity.trim();
+  DEBUG_PRINTF("IP location: %s (%.4f, %.4f)\n",
+               weatherCity.c_str(), locationLat, locationLon);
+  return true;
+}
+
 bool fetchWeather() {
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();
@@ -1885,7 +1938,9 @@ bool fetchWeather() {
   HTTPClient http;
 
   String url =
-    "https://api.openweathermap.org/data/2.5/weather?q=" + String(CITY) + "&appid=" + String(apiKey) + "&units=metric";
+    "https://api.openweathermap.org/data/2.5/weather?lat=" +
+    String(locationLat, 4) + "&lon=" + String(locationLon, 4) +
+    "&appid=" + String(apiKey) + "&units=metric";
 
   if (!http.begin(client, url)) {
     if (weatherAvailable) drawWeather();
@@ -2300,7 +2355,10 @@ void setup() {
   DEBUG_PRINTLN("DEMO MODE ENABLED: network and API calls are disabled.");
 #else
   drawLoading("Starting up...");
-  connectWiFi();  // Starts a time API request when connectivity is available.
+  if (connectWiFi()) {
+    // If IP geolocation fails, keep the configured Manchester coordinates.
+    resolveLocationFromIP();
+  }
 #endif
   fetchWeather();
   fetchForecast();
