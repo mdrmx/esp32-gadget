@@ -162,6 +162,7 @@ unsigned long forecastGraphTouchStartedMs = 0;
 unsigned long lastForecastGraphDragRenderMs = 0;
 int forecastGraphTouchStartX = 0;
 int forecastGraphTouchStartY = 0;
+int forecastGraphTouchStartScroll = 0;
 int forecastGraphDragStartX = 0;
 int forecastGraphDragStartScroll = 0;
 int forecastGraphDragCurrentScroll = 0;
