@@ -2031,7 +2031,21 @@ void updateTouchDrag(const TouchSample& sample) {
 
     suppressMetricGesture = false;
     suppressForecastGesture = false;
-    lastHandledGesture = 0;
+
+    // A new physical contact begins a new gesture sequence. Do not let the
+    // previous graph-release suppression latch consume this entire swipe.
+    // Any gesture code already present at touch-down is treated as stale and
+    // marked handled; a fresh event can be handled after the register clears.
+    if (suppressGraphControllerGestureAfterTouch) {
+      suppressGraphControllerGestureAfterTouch = false;
+      graphGestureQuietPeriodActive = false;
+      graphGestureSuppressionStartedMs = 0;
+      graphGestureQuietStartedMs = 0;
+      lastHandledGesture = sample.gesture;
+      DEBUG_PRINTLN("Graph gesture suppression cleared at new touch-down");
+    } else {
+      lastHandledGesture = 0;
+    }
 
     // Only the List/Graph selector remains in the control strip.
     forecastControlTouch = 0;
