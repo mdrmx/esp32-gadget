@@ -228,9 +228,9 @@ const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP;
 const int FORECAST_ROW_STEP = 52;
 const int FORECAST_CARD_HEIGHT = 48;
 const int FORECAST_GRAPH_POINTS = 6;
-const int FORECAST_CONTROL_TOP = 39;
+const int FORECAST_CONTROL_TOP = 37;
 const int FORECAST_CONTROL_BOTTOM = 59;
-// Slightly expand the tap target beyond the drawn segmented control, while
+// Slightly expand the tap target beyond the larger segmented control, while
 // stopping before the forecast viewport so vertical list drags remain distinct.
 const int FORECAST_CONTROL_HIT_TOP = FORECAST_CONTROL_TOP - 3;
 const int FORECAST_CONTROL_HIT_BOTTOM = FORECAST_VIEWPORT_TOP;
@@ -1419,11 +1419,11 @@ void drawForecastControls() {
 
   // Compact segmented List / Graph control. Touching it is independent of the
   // forecast swipe area, so paging the graph never steals a tab-switch swipe.
-  gfx->fillRoundRect(185, 39, 127, 19, 4, PANEL);
+  gfx->fillRoundRect(185, 37, 127, 23, 4, PANEL);
   if (!forecastGraphView) {
-    gfx->fillRoundRect(187, 41, 61, 15, 3, UI_WHITE);
+    gfx->fillRoundRect(187, 39, 61, 19, 3, UI_WHITE);
   } else {
-    gfx->fillRoundRect(249, 41, 61, 15, 3, UI_WHITE);
+    gfx->fillRoundRect(249, 39, 61, 19, 3, UI_WHITE);
   }
   drawText("LIST", 204, 44, 1, forecastGraphView ? MUTED : BG);
   drawText("GRAPH", 260, 44, 1, forecastGraphView ? BG : MUTED);
