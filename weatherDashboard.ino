@@ -125,7 +125,8 @@ bool metricsTouchDragMoved = false;
 int metricsDragStartY = 0;
 int metricsDragStartScroll = 0;
 int metricsDragCurrentScroll = 0;
-unsigned long suppressMetricGestureUntilMs = 0;
+bool suppressMetricGesture = false;
+unsigned long metricsGestureSuppressionStartedMs = 0;
 
 // =====================================================
 // COLOURS
@@ -1387,15 +1388,15 @@ bool readTouchSample(TouchSample& sample) {
 }
 
 // The CST816 coordinates are reported in the panel's portrait-native frame.
-// This board is mounted in landscape; the observed gesture mapping corresponds
-// to screenX = reversed rawY, screenY = rawX.
+// This board is mounted in landscape. The observed gesture mapping corresponds
+// to screenX = rawY, screenY = reversed rawX for the 320x240 logical display.
 void touchCoordinatesToScreen(
   const TouchSample& sample,
   int& screenX,
   int& screenY
 ) {
-  screenX = screenW - 1 - (int)sample.rawY;
-  screenY = (int)sample.rawX;
+  screenX = (int)sample.rawY;
+  screenY = screenH - 1 - (int)sample.rawX;
 
   screenX = constrain(screenX, 0, screenW - 1);
   screenY = constrain(screenY, 0, screenH - 1);
@@ -1460,7 +1461,8 @@ void updateWeatherMetricsTouchDrag(const TouchSample& sample) {
     metricsTouchDragActive = false;
     // The CST816 can publish its completed gesture after touch-up. Ignore that
     // duplicate for a short grace period so it cannot trigger a second scroll.
-    suppressMetricGestureUntilMs = millis() + 300UL;
+    metricsGestureSuppressionStartedMs = millis();
+    suppressMetricGesture = true;
   }
 }
 
@@ -1572,7 +1574,14 @@ void pollTouch() {
 
   // A drag on the metric cards is driven by coordinates. Suppress the
   // controller's completed swipe code so the same motion is not applied twice.
-  if (metricsTouchDragActive || millis() < suppressMetricGestureUntilMs) {
+  bool releaseGestureSuppressed =
+    suppressMetricGesture &&
+    (millis() - metricsGestureSuppressionStartedMs < 300UL);
+  if (suppressMetricGesture && !releaseGestureSuppressed) {
+    suppressMetricGesture = false;
+  }
+
+  if (metricsTouchDragActive || releaseGestureSuppressed) {
     if (gesture != 0) lastHandledGesture = gesture;
     else lastHandledGesture = 0;
     return;
