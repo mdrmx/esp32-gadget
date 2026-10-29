@@ -173,33 +173,33 @@ unsigned long lastUpdate = 0;
 bool loadDemoWeatherData();
 
 const int MAX_FORECAST = 48;
-const int ITEMS_PER_PAGE = 3;
+const int ITEMS_PER_PAGE = 4;
 
 const int WEATHER_METRIC_COUNT = 8;
 const int WEATHER_METRICS_VISIBLE = 3;
 const int WEATHER_METRIC_PANEL_TOP = 47;
-const int WEATHER_METRIC_PANEL_HEIGHT = 152;
+const int WEATHER_METRIC_PANEL_HEIGHT = 177;
 const int WEATHER_METRIC_PANEL_BOTTOM =
   WEATHER_METRIC_PANEL_TOP + WEATHER_METRIC_PANEL_HEIGHT;
-const int WEATHER_METRIC_CARD_HEIGHT = 46;
-const int WEATHER_METRIC_ROW_STEP = 50;
+const int WEATHER_METRIC_CARD_HEIGHT = 54;
+const int WEATHER_METRIC_ROW_STEP = 58;
 const int WEATHER_METRIC_ROW_TOP = 2;
 int weatherMetricOffset = 0;
 
-// Keep the title above and the range/navigation footer below the scrolling
-// viewport. Three taller cards use the available height evenly.
+// Keep four forecast cards in the expanded content area, leaving a compact
+// 12 px footer for the tab indicator only.
 const int FORECAST_VIEWPORT_TOP = 60;
-const int FORECAST_VIEWPORT_HEIGHT = 147;
+const int FORECAST_VIEWPORT_HEIGHT = 168;
 const int FORECAST_VIEWPORT_BOTTOM =
   FORECAST_VIEWPORT_TOP + FORECAST_VIEWPORT_HEIGHT;
 
 // Keep the shared header and footer fixed while animating only the main body.
 const int TAB_TRANSITION_CONTENT_TOP = 37;
-const int TAB_TRANSITION_FOOTER_HEIGHT = 29;
+const int TAB_TRANSITION_FOOTER_HEIGHT = 12;
 
 const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 3;
-const int FORECAST_ROW_STEP = 49;
-const int FORECAST_CARD_HEIGHT = 43;
+const int FORECAST_ROW_STEP = 42;
+const int FORECAST_CARD_HEIGHT = 39;
 
 struct ForecastItem {
   String timeText;
@@ -898,7 +898,7 @@ void drawWeatherMetricItem(
   String label = weatherMetricLabel(index);
   target->setTextSize(1);
   target->setTextColor(MUTED);
-  target->setCursor(x + 9, y + 5);
+  target->setCursor(x + 9, y + 7);
   target->print(label);
 
   String value = weatherMetricValue(index);
@@ -909,7 +909,7 @@ void drawWeatherMetricItem(
   uint16_t w, h;
   target->getTextBounds(value.c_str(), 0, 0, &x1, &y1, &w, &h);
   int valueX = x + (panelWidth - (int)w) / 2;
-  int valueY = y + (valueSize == 2 ? 20 : 25);
+  int valueY = y + (valueSize == 2 ? 23 : 28);
   target->setCursor(valueX, valueY);
   target->print(value);
 }
@@ -975,24 +975,6 @@ void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
   }
 }
 
-void drawWeatherMetricsCounter() {
-  int firstItem = weatherMetricOffset + 1;
-  int lastItem = min(
-    weatherMetricOffset + WEATHER_METRICS_VISIBLE,
-    WEATHER_METRIC_COUNT);
-  String rangeText = String(firstItem) + "-" + String(lastItem) +
-                     "/" + String(WEATHER_METRIC_COUNT);
-  int x = weatherMetricsPanelX() + 5;
-  int y = WEATHER_METRIC_PANEL_BOTTOM + 2;
-  gfx->fillRect(x, y, 50, 8, BG);
-  drawText(
-    rangeText,
-    x,
-    y,
-    1,
-    UI_YELLOW);
-}
-
 void drawWeatherMetricsPanel(int baseOffset, int scrollPixels) {
   int maxOffset = max(
     0,
@@ -1053,7 +1035,6 @@ void animateWeatherMetricsSnap(int startPixels, int targetOffset) {
   }
 
   weatherMetricOffset = targetOffset;
-  drawWeatherMetricsCounter();
 }
 
 void animateWeatherMetricsScroll(int direction) {
@@ -1069,7 +1050,6 @@ void animateWeatherMetricsScroll(int direction) {
   if (weatherMetricsCanvas == nullptr) {
     weatherMetricOffset = targetOffset;
     drawWeatherMetricsPanel(weatherMetricOffset, 0);
-    drawWeatherMetricsCounter();
     return;
   }
 
@@ -1087,7 +1067,6 @@ void animateWeatherMetricsScroll(int direction) {
   }
 
   weatherMetricOffset = targetOffset;
-  drawWeatherMetricsCounter();
 }
 
 void drawWeather() {
@@ -1138,9 +1117,6 @@ void drawWeather() {
     MUTED);
 
   drawWeatherMetricsPanel(weatherMetricOffset, 0);
-  drawWeatherMetricsCounter();
-
-  gfx->drawFastHLine(10, screenH - 29, screenW - 20, PANEL);
   drawTabIndicator();
 }
 
@@ -1172,11 +1148,7 @@ void drawForecastItem(Arduino_GFX* target, int index, int y) {
 }
 
 void drawForecastFooter() {
-  int firstItem = forecastCount > 0 ? forecastOffset + 1 : 0;
-  int lastItem = min(forecastOffset + ITEMS_PER_PAGE, forecastCount);
-  String rangeText = String(firstItem) + "-" + String(lastItem) + "/" + String(forecastCount);
-
-  drawText(rangeText, screenW - 58, screenH - 25, 1, UI_YELLOW);
+  // Keep the footer minimal: only the current tab indicator is shown.
   drawTabIndicator();
 }
 
@@ -1304,25 +1276,14 @@ void animateTabTransition(int targetTab, int direction) {
     delay(animationDelayMs);
   }
 
-  // Finish at an exact alignment, then update only the footer's small dynamic
-  // range label and tab marker; do not repaint the shared header/footer bars.
+  // Finish at an exact alignment. The compact footer contains only the tab
+  // indicator, so there is no changing range label to repaint.
   liveDisplay->draw16bitRGBBitmap(
     0,
     TAB_TRANSITION_CONTENT_TOP,
     (uint16_t*)contentFrame,
     screenW,
     contentHeight);
-
-  const int footerLabelX = screenW - 64;
-  const int footerLabelY = screenH - 28;
-  liveDisplay->fillRect(footerLabelX, footerLabelY, 64, 14, BG);
-  if (targetTab == 1) {
-    int firstItem = forecastCount > 0 ? forecastOffset + 1 : 0;
-    int lastItem = min(forecastOffset + ITEMS_PER_PAGE, forecastCount);
-    String rangeText = String(firstItem) + "-" + String(lastItem) +
-                       "/" + String(forecastCount);
-    drawText(rangeText, screenW - 58, screenH - 25, 1, UI_YELLOW);
-  }
   drawTabIndicator();
 }
 
@@ -2033,7 +1994,7 @@ void setup() {
       FORECAST_VIEWPORT_HEIGHT);
   }
 
-  // Buffer just the narrow metrics column (about 35 KB at 118x152 RGB565).
+  // Buffer just the narrow metrics column (about 42 KB at 118x177 RGB565).
   weatherMetricsCanvas = new Arduino_Canvas(
     weatherMetricsPanelWidth(),
     WEATHER_METRIC_PANEL_HEIGHT,
