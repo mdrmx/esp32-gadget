@@ -969,7 +969,7 @@ void drawWeather() {
   int contentY = 37;
 
   int iconHeight = drawOpenWeatherIcon(46, contentY);
-  contentY += (iconHeight > 0 ? iconHeight : 0) + iconDescriptionGap;
+  if (iconHeight > 0) contentY += iconHeight + iconDescriptionGap;
 
   int descriptionHeight = drawWrappedCenteredText(
     weatherDescription,
