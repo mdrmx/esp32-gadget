@@ -213,10 +213,11 @@ const int SCROLL_OVERSCROLL_RESISTANCE_DIVISOR = 3;
 const int WEATHER_METRIC_ROW_TOP = 2;
 int weatherMetricOffset = 0;
 
-// Show three larger forecast cards in a shorter buffered viewport, leaving
-// the compact 12 px footer for the tab indicator only.
-const int FORECAST_VIEWPORT_TOP = 60;
-const int FORECAST_VIEWPORT_HEIGHT = 156;
+// Reserve a 4 px gap below the enlarged List / Graph control so the touch
+// hit area ends before list dragging can begin. Keep the viewport bottom fixed
+// at y=216 so three 48 px cards with 4 px gaps still fit exactly.
+const int FORECAST_VIEWPORT_TOP = 64;
+const int FORECAST_VIEWPORT_HEIGHT = 152;
 const int FORECAST_VIEWPORT_BOTTOM =
   FORECAST_VIEWPORT_TOP + FORECAST_VIEWPORT_HEIGHT;
 
