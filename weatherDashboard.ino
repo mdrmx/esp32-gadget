@@ -203,10 +203,10 @@ const int WEATHER_METRIC_PANEL_BOTTOM =
   WEATHER_METRIC_PANEL_TOP + WEATHER_METRIC_PANEL_HEIGHT;
 const int WEATHER_METRIC_CARD_HEIGHT = 54;
 const int WEATHER_METRIC_ROW_STEP = 59;
-// Keep overscroll smaller than half a card step so release always snaps to
-// the first/last card at the boundary instead of advancing to another row.
-const int WEATHER_METRIC_OVERSCROLL_MAX_PX = 20;
-const int WEATHER_METRIC_OVERSCROLL_RESISTANCE_DIVISOR = 3;
+// Shared elastic-scroll tuning for metric cards and hourly forecast.
+// Keep the overscroll cap below half a row step, so release snaps to the boundary.
+const int SCROLL_OVERSCROLL_MAX_PX = 20;
+const int SCROLL_OVERSCROLL_RESISTANCE_DIVISOR = 3;
 const int WEATHER_METRIC_ROW_TOP = 2;
 int weatherMetricOffset = 0;
 
@@ -908,38 +908,81 @@ String weatherMetricValue(int index) {
   }
 }
 
+// Draw a metric card while respecting the vertical clipping bounds of its
+// panel. viewportTop is zero for the small metrics canvas and the panel's
+// screen Y when rendering directly to the LCD or full-screen transition canvas.
 void drawWeatherMetricItem(
   Arduino_GFX* target,
   int index,
   int x,
   int y,
-  int panelWidth
+  int panelWidth,
+  int viewportTop
 ) {
-  target->fillRoundRect(
-    x + 2,
-    y,
-    panelWidth - 4,
-    WEATHER_METRIC_CARD_HEIGHT,
-    6,
-    PANEL);
+  const int localY = y - viewportTop;
+  const int cardBottom = localY + WEATHER_METRIC_CARD_HEIGHT;
+  const int clippedTop = max(0, localY);
+  const int clippedBottom = min(WEATHER_METRIC_PANEL_HEIGHT, cardBottom);
+  if (clippedTop >= clippedBottom) return;
 
   String label = weatherMetricLabel(index);
-  target->setTextSize(1);
-  target->setTextColor(MUTED);
-  target->setCursor(x + 9, y + 7);
-  target->print(label);
-
   String value = weatherMetricValue(index);
-  uint8_t valueSize = value.length() <= 6 ? 2 : 1;
-  target->setTextSize(valueSize);
-  target->setTextColor(ACCENT);
+  const uint8_t valueSize = value.length() <= 6 ? 2 : 1;
   int16_t x1, y1;
   uint16_t w, h;
+
+  if (localY >= 0 && cardBottom <= WEATHER_METRIC_PANEL_HEIGHT) {
+    target->fillRoundRect(
+      x + 2,
+      viewportTop + localY,
+      panelWidth - 4,
+      WEATHER_METRIC_CARD_HEIGHT,
+      6,
+      PANEL);
+
+    target->setTextSize(1);
+    target->setTextColor(MUTED);
+    target->setCursor(x + 9, viewportTop + localY + 7);
+    target->print(label);
+
+    target->setTextSize(valueSize);
+    target->setTextColor(ACCENT);
+    target->getTextBounds(value.c_str(), 0, 0, &x1, &y1, &w, &h);
+    const int valueX = x + (panelWidth - (int)w) / 2;
+    const int valueY = viewportTop + localY +
+      (valueSize == 2 ? 23 : 28);
+    target->setCursor(valueX, valueY);
+    target->print(value);
+    return;
+  }
+
+  // Partial edge cards use a clipped rectangular slice, as the forecast cards
+  // do. Never send negative/off-panel Y coordinates to Arduino_GFX primitives.
+  target->fillRect(
+    x + 2,
+    viewportTop + clippedTop,
+    panelWidth - 4,
+    clippedBottom - clippedTop,
+    PANEL);
+
+  const int labelLocalY = localY + 7;
+  if (labelLocalY >= 0 && labelLocalY + 8 <= WEATHER_METRIC_PANEL_HEIGHT) {
+    target->setTextSize(1);
+    target->setTextColor(MUTED);
+    target->setCursor(x + 9, viewportTop + labelLocalY);
+    target->print(label);
+  }
+
+  target->setTextSize(valueSize);
   target->getTextBounds(value.c_str(), 0, 0, &x1, &y1, &w, &h);
-  int valueX = x + (panelWidth - (int)w) / 2;
-  int valueY = y + (valueSize == 2 ? 23 : 28);
-  target->setCursor(valueX, valueY);
-  target->print(value);
+  const int valueLocalY = localY + (valueSize == 2 ? 23 : 28);
+  if (valueLocalY >= 0 &&
+      valueLocalY + (int)h <= WEATHER_METRIC_PANEL_HEIGHT) {
+    const int valueX = x + (panelWidth - (int)w) / 2;
+    target->setTextColor(ACCENT);
+    target->setCursor(valueX, viewportTop + valueLocalY);
+    target->print(value);
+  }
 }
 
 // Render the metrics panel into a small off-screen buffer, then transfer the
@@ -965,15 +1008,16 @@ void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
         continue;
       }
 
-      drawWeatherMetricItem(weatherMetricsCanvas, index, 0, y, panelWidth);
+      drawWeatherMetricItem(
+        weatherMetricsCanvas, index, 0, y, panelWidth, 0);
     }
 
     weatherMetricsCanvas->flush();
     return;
   }
 
-  // Direct-render fallback: honour fractional card offsets when PSRAM buffer
-  // allocation fails. Cards are drawn only when fully inside the viewport.
+  // Direct-render fallback if the PSRAM buffer is unavailable. Use the same
+  // clipping renderer so boundary overscroll doesn't make edge cards vanish.
   gfx->fillRect(
     weatherMetricsPanelX(),
     WEATHER_METRIC_PANEL_TOP,
@@ -989,8 +1033,8 @@ void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
     int localY = WEATHER_METRIC_ROW_TOP +
                  (index - baseOffset) * WEATHER_METRIC_ROW_STEP -
                  scrollPixels;
-    if (localY < 0 ||
-        localY + WEATHER_METRIC_CARD_HEIGHT > WEATHER_METRIC_PANEL_HEIGHT) {
+    if (localY + WEATHER_METRIC_CARD_HEIGHT <= 0 ||
+        localY >= WEATHER_METRIC_PANEL_HEIGHT) {
       continue;
     }
 
@@ -999,7 +1043,8 @@ void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
       index,
       weatherMetricsPanelX(),
       WEATHER_METRIC_PANEL_TOP + localY,
-      panelWidth);
+      panelWidth,
+      WEATHER_METRIC_PANEL_TOP);
   }
 }
 
@@ -1023,20 +1068,17 @@ int maxWeatherMetricScrollPixels() {
 // Convert finger-driven scroll into a resisted position beyond the limits.
 // Normal scrolling remains 1:1; only the excess beyond either boundary is
 // damped and capped so the cards move a little without disappearing off-screen.
-int elasticWeatherMetricScrollPixels(int pixels) {
-  const int maxScroll = maxWeatherMetricScrollPixels();
-
+int elasticScrollPixels(int pixels, int maxScroll) {
   if (pixels < 0) {
     const int excess = -pixels;
-    const int resisted = excess / WEATHER_METRIC_OVERSCROLL_RESISTANCE_DIVISOR;
-    return -min(WEATHER_METRIC_OVERSCROLL_MAX_PX, resisted);
+    const int resisted = excess / SCROLL_OVERSCROLL_RESISTANCE_DIVISOR;
+    return -min(SCROLL_OVERSCROLL_MAX_PX, resisted);
   }
 
   if (pixels > maxScroll) {
     const int excess = pixels - maxScroll;
-    const int resisted = excess / WEATHER_METRIC_OVERSCROLL_RESISTANCE_DIVISOR;
-    return maxScroll +
-      min(WEATHER_METRIC_OVERSCROLL_MAX_PX, resisted);
+    const int resisted = excess / SCROLL_OVERSCROLL_RESISTANCE_DIVISOR;
+    return maxScroll + min(SCROLL_OVERSCROLL_MAX_PX, resisted);
   }
 
   return pixels;
@@ -1048,8 +1090,8 @@ void drawWeatherMetricsAtScrollPosition(int pixels) {
   const int maxScroll = maxWeatherMetricScrollPixels();
   pixels = constrain(
     pixels,
-    -WEATHER_METRIC_OVERSCROLL_MAX_PX,
-    maxScroll + WEATHER_METRIC_OVERSCROLL_MAX_PX);
+    -SCROLL_OVERSCROLL_MAX_PX,
+    maxScroll + SCROLL_OVERSCROLL_MAX_PX);
 
   int baseOffset = pixels / WEATHER_METRIC_ROW_STEP;
   int scrollPixels = pixels % WEATHER_METRIC_ROW_STEP;
@@ -1259,7 +1301,12 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
   // redraws immediately after a forecast refresh changes the record count.
   const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
   baseOffset = constrain(baseOffset, 0, maxOffset);
-  scrollPixels = constrain(scrollPixels, 0, FORECAST_ROW_STEP - 1);
+  // Negative scrollPixels is allowed only for a small resisted pull-down at
+  // the first row; the item renderer clips the partially visible edge card.
+  scrollPixels = constrain(
+    scrollPixels,
+    -SCROLL_OVERSCROLL_MAX_PX,
+    FORECAST_ROW_STEP - 1);
 
   if (forecastCanvas != nullptr && !renderingTabTransition) {
     forecastCanvas->fillScreen(BG);
@@ -1421,18 +1468,53 @@ int clampForecastScrollPixels(int pixels) {
 }
 
 void drawForecastAtScrollPosition(int pixels) {
-  pixels = clampForecastScrollPixels(pixels);
-  int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
-  int baseOffset = pixels / FORECAST_ROW_STEP;
-  int scrollPixels = pixels % FORECAST_ROW_STEP;
+  const int maxScroll = maxForecastScrollPixels();
+  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  pixels = constrain(
+    pixels,
+    -SCROLL_OVERSCROLL_MAX_PX,
+    maxScroll + SCROLL_OVERSCROLL_MAX_PX);
 
-  if (baseOffset >= maxOffset) {
+  // The overscroll cap is below one row, so negative positions remain in row
+  // zero and positions beyond the bottom remain in the last valid row.
+  int baseOffset = pixels < 0 ? 0 : pixels / FORECAST_ROW_STEP;
+  int scrollPixels = pixels < 0
+    ? pixels
+    : pixels % FORECAST_ROW_STEP;
+
+  if (baseOffset > maxOffset) {
     baseOffset = maxOffset;
-    scrollPixels = 0;
+    scrollPixels = pixels - maxScroll;
   }
 
   forecastOffset = baseOffset;
   drawForecastViewport(baseOffset, scrollPixels);
+}
+
+void animateForecastSnap(int startPixels, int targetOffset) {
+  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  targetOffset = constrain(targetOffset, 0, maxOffset);
+  const int targetPixels = targetOffset * FORECAST_ROW_STEP;
+
+  if (startPixels != targetPixels && forecastCanvas != nullptr) {
+    const int animationFrames = 6;
+    const int animationDelayMs = 8;
+    for (int frame = 1; frame <= animationFrames; frame++) {
+      const float progress = (float)frame / animationFrames;
+      const float easedProgress =
+        progress * progress * (3.0f - 2.0f * progress);
+      const int pixels = startPixels +
+        (int)((targetPixels - startPixels) * easedProgress);
+      drawForecastAtScrollPosition(pixels);
+      delay(animationDelayMs);
+    }
+  } else if (startPixels != targetPixels) {
+    drawForecastAtScrollPosition(targetPixels);
+  }
+
+  forecastOffset = targetOffset;
+  drawForecastViewport(forecastOffset, 0);
+  drawForecastFooter();
 }
 
 // =====================================================
@@ -1609,8 +1691,9 @@ void updateTouchDrag(const TouchSample& sample) {
   }
 
   if (metricsTouchDragActive && touchPresent) {
-    int nextScroll = elasticWeatherMetricScrollPixels(
-      metricsDragStartScroll + metricsDragStartY - touchY);
+    int nextScroll = elasticScrollPixels(
+      metricsDragStartScroll + metricsDragStartY - touchY,
+      maxWeatherMetricScrollPixels());
 
     if (nextScroll != metricsDragCurrentScroll) {
       if (abs(nextScroll - metricsDragStartScroll) >= 3) {
@@ -1666,8 +1749,9 @@ void updateTouchDrag(const TouchSample& sample) {
   }
 
   if (forecastTouchDragActive && touchPresent) {
-    const int nextScroll = clampForecastScrollPixels(
-      forecastDragStartScroll + forecastDragStartY - touchY);
+    const int nextScroll = elasticScrollPixels(
+      forecastDragStartScroll + forecastDragStartY - touchY,
+      maxForecastScrollPixels());
 
     // Track every changed position, but check the redraw deadline on every
     // touch sample—even when the finger has stopped moving. This ensures a
@@ -1707,10 +1791,8 @@ void updateTouchDrag(const TouchSample& sample) {
       targetOffset,
       forecastTouchDragMoved ? 1 : 0);
 
-    // Settle with a single buffered flush rather than a multi-frame animation.
-    forecastOffset = targetOffset;
-    drawForecastViewport(forecastOffset, 0);
-    drawForecastFooter();
+    // Animate back from elastic overscroll to the nearest valid forecast row.
+    animateForecastSnap(forecastDragCurrentScroll, targetOffset);
     forecastTouchDragActive = false;
     forecastGestureSuppressionStartedMs = millis();
     suppressForecastGesture = true;
