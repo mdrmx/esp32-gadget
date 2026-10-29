@@ -237,7 +237,7 @@ const int FORECAST_CONTROL_HIT_TOP = FORECAST_CONTROL_TOP - 3;
 const int FORECAST_CONTROL_HIT_BOTTOM = FORECAST_VIEWPORT_TOP;
 // Let small touchscreen coordinate jitter count as a button tap, but cancel
 // a deliberate swipe/drag that starts on the control strip.
-const int FORECAST_CONTROL_TAP_SLOP_PX = 24;
+const int FORECAST_CONTROL_TAP_SLOP_PX = 30;
 // Limit full-viewport bitmap transfers during fast finger drags.
 const unsigned long FORECAST_DRAG_RENDER_INTERVAL_MS = 50UL;
 
@@ -1399,10 +1399,10 @@ void drawForecastControls() {
     const bool canGoBack = forecastGraphOffset > 0;
     const bool canGoForward = forecastGraphOffset < maxGraphOffset;
 
-    gfx->fillRoundRect(7, 40, 21, 17, 4, PANEL);
-    gfx->fillRoundRect(32, 40, 21, 17, 4, PANEL);
-    drawText("<", 13, 42, 2, canGoBack ? UI_WHITE : MUTED);
-    drawText(">", 38, 42, 2, canGoForward ? UI_WHITE : MUTED);
+    gfx->fillRoundRect(4, 39, 25, 19, 4, PANEL);
+    gfx->fillRoundRect(32, 39, 25, 19, 4, PANEL);
+    drawText("<", 11, 41, 2, canGoBack ? UI_WHITE : MUTED);
+    drawText(">", 39, 41, 2, canGoForward ? UI_WHITE : MUTED);
 
     String rangeText = "No data";
     if (forecastCount > 0) {
@@ -1872,9 +1872,9 @@ void updateTouchDrag(const TouchSample& sample) {
     if (currentTab == 1 &&
         touchY >= FORECAST_CONTROL_HIT_TOP &&
         touchY < FORECAST_CONTROL_HIT_BOTTOM) {
-      if (forecastGraphView && touchX >= 7 && touchX < 28) {
+      if (forecastGraphView && touchX >= 2 && touchX < 30) {
         forecastControlTouch = 1;
-      } else if (forecastGraphView && touchX >= 32 && touchX < 53) {
+      } else if (forecastGraphView && touchX >= 30 && touchX < 59) {
         forecastControlTouch = 2;
       } else if (touchX >= 180 && touchX < 249) {
         forecastControlTouch = 3;
