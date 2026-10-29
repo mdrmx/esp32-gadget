@@ -16,9 +16,9 @@
 // CONFIGURATION
 // =====================================================
 
-// Development switch: 1 uses deterministic local sample data and makes NO
-// weather, time, or icon HTTP requests. Set to 0 for live API-backed weather.
-#define USE_DEMO_WEATHER_DATA 1
+// Set to 1 for deterministic offline UI development. Live weather and
+// IP-based location are enabled by default for normal device use.
+#define USE_DEMO_WEATHER_DATA 0
 
 #if USE_DEMO_WEATHER_DATA
   #define DEBUG_PRINT(...) Serial.print(__VA_ARGS__)
