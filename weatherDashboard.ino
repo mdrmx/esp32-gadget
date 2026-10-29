@@ -121,8 +121,10 @@ struct TouchSample {
 };
 
 bool metricsTouchDragActive = false;
+bool metricsTouchCandidate = false;
 bool metricsTouchDragMoved = false;
 bool touchSampleWasDown = false;
+int metricsDragStartX = 0;
 int metricsDragStartY = 0;
 int metricsDragStartScroll = 0;
 int metricsDragCurrentScroll = 0;
@@ -1424,24 +1426,57 @@ void updateWeatherMetricsTouchDrag(const TouchSample& sample) {
   }
   touchSampleWasDown = touchPresent;
 
-  if (!metricsTouchDragActive && touchPresent && currentTab == 0) {
+  // Don't claim a touch on the metric cards until its intent is clear. This
+  // keeps a horizontal tab swipe starting over the cards from being consumed
+  // as a vertical drag.
+  if (!metricsTouchDragActive &&
+      !metricsTouchCandidate &&
+      touchPresent &&
+      currentTab == 0) {
     bool insideMetricsPanel =
       touchX >= weatherMetricsPanelX() &&
       touchY >= WEATHER_METRIC_PANEL_TOP &&
       touchY < WEATHER_METRIC_PANEL_BOTTOM;
 
     if (insideMetricsPanel) {
-      metricsTouchDragActive = true;
+      metricsTouchCandidate = true;
       metricsTouchDragMoved = false;
+      metricsDragStartX = touchX;
       metricsDragStartY = touchY;
       metricsDragStartScroll =
         weatherMetricOffset * WEATHER_METRIC_ROW_STEP;
       metricsDragCurrentScroll = metricsDragStartScroll;
       DEBUG_PRINTF(
-        "Metric drag started at screen (%d,%d), scroll=%d\n",
+        "Metric touch candidate at screen (%d,%d), scroll=%d\n",
         touchX,
         touchY,
         metricsDragStartScroll);
+    }
+  }
+
+  if (metricsTouchCandidate && touchPresent) {
+    int deltaX = touchX - metricsDragStartX;
+    int deltaY = touchY - metricsDragStartY;
+    int absX = abs(deltaX);
+    int absY = abs(deltaY);
+    const int intentThresholdPx = 8;
+
+    if (absX >= intentThresholdPx && absX > absY) {
+      // Horizontal intent: release the candidate so normal gesture handling
+      // can change tabs when the CST816 reports its completed swipe.
+      metricsTouchCandidate = false;
+      DEBUG_PRINTF(
+        "Metric touch resolved as horizontal swipe (dx=%d, dy=%d)\n",
+        deltaX,
+        deltaY);
+    } else if (absY >= intentThresholdPx && absY >= absX) {
+      // Vertical intent: take ownership of the touch and track the finger.
+      metricsTouchCandidate = false;
+      metricsTouchDragActive = true;
+      DEBUG_PRINTF(
+        "Metric vertical drag started (dx=%d, dy=%d)\n",
+        deltaX,
+        deltaY);
     }
   }
 
@@ -1474,6 +1509,12 @@ void updateWeatherMetricsTouchDrag(const TouchSample& sample) {
     // duplicate for a short grace period so it cannot trigger a second scroll.
     metricsGestureSuppressionStartedMs = millis();
     suppressMetricGesture = true;
+  }
+
+  // A tap that never crossed the intent threshold wasn't a drag; discard the
+  // candidate but allow any final controller gesture to reach navigation.
+  if (metricsTouchCandidate && (!touchPresent || sample.event == 1)) {
+    metricsTouchCandidate = false;
   }
 }
 
