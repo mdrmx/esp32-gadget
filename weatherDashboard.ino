@@ -136,6 +136,7 @@ bool forecastTouchCandidate = false;
 bool forecastTouchDragMoved = false;
 bool forecastDragHasRendered = false;
 unsigned long lastForecastDragRenderMs = 0;
+int forecastDragLastRenderedScroll = -1;
 int forecastDragStartX = 0;
 int forecastDragStartY = 0;
 int forecastDragStartScroll = 0;
@@ -1412,6 +1413,15 @@ void updateTouchDrag(const TouchSample& sample) {
   const bool touchJustStarted = touchPresent && !touchSampleWasDown;
   touchSampleWasDown = touchPresent;
 
+  // A new contact starts a new gesture sequence. Clear suppression left by a
+  // previous drag so a legitimate horizontal swipe can reach tab navigation.
+  // The stale completed gesture is not carried forward via lastHandledGesture.
+  if (touchJustStarted) {
+    suppressMetricGesture = false;
+    suppressForecastGesture = false;
+    lastHandledGesture = 0;
+  }
+
   if (!metricsTouchDragActive &&
       !metricsTouchCandidate &&
       touchJustStarted &&
@@ -1456,6 +1466,7 @@ void updateTouchDrag(const TouchSample& sample) {
     forecastTouchDragMoved = false;
     forecastDragHasRendered = false;
     lastForecastDragRenderMs = 0;
+    forecastDragLastRenderedScroll = -1;
     forecastDragStartX = touchX;
     forecastDragStartY = touchY;
     forecastDragStartScroll = forecastOffset * FORECAST_ROW_STEP;
@@ -1554,24 +1565,27 @@ void updateTouchDrag(const TouchSample& sample) {
     const int nextScroll = clampForecastScrollPixels(
       forecastDragStartScroll + forecastDragStartY - touchY);
 
-    // Keep the logical position current for every touch sample, but rate-limit
-    // full-viewport canvas flushes. A fast drag can otherwise queue expensive
-    // SPI transfers faster than the display can comfortably complete them.
+    // Track every changed position, but check the redraw deadline on every
+    // touch sample—even when the finger has stopped moving. This ensures a
+    // throttled position is eventually painted while the finger is stationary.
     if (abs(nextScroll - forecastDragCurrentScroll) >= 2) {
       forecastTouchDragMoved =
         forecastTouchDragMoved ||
         abs(nextScroll - forecastDragStartScroll) >= 3;
       forecastDragCurrentScroll = nextScroll;
+    }
 
-      const unsigned long nowMs = millis();
-      const bool renderDue =
-        !forecastDragHasRendered ||
-        nowMs - lastForecastDragRenderMs >= FORECAST_DRAG_RENDER_INTERVAL_MS;
-      if (renderDue) {
-        drawForecastAtScrollPosition(forecastDragCurrentScroll);
-        lastForecastDragRenderMs = nowMs;
-        forecastDragHasRendered = true;
-      }
+    const unsigned long nowMs = millis();
+    const bool positionNeedsRender =
+      forecastDragLastRenderedScroll != forecastDragCurrentScroll;
+    const bool renderDue =
+      !forecastDragHasRendered ||
+      nowMs - lastForecastDragRenderMs >= FORECAST_DRAG_RENDER_INTERVAL_MS;
+    if (positionNeedsRender && renderDue) {
+      drawForecastAtScrollPosition(forecastDragCurrentScroll);
+      lastForecastDragRenderMs = nowMs;
+      forecastDragHasRendered = true;
+      forecastDragLastRenderedScroll = forecastDragCurrentScroll;
     }
   }
 
