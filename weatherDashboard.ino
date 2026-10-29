@@ -214,8 +214,8 @@ const int WEATHER_METRIC_ROW_TOP = 2;
 int weatherMetricOffset = 0;
 
 // Keep three 44 px list cards with 4 px gaps visible through y=212.
-// The common 36 px control strip ends at y=72. List rows start directly below
-// it, while Graph mode overlays the same strip across the blank top of its plot.
+// Controls are 32 px tall, with a 2 px gap below the header and above the List
+// rows. In Graph mode the same controls overlay the chart's blank upper strip.
 const int FORECAST_VIEWPORT_TOP = 64;
 const int FORECAST_VIEWPORT_HEIGHT = 152;
 const int FORECAST_VIEWPORT_BOTTOM =
@@ -229,10 +229,10 @@ const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 8;
 const int FORECAST_ROW_STEP = 48;
 const int FORECAST_CARD_HEIGHT = 44;
 const int FORECAST_GRAPH_POINTS = 6;
-const int FORECAST_CONTROL_TOP = 36;
-const int FORECAST_CONTROL_BOTTOM = 72;
-const int FORECAST_CONTROL_HIT_TOP = 34;
-const int FORECAST_CONTROL_HIT_BOTTOM = FORECAST_CONTROL_BOTTOM;
+const int FORECAST_CONTROL_TOP = 38;
+const int FORECAST_CONTROL_BOTTOM = 70;
+const int FORECAST_CONTROL_HIT_TOP = 36;
+const int FORECAST_CONTROL_HIT_BOTTOM = 72;
 const int FORECAST_GRAPH_VERTICAL_SHIFT = 12;
 // Generous movement tolerance keeps taps reliable while still allowing a
 // deliberate horizontal tab swipe to cancel a control press.
@@ -1390,8 +1390,8 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
 }
 
 void drawForecastControls() {
-  // Both modes use the same 36 px control strip and 32 px active selector.
-  // In List mode, forecast cards begin directly below it at y=72.
+  // Both modes share a 32 px control strip. Visible controls sit 2 px below
+  // the header and 2 px above the List rows; touch padding follows the same gap.
   gfx->fillRect(
     0,
     FORECAST_CONTROL_TOP - 1,
@@ -1404,21 +1404,21 @@ void drawForecastControls() {
     const bool canGoBack = forecastGraphOffset > 0;
     const bool canGoForward = forecastGraphOffset < maxGraphOffset;
 
-    // A little smaller than before, while retaining large, distinct targets.
-    gfx->fillRoundRect(4, 36, 37, 36, 6, PANEL);
-    gfx->fillRoundRect(45, 36, 37, 36, 6, PANEL);
-    drawText("<", 16, 47, 2, canGoBack ? UI_WHITE : MUTED);
-    drawText(">", 57, 47, 2, canGoForward ? UI_WHITE : MUTED);
+    // Keep the current widths and reduce each button's height by 4 px.
+    gfx->fillRoundRect(4, 38, 37, 32, 6, PANEL);
+    gfx->fillRoundRect(45, 38, 37, 32, 6, PANEL);
+    drawText("<", 16, 46, 2, canGoBack ? UI_WHITE : MUTED);
+    drawText(">", 57, 46, 2, canGoForward ? UI_WHITE : MUTED);
   } else {
     drawText("HOURLY", 8, 50, 1, UI_WHITE);
   }
 
-  // Identical selector geometry in List and Graph modes.
-  gfx->fillRoundRect(179, 36, 137, 36, 6, PANEL);
+  // Identical outer selector geometry in List and Graph modes.
+  gfx->fillRoundRect(179, 38, 137, 32, 6, PANEL);
   if (forecastGraphView) {
-    gfx->fillRoundRect(248, 38, 65, 32, 5, UI_WHITE);
+    gfx->fillRoundRect(248, 40, 65, 28, 5, UI_WHITE);
   } else {
-    gfx->fillRoundRect(181, 38, 65, 32, 5, UI_WHITE);
+    gfx->fillRoundRect(181, 40, 65, 28, 5, UI_WHITE);
   }
   drawText("LIST", 201, 50, 1, forecastGraphView ? MUTED : BG);
   drawText("GRAPH", 265, 50, 1, forecastGraphView ? BG : MUTED);
