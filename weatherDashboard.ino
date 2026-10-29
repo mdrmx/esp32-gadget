@@ -7,6 +7,8 @@
 #include <PNGdec.h>
 #include <time.h>
 #include <sys/time.h>
+#include <esp_heap_caps.h>
+#include <esp_memory_utils.h>
 #include <stdlib.h>
 #include "secrets.h"
 
@@ -161,6 +163,11 @@ const int FORECAST_VIEWPORT_TOP = 60;
 const int FORECAST_VIEWPORT_HEIGHT = 147;
 const int FORECAST_VIEWPORT_BOTTOM =
   FORECAST_VIEWPORT_TOP + FORECAST_VIEWPORT_HEIGHT;
+
+// Keep the shared header and footer fixed while animating only the main body.
+const int TAB_TRANSITION_CONTENT_TOP = 37;
+const int TAB_TRANSITION_FOOTER_HEIGHT = 29;
+
 const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 3;
 const int FORECAST_ROW_STEP = 49;
 const int FORECAST_CARD_HEIGHT = 43;
@@ -336,6 +343,48 @@ String getHeaderClockText() {
   snprintf(clockText, sizeof(clockText), "%02d:%02d",
            localTime.tm_hour, localTime.tm_min);
   return String(clockText);
+}
+
+// Report the actual heap region of an Arduino_Canvas framebuffer.
+// Arduino_GFX currently allocates its ESP32 canvas buffer with aligned_alloc(),
+// which does not explicitly request PSRAM; inspect the returned pointer instead.
+void reportCanvasAllocation(
+  const char* label,
+  Arduino_Canvas* canvas,
+  size_t requestedBytes
+) {
+  if (canvas == nullptr) {
+    Serial.printf("Memory: %s canvas unavailable\n", label);
+    return;
+  }
+
+  void* buffer = canvas->getFramebuffer();
+  if (buffer == nullptr) {
+    Serial.printf(
+      "Memory: %s canvas has no framebuffer (requested %u bytes)\n",
+      label,
+      (unsigned)requestedBytes);
+    return;
+  }
+
+  const char* region = esp_ptr_external_ram(buffer)
+    ? "PSRAM"
+    : "not PSRAM (internal/other heap)";
+  Serial.printf(
+    "Memory: %s framebuffer=%p, %u bytes, region=%s\n",
+    label,
+    buffer,
+    (unsigned)requestedBytes,
+    region);
+}
+
+void reportHeapSummary() {
+  Serial.printf(
+    "Memory summary: PSRAM total=%u free=%u; internal 8-bit free=%u, largest block=%u\n",
+    (unsigned)heap_caps_get_total_size(MALLOC_CAP_SPIRAM),
+    (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+    (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+    (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 }
 
 String getHeaderLocationText() {
@@ -1140,6 +1189,12 @@ void animateTabTransition(int targetTab, int direction) {
     return;
   }
 
+  const int contentHeight = screenH -
+    TAB_TRANSITION_CONTENT_TOP -
+    TAB_TRANSITION_FOOTER_HEIGHT;
+  const uint16_t* contentFrame = frameBuffer +
+    ((size_t)TAB_TRANSITION_CONTENT_TOP * (size_t)screenW);
+
   const int animationFrames = 8;
   const int animationDelayMs = 9;
 
@@ -1149,15 +1204,37 @@ void animateTabTransition(int targetTab, int direction) {
     int travel = (int)(screenW * easedProgress);
     int xOffset = direction > 0 ? screenW - travel : -screenW + travel;
 
-    // The GFX bitmap renderer clips the off-screen part of the moving frame.
-    // Pixels not yet covered retain the outgoing tab beneath it.
+    // Slide only the central content. Header, divider and footer remain fixed
+    // while the incoming page covers the outgoing page from one side.
     liveDisplay->draw16bitRGBBitmap(
-      xOffset, 0, frameBuffer, screenW, screenH);
+      xOffset,
+      TAB_TRANSITION_CONTENT_TOP,
+      (uint16_t*)contentFrame,
+      screenW,
+      contentHeight);
     delay(animationDelayMs);
   }
 
-  // Ensure the final frame is exactly aligned regardless of integer rounding.
-  liveDisplay->draw16bitRGBBitmap(0, 0, frameBuffer, screenW, screenH);
+  // Finish at an exact alignment, then update only the footer's small dynamic
+  // range label and tab marker; do not repaint the shared header/footer bars.
+  liveDisplay->draw16bitRGBBitmap(
+    0,
+    TAB_TRANSITION_CONTENT_TOP,
+    (uint16_t*)contentFrame,
+    screenW,
+    contentHeight);
+
+  const int footerLabelX = screenW - 64;
+  const int footerLabelY = screenH - 28;
+  liveDisplay->fillRect(footerLabelX, footerLabelY, 64, 14, BG);
+  if (targetTab == 1) {
+    int firstItem = forecastCount > 0 ? forecastOffset + 1 : 0;
+    int lastItem = min(forecastOffset + ITEMS_PER_PAGE, forecastCount);
+    String rangeText = String(firstItem) + "-" + String(lastItem) +
+                       "/" + String(forecastCount);
+    drawText(rangeText, screenW - 58, screenH - 25, 1, UI_YELLOW);
+  }
+  drawTabIndicator();
 }
 
 // Animate one row with easing. Each frame is drawn into the off-screen canvas
@@ -1743,6 +1820,23 @@ void setup() {
       screenW,
       screenH);
   }
+
+  // Determine the actual heap region for every canvas, rather than assuming
+  // aligned_alloc() placed them in PSRAM. These checks inspect live pointers.
+  reportCanvasAllocation(
+    "forecast",
+    forecastCanvas,
+    (size_t)screenW * FORECAST_VIEWPORT_HEIGHT * sizeof(uint16_t));
+  reportCanvasAllocation(
+    "weather metrics",
+    weatherMetricsCanvas,
+    (size_t)weatherMetricsPanelWidth() *
+      WEATHER_METRIC_PANEL_HEIGHT * sizeof(uint16_t));
+  reportCanvasAllocation(
+    "tab transition",
+    tabTransitionCanvas,
+    (size_t)screenW * screenH * sizeof(uint16_t));
+  reportHeapSummary();
 
   Serial.printf("Logical display size: %d x %d\n", screenW, screenH);
   Wire.begin(TOUCH_SDA, TOUCH_SCL);
