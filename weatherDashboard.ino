@@ -122,6 +122,7 @@ struct TouchSample {
 
 bool metricsTouchDragActive = false;
 bool metricsTouchDragMoved = false;
+bool touchSampleWasDown = false;
 int metricsDragStartY = 0;
 int metricsDragStartScroll = 0;
 int metricsDragCurrentScroll = 0;
@@ -1365,7 +1366,8 @@ bool readTouchSample(TouchSample& sample) {
   Wire.write(REG_GESTURE);
   if (Wire.endTransmission(false) != 0) return false;
 
-  const uint8_t sampleSize = 6;
+  uint8_t data[6];
+  const uint8_t sampleSize = sizeof(data);
   uint8_t received = Wire.requestFrom(
     (uint8_t)TOUCH_ADDR,
     sampleSize);
@@ -1373,8 +1375,6 @@ bool readTouchSample(TouchSample& sample) {
     while (Wire.available()) Wire.read();
     return false;
   }
-
-  uint8_t data[sampleSize];
   for (uint8_t i = 0; i < sampleSize; i++) {
     data[i] = (uint8_t)Wire.read();
   }
@@ -1405,12 +1405,26 @@ void touchCoordinatesToScreen(
 void updateWeatherMetricsTouchDrag(const TouchSample& sample) {
   const bool touchPresent =
     sample.fingerCount > 0 && sample.event != 1; // ignore touch-up coordinates
+  int touchX = 0;
+  int touchY = 0;
+  if (touchPresent) {
+    touchCoordinatesToScreen(sample, touchX, touchY);
+  }
+
+  // One diagnostic per touch lets us validate the landscape coordinate mapping
+  // without flooding the Serial Monitor with every movement sample.
+  if (touchPresent && !touchSampleWasDown) {
+    DEBUG_PRINTF(
+      "Touch coordinates raw=(%u,%u), screen=(%d,%d), tab=%d\n",
+      (unsigned)sample.rawX,
+      (unsigned)sample.rawY,
+      touchX,
+      touchY,
+      currentTab);
+  }
+  touchSampleWasDown = touchPresent;
 
   if (!metricsTouchDragActive && touchPresent && currentTab == 0) {
-    int touchX = 0;
-    int touchY = 0;
-    touchCoordinatesToScreen(sample, touchX, touchY);
-
     bool insideMetricsPanel =
       touchX >= weatherMetricsPanelX() &&
       touchY >= WEATHER_METRIC_PANEL_TOP &&
@@ -1432,9 +1446,6 @@ void updateWeatherMetricsTouchDrag(const TouchSample& sample) {
   }
 
   if (metricsTouchDragActive && touchPresent) {
-    int touchX = 0;
-    int touchY = 0;
-    touchCoordinatesToScreen(sample, touchX, touchY);
     int nextScroll = clampWeatherMetricScrollPixels(
       metricsDragStartScroll + metricsDragStartY - touchY);
 
