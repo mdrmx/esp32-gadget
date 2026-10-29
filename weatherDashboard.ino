@@ -1405,8 +1405,8 @@ void drawForecastControls() {
     const bool canGoForward = forecastGraphOffset < maxGraphOffset;
 
     // Keep the current widths and reduce each button's height by 4 px.
-    gfx->fillRoundRect(4, 38, 37, 32, 6, PANEL);
-    gfx->fillRoundRect(45, 38, 37, 32, 6, PANEL);
+    gfx->fillRoundRect(4, 40, 37, 26, 6, PANEL);
+    gfx->fillRoundRect(45, 40, 37, 26, 6, PANEL);
     drawText("<", 16, 46, 2, canGoBack ? UI_WHITE : MUTED);
     drawText(">", 57, 46, 2, canGoForward ? UI_WHITE : MUTED);
   } else {
