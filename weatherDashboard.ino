@@ -152,9 +152,12 @@ int forecastDragStartY = 0;
 int forecastDragStartScroll = 0;
 int forecastDragCurrentScroll = 0;
 
-// Graph mode uses horizontal hold-and-drag scrolling. A quick horizontal swipe
-// remains a tab-switch gesture; holding before dragging claims the graph gesture.
+// Graph-mode contacts are owned by the graph from touch-down to release so a
+// lost coordinate sample cannot fall through to the CST816 tab-swipe event.
+bool forecastGraphTouchOwned = false;
 bool forecastGraphTouchCandidate = false;
+bool forecastGraphQuickSwipeCandidate = false;
+bool forecastGraphQuickSwipeReady = false;
 bool forecastGraphDragActive = false;
 bool forecastGraphDragMoved = false;
 bool forecastGraphDragHasRendered = false;
@@ -162,6 +165,8 @@ unsigned long forecastGraphTouchStartedMs = 0;
 unsigned long lastForecastGraphDragRenderMs = 0;
 int forecastGraphTouchStartX = 0;
 int forecastGraphTouchStartY = 0;
+int forecastGraphTouchLastX = 0;
+int forecastGraphTouchLastY = 0;
 int forecastGraphTouchStartScroll = 0;
 int forecastGraphDragStartX = 0;
 int forecastGraphDragStartScroll = 0;
@@ -249,6 +254,7 @@ const int FORECAST_GRAPH_POINT_SPACING = 56;
 const unsigned long FORECAST_GRAPH_HOLD_MS = 220UL;
 const int FORECAST_GRAPH_TOUCH_INTENT_PX = 8;
 const int FORECAST_GRAPH_DRAG_START_PX = 4;
+const int FORECAST_GRAPH_TAB_SWIPE_PX = 55;
 const int FORECAST_CONTROL_TOP = 38;
 const int FORECAST_CONTROL_BOTTOM = 70;
 const int FORECAST_CONTROL_HIT_TOP = 36;
@@ -1410,9 +1416,22 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
   }
 }
 
+void drawForecastModeSelector() {
+  // The viewport canvas begins at y=64, so its flush can overwrite the bottom
+  // edge of this selector. This small repaint restores it after graph frames.
+  gfx->fillRoundRect(179, 38, 137, 32, 6, PANEL);
+  if (forecastGraphView) {
+    gfx->fillRoundRect(248, 40, 65, 28, 5, UI_WHITE);
+  } else {
+    gfx->fillRoundRect(181, 40, 65, 28, 5, UI_WHITE);
+  }
+  drawText("LIST", 201, 50, 1, forecastGraphView ? MUTED : BG);
+  drawText("GRAPH", 265, 50, 1, forecastGraphView ? BG : MUTED);
+}
+
 void drawForecastControls() {
-  // Keep the mode selector in the same position. Graph paging is gesture-based,
-  // so there are no previous/next buttons in the control strip.
+  // Graph paging is gesture-based; the List/Graph selector stays in the same
+  // position, with the same geometry in both modes.
   gfx->fillRect(
     0,
     FORECAST_CONTROL_TOP - 1,
@@ -1424,14 +1443,7 @@ void drawForecastControls() {
     drawText("HOURLY", 8, 50, 1, UI_WHITE);
   }
 
-  gfx->fillRoundRect(179, 38, 137, 32, 6, PANEL);
-  if (forecastGraphView) {
-    gfx->fillRoundRect(248, 40, 65, 28, 5, UI_WHITE);
-  } else {
-    gfx->fillRoundRect(181, 40, 65, 28, 5, UI_WHITE);
-  }
-  drawText("LIST", 201, 50, 1, forecastGraphView ? MUTED : BG);
-  drawText("GRAPH", 265, 50, 1, forecastGraphView ? BG : MUTED);
+  drawForecastModeSelector();
 }
 
 int maxForecastGraphScrollPixels() {
@@ -1578,20 +1590,28 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
   }
 }
 
-// Redraw only the graph body. The header, mode switch and footer remain intact.
+// Render graph motion into the existing off-screen forecast canvas, then flush
+// one bitmap to the LCD. This avoids flicker from dozens of direct draw calls.
 void redrawForecastGraphAtCurrentScroll() {
   if (!forecastGraphView) return;
 
+  if (forecastCanvas != nullptr && !renderingTabTransition) {
+    forecastCanvas->fillScreen(BG);
+    if (forecastAvailable && forecastCount > 0) {
+      drawForecastGraph(forecastCanvas, 0);
+    }
+    forecastCanvas->flush();
+    // The buffered viewport intersects only the lower 6 px of the selector.
+    drawForecastModeSelector();
+    return;
+  }
+
+  // Safe no-canvas fallback. The normal hardware path uses the buffered branch.
   const int graphRedrawTop = FORECAST_CONTROL_BOTTOM + 2;
   if (graphRedrawTop >= FORECAST_VIEWPORT_BOTTOM) return;
-
   gfx->fillRect(
-    0,
-    graphRedrawTop,
-    screenW,
-    FORECAST_VIEWPORT_BOTTOM - graphRedrawTop,
-    BG);
-
+    0, graphRedrawTop, screenW,
+    FORECAST_VIEWPORT_BOTTOM - graphRedrawTop, BG);
   if (forecastAvailable && forecastCount > 0) {
     drawForecastGraph(gfx, FORECAST_VIEWPORT_TOP);
   }
@@ -1677,6 +1697,9 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
     if (forecastGraphView) {
       drawForecastGraph(forecastCanvas, 0);
       forecastCanvas->flush();
+      // The canvas covers y=64..215; restore the selector's overlapping lower
+      // edge after the single buffered bitmap transfer.
+      drawForecastModeSelector();
       return;
     }
 
@@ -2002,18 +2025,23 @@ void updateTouchDrag(const TouchSample& sample) {
       }
     }
 
-    // Graph drag only starts in the graph body, below the control strip.
-    // Quick swipes are left for the existing tab-switch gesture handler.
-    forecastGraphTouchCandidate =
+    // A touch beginning in the graph body belongs to the graph until release.
+    // This blocks the controller's coarse swipe event if coordinate tracking drops.
+    forecastGraphTouchOwned =
       currentTab == 1 &&
       forecastGraphView &&
       touchX >= 8 &&
       touchX < screenW - 8 &&
       touchY >= FORECAST_CONTROL_BOTTOM + 2 &&
       touchY < FORECAST_VIEWPORT_BOTTOM;
+    forecastGraphTouchCandidate = forecastGraphTouchOwned;
+    forecastGraphQuickSwipeCandidate = false;
+    forecastGraphQuickSwipeReady = false;
     forecastGraphTouchStartedMs = millis();
     forecastGraphTouchStartX = touchX;
     forecastGraphTouchStartY = touchY;
+    forecastGraphTouchLastX = touchX;
+    forecastGraphTouchLastY = touchY;
     forecastGraphTouchStartScroll = forecastGraphScrollPixels;
     forecastGraphDragActive = false;
     forecastGraphDragMoved = false;
@@ -2173,8 +2201,14 @@ void updateTouchDrag(const TouchSample& sample) {
     }
   }
 
-  // In Graph mode, a short horizontal movement is a tab swipe. To claim the
-  // graph, keep the finger down for the hold delay, then drag horizontally.
+  // Remember the last valid coordinates while a graph-originated contact is down.
+  // If CST816 tracking drops on release, use the last confirmed movement rather
+  // than trusting its coarse gesture code to decide whether to switch tabs.
+  if (forecastGraphTouchOwned && touchPresent) {
+    forecastGraphTouchLastX = touchX;
+    forecastGraphTouchLastY = touchY;
+  }
+
   if (forecastGraphTouchCandidate && touchPresent &&
       !forecastGraphDragActive) {
     const int deltaX = touchX - forecastGraphTouchStartX;
@@ -2183,14 +2217,20 @@ void updateTouchDrag(const TouchSample& sample) {
     const int absY = abs(deltaY);
     const unsigned long heldMs = millis() - forecastGraphTouchStartedMs;
 
-    if (heldMs < FORECAST_GRAPH_HOLD_MS) {
-      if (absX >= FORECAST_GRAPH_TOUCH_INTENT_PX ||
-          absY >= FORECAST_GRAPH_TOUCH_INTENT_PX) {
-        // Motion before the hold threshold is a regular gesture, not a drag.
-        forecastGraphTouchCandidate = false;
-      }
-    } else if (absX >= FORECAST_GRAPH_DRAG_START_PX && absX > absY) {
+    if (heldMs < FORECAST_GRAPH_HOLD_MS &&
+        (absX >= FORECAST_GRAPH_TOUCH_INTENT_PX ||
+         absY >= FORECAST_GRAPH_TOUCH_INTENT_PX)) {
+      // Movement before the hold threshold locks this contact into quick-swipe
+      // intent (horizontal) or a cancelled gesture (vertical). It cannot later
+      // turn into a graph drag just because tracking paused.
       forecastGraphTouchCandidate = false;
+      forecastGraphQuickSwipeCandidate = absX > absY;
+    } else if (heldMs >= FORECAST_GRAPH_HOLD_MS &&
+               absX >= FORECAST_GRAPH_DRAG_START_PX &&
+               absX > absY) {
+      forecastGraphTouchCandidate = false;
+      forecastGraphQuickSwipeCandidate = false;
+      forecastGraphQuickSwipeReady = false;
       forecastGraphDragActive = true;
       forecastGraphDragMoved = false;
       forecastGraphDragHasRendered = false;
@@ -2203,8 +2243,23 @@ void updateTouchDrag(const TouchSample& sample) {
         forecastGraphDragStartX,
         forecastGraphDragStartScroll);
     } else if (absY >= FORECAST_GRAPH_TOUCH_INTENT_PX && absY >= absX) {
-      // A vertical gesture isn't a graph pan, and should not steal tab navigation.
       forecastGraphTouchCandidate = false;
+      forecastGraphQuickSwipeCandidate = false;
+    }
+  }
+
+  if (forecastGraphQuickSwipeCandidate && touchPresent) {
+    const int deltaX = touchX - forecastGraphTouchStartX;
+    const int deltaY = touchY - forecastGraphTouchStartY;
+    const unsigned long heldMs = millis() - forecastGraphTouchStartedMs;
+    if (heldMs < FORECAST_GRAPH_HOLD_MS &&
+        abs(deltaX) >= FORECAST_GRAPH_TAB_SWIPE_PX &&
+        abs(deltaX) > abs(deltaY)) {
+      // Defer the tab change until release, but only a clearly tracked fast
+      // horizontal swipe may qualify. Tracking loss on its own never switches tabs.
+      forecastGraphQuickSwipeReady = true;
+    } else if (heldMs >= FORECAST_GRAPH_HOLD_MS) {
+      forecastGraphQuickSwipeCandidate = false;
     }
   }
 
@@ -2301,6 +2356,36 @@ void updateTouchDrag(const TouchSample& sample) {
     animateForecastGraphSnap(forecastGraphDragCurrentScroll, targetScroll);
     forecastGraphDragActive = false;
     forecastGraphTouchCandidate = false;
+    forecastGraphQuickSwipeCandidate = false;
+    forecastGraphQuickSwipeReady = false;
+    forecastGestureSuppressionStartedMs = millis();
+    suppressForecastGesture = true;
+  }
+
+  if (forecastGraphTouchOwned && (!touchPresent || sample.event == 1)) {
+    const int deltaX = forecastGraphTouchLastX - forecastGraphTouchStartX;
+    const int deltaY = forecastGraphTouchLastY - forecastGraphTouchStartY;
+    const bool confirmedQuickSwipe =
+      !forecastGraphDragMoved &&
+      !forecastGraphDragActive &&
+      forecastGraphQuickSwipeReady &&
+      abs(deltaX) >= FORECAST_GRAPH_TAB_SWIPE_PX &&
+      abs(deltaX) > abs(deltaY) &&
+      millis() - forecastGraphTouchStartedMs < FORECAST_GRAPH_HOLD_MS;
+
+    forecastGraphTouchOwned = false;
+    forecastGraphTouchCandidate = false;
+    forecastGraphQuickSwipeCandidate = false;
+    forecastGraphQuickSwipeReady = false;
+
+    if (confirmedQuickSwipe && currentTab == 1 && deltaX > 0) {
+      // Match the existing physical swipe mapping: a quick rightward swipe
+      // returns from Forecast to Weather.
+      animateTabTransition(0, -1);
+    }
+
+    // Suppress the CST816's gesture code for every graph-originated contact,
+    // including contacts where tracking dropped before a swipe was confirmed.
     forecastGestureSuppressionStartedMs = millis();
     suppressForecastGesture = true;
   }
@@ -2461,6 +2546,7 @@ void pollTouch() {
 
   if (metricsTouchDragActive ||
       forecastTouchDragActive ||
+      forecastGraphTouchOwned ||
       forecastGraphDragActive ||
       forecastControlTouch != 0 ||
       releaseGestureSuppressed) {
@@ -2496,7 +2582,7 @@ void pollTouch() {
       (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN) &&
       forecastGraphView) {
     DEBUG_PRINTLN(
-      "Ignoring vertical gesture in graph mode; horizontal hold-drag scrolls the chart");
+      "Ignoring vertical gesture in graph mode; use a held horizontal drag");
     forecastGestureStartedInsideViewport = false;
     metricsGestureStartedInsidePanel = false;
     return;
