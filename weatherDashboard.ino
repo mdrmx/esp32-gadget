@@ -1424,15 +1424,18 @@ void updateWeatherMetricsTouchDrag(const TouchSample& sample) {
       touchY,
       currentTab);
   }
-  touchSampleWasDown = touchPresent;
 
   // Don't claim a touch on the metric cards until its intent is clear. This
   // keeps a horizontal tab swipe starting over the cards from being consumed
   // as a vertical drag.
+  const bool touchJustStarted = touchPresent && !touchSampleWasDown;
+  touchSampleWasDown = touchPresent;
+
   if (!metricsTouchDragActive &&
       !metricsTouchCandidate &&
-      touchPresent &&
-      currentTab == 0) {
+      touchJustStarted &&
+      currentTab == 0 &&
+      weatherMetricsCanvas != nullptr) {
     bool insideMetricsPanel =
       touchX >= weatherMetricsPanelX() &&
       touchY >= WEATHER_METRIC_PANEL_TOP &&
