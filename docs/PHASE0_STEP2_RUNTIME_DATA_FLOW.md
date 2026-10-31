@@ -93,15 +93,15 @@ These groups are all held in file-scope variables. Their current ownership is th
 The live startup path is ordered and synchronous.
 
 1. **Serial and display startup (lines 3424–3442).** Serial starts at 115200 baud. The sketch calls `gfx->begin()`. A failed display initialisation enters an infinite one-second delay loop. On success, the backlight is enabled and logical display dimensions are read from `gfx`.
-2. **Canvas allocation (lines 3444–3515).** The forecast viewport canvas, weather-metrics canvas and full-screen tab-transition canvas are allocated in that order. Each allocation is checked; a failed canvas is deleted and its pointer set to `nullptr`. The corresponding renderer has a direct-render or instant-transition fallback.
-3. **Memory diagnostics (lines 3517–3540).** The sketch inspects each framebuffer pointer to report whether it is in external RAM, then logs PSRAM and internal heap summaries. The code does not assume that Arduino_GFX placed these buffers in PSRAM.
-4. **Touch-controller detection (lines 3542–3550).** I²C starts on the configured touch pins at 100 kHz. A transmission to the CST816 address determines `touchAvailable`. If the controller is not detected, display and network startup continue, but `pollTouch()` returns immediately on every loop.
-5. **Timezone configuration (line 3552).** `initialiseTimeZone()` installs the UK timezone / daylight-saving rule string and calls `tzset()`. This configures local-time conversion; it does not itself obtain a valid system time.
-6. **Demo or live startup (lines 3554–3581).**
+2. **Canvas allocation (lines 3443–3505).** The forecast viewport canvas, weather-metrics canvas and full-screen tab-transition canvas are allocated in that order. Each allocation is checked; a failed canvas is deleted and its pointer set to `nullptr`. The corresponding renderer has a direct-render or instant-transition fallback.
+3. **Memory diagnostics (lines 3508–3521).** The sketch inspects each framebuffer pointer to report whether it is in external RAM, then logs PSRAM and internal heap summaries. The code does not assume that Arduino_GFX placed these buffers in PSRAM.
+4. **Touch-controller detection (lines 3524–3529).** I²C starts on the configured touch pins at 100 kHz. A transmission to the CST816 address determines `touchAvailable`. If the controller is not detected, display and network startup continue, but `pollTouch()` returns immediately on every loop.
+5. **Timezone configuration (line 3531).** `initialiseTimeZone()` installs the UK timezone / daylight-saving rule string and calls `tzset()`. This configures local-time conversion; it does not itself obtain a valid system time.
+6. **Demo or live startup (lines 3533–3559).**
    - In demo mode, the system clock is set to the fixed development timestamp in the sketch. No initial Wi-Fi or location requests are made.
    - In live mode, the screen displays a startup loading message and calls `connectWiFi()`. If it connects, the sketch tries Google Wi-Fi positioning first. If that returns false, it tries IP geolocation. The configured Manchester coordinates remain the initial fallback if both location providers fail.
-7. **Weather data retrieval (lines 3582–3583).** `fetchWeather()` runs, followed by `fetchForecast()`. Both return data availability through shared globals and return values. The forecast request is still attempted if current-weather retrieval fails.
-8. **Initial screen and refresh timer (lines 3585–3588).** If `weatherAvailable` is true, `drawWeather()` displays the current conditions. Otherwise `drawError()` displays the Weather unavailable state. `lastUpdate` is then set to the current `millis()` value.
+7. **Weather data retrieval (lines 3561–3562).** `fetchWeather()` runs, followed by `fetchForecast()`. Both return data availability through shared globals and return values. The forecast request is still attempted if current-weather retrieval fails.
+8. **Initial screen and refresh timer (lines 3564–3567).** If `weatherAvailable` is true, `drawWeather()` displays the current conditions. Otherwise `drawError()` displays the Weather unavailable state. `lastUpdate` is then set to the current `millis()` value.
 
 ### Startup flow detail
 
