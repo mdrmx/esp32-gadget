@@ -134,7 +134,7 @@ Complete this table on the machine that currently builds and uploads the device.
 | Board platform | Espressif `esp32` core version | **3.3.12 confirmed** |
 | Board selection | Exact board name and FQBN | **ESP32S3 Dev Module confirmed**; exact FQBN captured below |
 | Board options | USB CDC, flash, PSRAM, partition, upload settings and other selected options | **Captured below** |
-| Compiler | Compiler / toolchain version reported during verbose build | Not yet captured |
+| Compiler | Compiler / toolchain version reported during verbose build | Compiler executable `xtensa-esp32s3-elf-g++`; Espressif `esp-x32` package `2601`; GCC version still to confirm |
 | ArduinoJson | Installed library version | **7.4.3 confirmed** |
 | Arduino_GFX | Installed library version | **1.5.0 confirmed** |
 | PNGdec | Installed library version | **1.1.6 confirmed** |
@@ -168,7 +168,7 @@ The following values were read directly from the working Arduino IDE on 2026-10-
 | USB Mode | Hardware CDC and JTAG |
 | Zigbee Mode | Disabled |
 
-The exact FQBN string has now been captured from the active IDE build configuration. The compiler/toolchain version remains outstanding. The menu values above are the observed IDE settings; the FQBN below records the selected board options.
+The exact FQBN string has now been captured from the active IDE build configuration. The verbose build output identifies the `xtensa-esp32s3-elf-g++` compiler from Espressif's `esp-x32` package `2601`, and reports `esptool v5.3.1`; the GCC version string itself remains to be confirmed. The menu values above are the observed IDE settings; the FQBN below records the selected board options.
 
 Recorded FQBN from the working Arduino IDE configuration:
 
