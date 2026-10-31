@@ -134,7 +134,7 @@ Complete this table on the machine that currently builds and uploads the device.
 | Board platform | Espressif `esp32` core version | **3.3.12 confirmed** |
 | Board selection | Exact board name and FQBN | **ESP32S3 Dev Module confirmed**; exact FQBN captured below |
 | Board options | USB CDC, flash, PSRAM, partition, upload settings and other selected options | **Captured below** |
-| Compiler | Compiler / toolchain version reported during verbose build | Compiler executable `xtensa-esp32s3-elf-g++`; Espressif `esp-x32` package `2601`; GCC version still to confirm |
+| Compiler | Compiler / toolchain version reported during verbose build | **GCC 14.2.0** (`xtensa-esp-elf-g++`, crosstool-NG `esp-14.2.0_20260121`); executable path is under Espressif `esp-x32` package `2601` |
 | ArduinoJson | Installed library version | **7.4.3 confirmed** |
 | Arduino_GFX | Installed library version | **1.5.0 confirmed** |
 | PNGdec | Installed library version | **1.1.6 confirmed** |
@@ -168,7 +168,7 @@ The following values were read directly from the working Arduino IDE on 2026-10-
 | USB Mode | Hardware CDC and JTAG |
 | Zigbee Mode | Disabled |
 
-The exact FQBN string has now been captured from the active IDE build configuration. The verbose build output identifies the `xtensa-esp32s3-elf-g++` compiler from Espressif's `esp-x32` package `2601`, and reports `esptool v5.3.1`; the GCC version string itself remains to be confirmed. The menu values above are the observed IDE settings; the FQBN below records the selected board options.
+The exact FQBN string has now been captured from the active IDE build configuration. The compiler reports `xtensa-esp-elf-g++ (crosstool-NG esp-14.2.0_20260121) 14.2.0`; its executable path is under Espressif's `esp-x32` package `2601`. The build output also reports `esptool v5.3.1`. The menu values above are the observed IDE settings; the FQBN below records the selected board options.
 
 Recorded FQBN from the working Arduino IDE configuration:
 
@@ -205,7 +205,7 @@ The build/toolchain step can be marked complete only when the following evidence
 - [x] Arduino IDE version, ESP32 core version, selected board name and visible board-menu options are recorded.
 - [x] Installed versions of ArduinoJson, Arduino_GFX and PNGdec are recorded.
 - [x] Exact FQBN string is captured.
-- [ ] Compiler/toolchain version is captured.
+- [x] Compiler/toolchain version is captured.
 - [ ] A clean compile succeeds from the documented checkout, with the full build output retained.
 - [ ] The firmware uploads and boots on the physical Waveshare device.
 - [ ] The board / build configuration is recorded in a form that another checkout can reproduce.
