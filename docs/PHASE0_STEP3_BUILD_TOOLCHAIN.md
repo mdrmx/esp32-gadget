@@ -70,9 +70,13 @@ These are supplied by the ESP32 Arduino platform / underlying ESP32 toolchain ra
 
 | Include | Library dependency | Version status |
 |---|---|---|
-| `ArduinoJson.h` | ArduinoJson | Not pinned in repository |
-| `Arduino_GFX_Library.h` | GFX Library for Arduino / Arduino_GFX | Not pinned in repository |
-| `PNGdec.h` | PNGdec | Not pinned in repository |
+| `ArduinoJson.h` | ArduinoJson | **7.4.3 installed** |
+| `Arduino_GFX_Library.h` | GFX Library for Arduino / Arduino_GFX | **1.5.0 installed** |
+| `PNGdec.h` | PNGdec | **1.1.6 installed** |
+
+These versions were read from Arduino IDE Library Manager on the working development machine on 2026-10-31. They are observed installed versions, not repository-enforced pins. Recheck them if the local environment changes.
+
+Other libraries visible as installed in Library Manager include LVGL 8.4 and Adafruit GFX 1.5.7. They are not direct includes in the inspected `weatherDashboard.ino` and are therefore recorded as installed-but-not-required-by-the-current-sketch, not as build dependencies. WiFi101 and WiFiNINA are also installed but are not used by this ESP32 sketch; networking is provided by the ESP32 core (`WiFi.h`).
 
 The exact installed release of each library must be captured from the working environment. This table reflects direct source includes; it is not a claim that these are the only transitive dependencies.
 
@@ -126,16 +130,45 @@ Complete this table on the machine that currently builds and uploads the device.
 | Item | Value to record | Current evidence |
 |---|---|---|
 | Operating system | OS and version | Not recorded in repository |
-| IDE / CLI | Arduino IDE version, or Arduino CLI version | Not recorded |
-| Board platform | Espressif `esp32` core version | Not recorded |
-| Board selection | Exact board name and FQBN | Vendor example: ESP32S3 Dev Module; exact selection unverified |
-| Board options | USB CDC, flash, PSRAM, partition, upload settings and other selected options | Not recorded |
-| Compiler | Compiler / toolchain version reported during verbose build | Not recorded |
-| ArduinoJson | Installed library version | Not recorded |
-| Arduino_GFX | Installed library version | Not recorded |
-| PNGdec | Installed library version | Not recorded |
+| IDE / CLI | Arduino IDE 2.3.10; CLI not used for the recorded working workflow | **Arduino IDE 2.3.10 confirmed** |
+| Board platform | Espressif `esp32` core version | **3.3.12 confirmed** |
+| Board selection | Exact board name and FQBN | **ESP32S3 Dev Module confirmed**; exact FQBN string not yet captured |
+| Board options | USB CDC, flash, PSRAM, partition, upload settings and other selected options | **Captured below** |
+| Compiler | Compiler / toolchain version reported during verbose build | Not yet captured |
+| ArduinoJson | Installed library version | **7.4.3 confirmed** |
+| Arduino_GFX | Installed library version | **1.5.0 confirmed** |
+| PNGdec | Installed library version | **1.1.6 confirmed** |
 | Build command | Exact command or IDE action and configuration | Not recorded |
 | Build result | Pass/fail and complete compiler output | Not yet run in this audit |
+
+### 4.1 Confirmed Arduino IDE and ESP32 board-menu configuration
+
+The following values were read directly from the working Arduino IDE on 2026-10-31.
+
+| Setting | Confirmed value |
+|---|---|
+| Arduino IDE | 2.3.10 |
+| Board platform | esp32 by Espressif Systems 3.3.12 |
+| Selected board | ESP32S3 Dev Module |
+| USB CDC On Boot | Enabled |
+| CPU Frequency | 240MHz (WiFi) |
+| Core Debug Level | None |
+| USB DFU On Boot | Disabled |
+| Erase All Flash Before Sketch Upload | Disabled |
+| Events Run On | Core 1 |
+| Flash Mode | QIO 80MHz |
+| Flash Size | 16MB (128Mb) |
+| JTAG Adapter | Disabled |
+| Arduino Runs On | Core 1 |
+| USB Firmware MSC On Boot | Disabled |
+| Partition Scheme | 16M Flash (3MB APP/9.9MB FATFS) |
+| PSRAM | OPI PSRAM |
+| Upload Mode | USB-OTG CDC (TinyUSB) |
+| Upload Speed | 921600 |
+| USB Mode | Hardware CDC and JTAG |
+| Zigbee Mode | Disabled |
+
+The exact FQBN string and compiler/toolchain version have not yet been captured. The menu values above are the observed IDE settings; do not infer an FQBN or compiler version from them.
 
 For Arduino CLI, the following commands capture the installed environment and available board definition:
 
@@ -163,8 +196,9 @@ The build/toolchain step can be marked complete only when the following evidence
 
 - [ ] A clean checkout can be prepared using the documented sketch-folder name.
 - [ ] A local `secrets.h` can be created from the example without adding secrets to Git.
-- [ ] Exact IDE / CLI, ESP32 core, board FQBN and board-menu options are recorded.
-- [ ] Exact installed versions of ArduinoJson, Arduino_GFX and PNGdec are recorded.
+- [x] Arduino IDE version, ESP32 core version, selected board name and visible board-menu options are recorded.
+- [x] Installed versions of ArduinoJson, Arduino_GFX and PNGdec are recorded.
+- [ ] Exact FQBN string and compiler/toolchain version are captured.
 - [ ] A clean compile succeeds from the documented checkout, with the full build output retained.
 - [ ] The firmware uploads and boots on the physical Waveshare device.
 - [ ] The board / build configuration is recorded in a form that another checkout can reproduce.
