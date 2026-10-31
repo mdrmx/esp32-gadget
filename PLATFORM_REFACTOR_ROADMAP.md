@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 1.3  
+**Version:** 1.4  
 **Last reviewed:** 2026-10-31  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 — Steps 1–2 complete; Step 3 repository audit recorded, local build verification pending
+**Current roadmap status:** Phase 0 — Steps 1–3 complete; remaining audit work in progress
 
 ---
 
@@ -316,7 +316,7 @@ The phases below are agreed. Keep the order unless an audit finding provides a c
 
 ### Phase 0 — Codebase audit and baseline
 
-**Status: IN PROGRESS — Steps 1–2 complete; Step 3 partially documented**
+**Status: IN PROGRESS — Steps 1–3 complete; remaining audit work outstanding**
 
 No broad refactor should begin until this review is complete.
 
@@ -324,7 +324,7 @@ No broad refactor should begin until this review is complete.
 
 - [x] **Step 1 — Source inventory:** functions, file-scope state, custom structures, direct dependencies and major coupling relationships documented in [docs/PHASE0_STEP1_CODE_INVENTORY.md](docs/PHASE0_STEP1_CODE_INVENTORY.md). Inventory snapshot: `weatherDashboard.ino` at main commit `55602880ff11e2f4091234091c25b5d23afd22dd`.
 - [x] **Step 2 — Runtime data-flow map:** startup, loop, periodic refresh, touch, rendering, network and location/time paths documented in [docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md](docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md). Static trace based on `main` commit `9721eb688c7b96ecb55e7ee00c61096e08c8fd5f`.
-- [ ] **Step 3 — Build/toolchain baseline:** repository layout, direct dependencies and clean-checkout requirements documented in [docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md](docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md). Actual IDE/CLI versions, board options, library versions and clean hardware build remain to be captured.
+- [x] **Step 3 — Build/toolchain baseline:** repository layout, direct dependencies, clean-checkout preparation, IDE/core/compiler/library versions, board options, successful compile and physical upload/boot are documented in [docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md](docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md). Verified on the Waveshare ESP32-S3 Touch LCD 2.
 - [ ] **Remaining audit —** blocking-operation review, memory measurements, documentation reconciliation, regression checklist and target module boundaries.
 
 Tasks:
@@ -336,7 +336,7 @@ Tasks:
 - Map touch/gesture/drag state, metric scrolling, forecast scrolling and graph scrolling.
 - Inventory Arduino_GFX canvases, heap/PSRAM use, buffer lifetimes and allocation fallbacks.
 - [x] Inspect tracked build configuration and source-level library dependencies; document the verified gaps in [the Step 3 build/toolchain baseline](docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md).
-- [ ] Capture the actual board package, toolchain, build process, library versions and clean-build result from the working development environment.
+- [x] Capture the actual board package, toolchain, build process, library versions and successful clean-checkout build result from the working development environment.
 - Check documentation against actual firmware, including the demo-mode discrepancy noted above.
 - Identify code that is genuinely duplicated versus code that only looks similar.
 - Record a reproducible build and hardware regression checklist.
@@ -590,7 +590,7 @@ When resuming work after a context reset:
 
 | Phase | Description | Status |
 |---|---|---|
-| 0 | Codebase audit and baseline | In progress — Steps 1–2 complete; Step 3 build/toolchain capture pending |
+| 0 | Codebase audit and baseline | In progress — Steps 1–3 complete; remaining audit items outstanding |
 | 1 | Project structure and shared foundations | Not started |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
@@ -605,4 +605,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-10-31 — Version 1.0:** Initial roadmap agreed. Records the platform-refactor direction, connectivity abstraction, persistent Wi-Fi management, reusable UI/interaction components, application lifecycle, cellular integration and Maps application. Phase 0 remains the first implementation stage.
 - **2026-10-31 — Version 1.1:** Phase 0, Step 1 marked complete and linked to `docs/PHASE0_STEP1_CODE_INVENTORY.md`. Phase 0 remains in progress; the runtime data-flow map and remaining audit work are outstanding.
 - **2026-10-31 — Version 1.2:** Phase 0, Step 2 marked complete and linked to `docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md`. The map records startup, loop scheduling, touch arbitration, rendering, network / location / time flow and source-configured blocking operations. Remaining Phase 0 verification is still outstanding.
-- **2026-10-31 — Version 1.3:** Added the Step 3 repository-side build/toolchain audit and a placeholder-only `secrets.example.h`. Documented the Arduino sketch-folder naming constraint and clean-checkout procedure. Actual local toolchain versions, board options, library versions and hardware build remain unverified and are not marked complete.
+- **2026-10-31 — Version 1.3:** Added the Step 3 repository-side build/toolchain audit and a placeholder-only `secrets.example.h`. Documented the Arduino sketch-folder naming constraint and clean-checkout procedure.
+- **2026-10-31 — Version 1.4:** Completed Phase 0 Step 3 after capturing the working IDE, ESP32 core, GCC toolchain, board configuration and direct library versions; a successful compile, physical upload and boot were verified on the Waveshare ESP32-S3 Touch LCD 2.
