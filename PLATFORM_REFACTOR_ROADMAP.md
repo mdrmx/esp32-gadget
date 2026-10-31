@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 1.0  
+**Version:** 1.1  
 **Last reviewed:** 2026-10-31  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 — codebase audit (not started)
+**Current roadmap status:** Phase 0 — Step 1 complete; remaining audit work in progress
 
 ---
 
@@ -316,13 +316,19 @@ The phases below are agreed. Keep the order unless an audit finding provides a c
 
 ### Phase 0 — Codebase audit and baseline
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS — Step 1 complete**
 
 No broad refactor should begin until this review is complete.
 
+**Phase 0 progress:**
+
+- [x] **Step 1 — Source inventory:** functions, file-scope state, custom structures, direct dependencies and major coupling relationships documented in [docs/PHASE0_STEP1_CODE_INVENTORY.md](docs/PHASE0_STEP1_CODE_INVENTORY.md). Inventory snapshot: `weatherDashboard.ino` at main commit `55602880ff11e2f4091234091c25b5d23afd22dd`.
+- [ ] **Step 2 — Runtime data-flow map:** startup, loop, periodic refresh, touch, rendering, network and location/time paths.
+- [ ] **Remaining audit —** build/toolchain verification, blocking-operation review, memory measurements, documentation reconciliation, regression checklist and target module boundaries.
+
 Tasks:
 
-- Inventory all functions, globals, shared state and dependencies in weatherDashboard.ino.
+- [x] Inventory all functions, globals, shared state and dependencies in weatherDashboard.ino. See [the Step 1 inventory](docs/PHASE0_STEP1_CODE_INVENTORY.md).
 - Map how setup(), loop(), touch handling, rendering, network requests and periodic updates interact.
 - Identify all direct Wi-Fi calls, HTTP/TLS clients, API requests and blocking waits.
 - Identify current data models, location/time ownership and persistence.
@@ -582,7 +588,7 @@ When resuming work after a context reset:
 
 | Phase | Description | Status |
 |---|---|---|
-| 0 | Codebase audit and baseline | Not started |
+| 0 | Codebase audit and baseline | In progress — Step 1 complete |
 | 1 | Project structure and shared foundations | Not started |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
@@ -595,3 +601,4 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 ## 12. Change history
 
 - **2026-10-31 — Version 1.0:** Initial roadmap agreed. Records the platform-refactor direction, connectivity abstraction, persistent Wi-Fi management, reusable UI/interaction components, application lifecycle, cellular integration and Maps application. Phase 0 remains the first implementation stage.
+- **2026-10-31 — Version 1.1:** Phase 0, Step 1 marked complete and linked to `docs/PHASE0_STEP1_CODE_INVENTORY.md`. Phase 0 remains in progress; the runtime data-flow map and remaining audit work are outstanding.
