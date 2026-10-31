@@ -132,7 +132,7 @@ Complete this table on the machine that currently builds and uploads the device.
 | Operating system | OS and version | Not recorded in repository |
 | IDE / CLI | Arduino IDE 2.3.10; CLI not used for the recorded working workflow | **Arduino IDE 2.3.10 confirmed** |
 | Board platform | Espressif `esp32` core version | **3.3.12 confirmed** |
-| Board selection | Exact board name and FQBN | **ESP32S3 Dev Module confirmed**; exact FQBN string not yet captured |
+| Board selection | Exact board name and FQBN | **ESP32S3 Dev Module confirmed**; exact FQBN captured below |
 | Board options | USB CDC, flash, PSRAM, partition, upload settings and other selected options | **Captured below** |
 | Compiler | Compiler / toolchain version reported during verbose build | Not yet captured |
 | ArduinoJson | Installed library version | **7.4.3 confirmed** |
@@ -168,7 +168,13 @@ The following values were read directly from the working Arduino IDE on 2026-10-
 | USB Mode | Hardware CDC and JTAG |
 | Zigbee Mode | Disabled |
 
-The exact FQBN string and compiler/toolchain version have not yet been captured. The menu values above are the observed IDE settings; do not infer an FQBN or compiler version from them.
+The exact FQBN string has now been captured from the active IDE build configuration. The compiler/toolchain version remains outstanding. The menu values above are the observed IDE settings; the FQBN below records the selected board options.
+
+Recorded FQBN from the working Arduino IDE configuration:
+
+```text
+esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi
+```
 
 For Arduino CLI, the following commands capture the installed environment and available board definition:
 
@@ -198,7 +204,8 @@ The build/toolchain step can be marked complete only when the following evidence
 - [ ] A local `secrets.h` can be created from the example without adding secrets to Git.
 - [x] Arduino IDE version, ESP32 core version, selected board name and visible board-menu options are recorded.
 - [x] Installed versions of ArduinoJson, Arduino_GFX and PNGdec are recorded.
-- [ ] Exact FQBN string and compiler/toolchain version are captured.
+- [x] Exact FQBN string is captured.
+- [ ] Compiler/toolchain version is captured.
 - [ ] A clean compile succeeds from the documented checkout, with the full build output retained.
 - [ ] The firmware uploads and boots on the physical Waveshare device.
 - [ ] The board / build configuration is recorded in a form that another checkout can reproduce.
