@@ -78,7 +78,7 @@ These versions were read from Arduino IDE Library Manager on the working develop
 
 Other libraries visible as installed in Library Manager include LVGL 8.4 and Adafruit GFX 1.5.7. They are not direct includes in the inspected `weatherDashboard.ino` and are therefore recorded as installed-but-not-required-by-the-current-sketch, not as build dependencies. WiFi101 and WiFiNINA are also installed but are not used by this ESP32 sketch; networking is provided by the ESP32 core (`WiFi.h`).
 
-The exact installed release of each library must be captured from the working environment. This table reflects direct source includes; it is not a claim that these are the only transitive dependencies.
+This table reflects direct source includes; it is not a claim that these are the only transitive dependencies.
 
 ### 2.5 Local credentials required by the source
 
