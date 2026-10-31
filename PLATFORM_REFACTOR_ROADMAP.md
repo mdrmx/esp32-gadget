@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 1.1  
+**Version:** 1.2  
 **Last reviewed:** 2026-10-31  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 — Step 1 complete; remaining audit work in progress
+**Current roadmap status:** Phase 0 — Steps 1–2 complete; remaining audit work in progress
 
 ---
 
@@ -316,20 +316,20 @@ The phases below are agreed. Keep the order unless an audit finding provides a c
 
 ### Phase 0 — Codebase audit and baseline
 
-**Status: IN PROGRESS — Step 1 complete**
+**Status: IN PROGRESS — Steps 1–2 complete**
 
 No broad refactor should begin until this review is complete.
 
 **Phase 0 progress:**
 
 - [x] **Step 1 — Source inventory:** functions, file-scope state, custom structures, direct dependencies and major coupling relationships documented in [docs/PHASE0_STEP1_CODE_INVENTORY.md](docs/PHASE0_STEP1_CODE_INVENTORY.md). Inventory snapshot: `weatherDashboard.ino` at main commit `55602880ff11e2f4091234091c25b5d23afd22dd`.
-- [ ] **Step 2 — Runtime data-flow map:** startup, loop, periodic refresh, touch, rendering, network and location/time paths.
+- [x] **Step 2 — Runtime data-flow map:** startup, loop, periodic refresh, touch, rendering, network and location/time paths documented in [docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md](docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md). Static trace based on `main` commit `9721eb688c7b96ecb55e7ee00c61096e08c8fd5f`.
 - [ ] **Remaining audit —** build/toolchain verification, blocking-operation review, memory measurements, documentation reconciliation, regression checklist and target module boundaries.
 
 Tasks:
 
 - [x] Inventory all functions, globals, shared state and dependencies in weatherDashboard.ino. See [the Step 1 inventory](docs/PHASE0_STEP1_CODE_INVENTORY.md).
-- Map how setup(), loop(), touch handling, rendering, network requests and periodic updates interact.
+- [x] Map how setup(), loop(), touch handling, rendering, network requests and periodic updates interact. See [the Step 2 runtime map](docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md).
 - Identify all direct Wi-Fi calls, HTTP/TLS clients, API requests and blocking waits.
 - Identify current data models, location/time ownership and persistence.
 - Map touch/gesture/drag state, metric scrolling, forecast scrolling and graph scrolling.
@@ -588,7 +588,7 @@ When resuming work after a context reset:
 
 | Phase | Description | Status |
 |---|---|---|
-| 0 | Codebase audit and baseline | In progress — Step 1 complete |
+| 0 | Codebase audit and baseline | In progress — Steps 1–2 complete |
 | 1 | Project structure and shared foundations | Not started |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
@@ -602,3 +602,4 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 
 - **2026-10-31 — Version 1.0:** Initial roadmap agreed. Records the platform-refactor direction, connectivity abstraction, persistent Wi-Fi management, reusable UI/interaction components, application lifecycle, cellular integration and Maps application. Phase 0 remains the first implementation stage.
 - **2026-10-31 — Version 1.1:** Phase 0, Step 1 marked complete and linked to `docs/PHASE0_STEP1_CODE_INVENTORY.md`. Phase 0 remains in progress; the runtime data-flow map and remaining audit work are outstanding.
+- **2026-10-31 — Version 1.2:** Phase 0, Step 2 marked complete and linked to `docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md`. The map records startup, loop scheduling, touch arbitration, rendering, network / location / time flow and source-configured blocking operations. Remaining Phase 0 verification is still outstanding.
