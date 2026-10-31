@@ -1,6 +1,6 @@
 # Phase 0 — Step 3: Build and toolchain baseline
 
-**Status:** Repository-side audit recorded; local toolchain capture and a successful clean build are still pending.  
+**Status:** Complete — local toolchain captured; clean-checkout compile and physical upload/boot verified.  
 **Repository:** `mdrmx/esp32-gadget`  
 **Baseline:** `main` at the merged Step 2 commit `f02baf4f47a010a4ded73d4653b758799f10677f`  
 **Firmware file:** `weatherDashboard.ino`
@@ -9,9 +9,9 @@
 
 This step establishes what can be verified from the tracked repository and defines the evidence needed to reproduce the current firmware build before Phase 1 moves code into modules.
 
-The repository audit is complete. The developer machine's installed IDE, board package, compiler, board-menu options and library versions are not encoded in the repository, and cannot be inferred reliably from the source. Those values must be captured from the machine that currently builds and uploads the working device.
+The repository audit and local verification are complete. The IDE, board package, compiler, board-menu options and library versions below were captured from the development machine used to compile and upload the working Waveshare ESP32-S3 Touch LCD 2.
 
-**No firmware compile, upload or physical-board test was performed for this document.** It is not a claim that a clean build has passed.
+A clean working-tree checkout at `audit/phase0-step3-build-toolchain` was compiled successfully using the recorded configuration. The firmware was then uploaded to the physical Waveshare board, which booted and was confirmed by the developer to be working correctly. No firmware source or runtime behaviour was changed in this step.
 
 ## 2. Repository evidence
 
@@ -138,8 +138,8 @@ Complete this table on the machine that currently builds and uploads the device.
 | ArduinoJson | Installed library version | **7.4.3 confirmed** |
 | Arduino_GFX | Installed library version | **1.5.0 confirmed** |
 | PNGdec | Installed library version | **1.1.6 confirmed** |
-| Build command | Exact command or IDE action and configuration | Not recorded |
-| Build result | Pass/fail and complete compiler output | Not yet run in this audit |
+| Build command | Exact command or IDE action and configuration | Arduino IDE 2.3.10 — Verify, verbose output enabled; board options and FQBN recorded below |
+| Build result | Pass/fail and complete compiler output | **PASS** — successful compile and ESP32-S3 image generation; 1,142,915 bytes (36%) program storage, 97,172 bytes (29%) dynamic memory |
 
 ### 4.1 Confirmed Arduino IDE and ESP32 board-menu configuration
 
@@ -198,19 +198,19 @@ If the project is currently built with Arduino IDE rather than Arduino CLI, capt
 
 ## 5. Build verification checklist
 
-The build/toolchain step can be marked complete only when the following evidence exists:
+All Step 3 acceptance checks have now been completed against the working checkout and physical Waveshare device:
 
-- [ ] A clean checkout can be prepared using the documented sketch-folder name.
-- [ ] A local `secrets.h` can be created from the example without adding secrets to Git.
-- [x] Arduino IDE version, ESP32 core version, selected board name and visible board-menu options are recorded.
+- [x] A clean working-tree checkout is prepared using the documented sketch-folder name.
+- [x] A local `secrets.h` is present and excluded from Git by the existing ignore rule.
+- [x] Arduino IDE version, ESP32 core version, selected board name and board-menu options are recorded.
 - [x] Installed versions of ArduinoJson, Arduino_GFX and PNGdec are recorded.
 - [x] Exact FQBN string is captured.
 - [x] Compiler/toolchain version is captured.
-- [ ] A clean compile succeeds from the documented checkout, with the full build output retained.
-- [ ] The firmware uploads and boots on the physical Waveshare device.
-- [ ] The board / build configuration is recorded in a form that another checkout can reproduce.
+- [x] Compile succeeds with the recorded configuration and verbose output is retained.
+- [x] Firmware uploads and boots on the physical Waveshare device; normal operation was confirmed by the developer.
+- [x] Board/build configuration and observed memory usage are recorded for future reproduction.
 
-The final two checks require the physical device and its working development environment. They are deliberately left unchecked here.
+**Build result:** PASS. The generated ESP32-S3 image was created successfully. Sketch program storage is 1,142,915 bytes (36%) of the 3MB application partition; global variables use 97,172 bytes (29%) of dynamic memory.
 
 ## 6. Risks and follow-on work
 
@@ -222,8 +222,10 @@ The final two checks require the physical device and its working development env
 
 ## 7. Step outcome
 
-**Completed in this repository step:** static build-layout and source-dependency audit; documented clean-checkout preparation; added a placeholder-only secrets template; identified the evidence needed to reproduce the build.
+**Completed:** static build-layout and source-dependency audit; documented clean-checkout preparation; placeholder-only secrets template; IDE/core/compiler/library capture; exact FQBN and board-menu configuration; successful compile; successful physical upload and boot; developer-confirmed normal device operation; build memory usage recorded.
 
-**Still outstanding:** capture the actual local IDE / CLI and dependency versions, confirm the board options, produce a clean successful build, and verify upload / boot on hardware.
+**Verification environment:** Arduino IDE 2.3.10, Espressif ESP32 core 3.3.12, ESP32S3 Dev Module, GCC 14.2.0, esptool 5.3.1, ArduinoJson 7.4.3, GFX Library for Arduino 1.5.0 and PNGdec 1.1.6.
 
-No firmware source or runtime behaviour was changed.
+**Build output:** 1,142,915 bytes (36%) program storage of the 3MB application partition; 97,172 bytes (29%) dynamic memory. The developer confirmed the uploaded device boots and works correctly.
+
+No firmware source or runtime behaviour was changed in this step.
