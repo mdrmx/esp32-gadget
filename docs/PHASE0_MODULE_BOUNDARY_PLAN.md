@@ -233,7 +233,7 @@ Before the first extraction PR:
 
 - [ ] User reviews/accepts this ownership plan.
 - [ ] User reviews the regression checklist and confirms the current behaviour baseline.
-- [ ] A compile-only spike confirms the proposed module layout under the recorded Arduino IDE and FQBN.
+- [x] A compile-only spike confirms the proposed module layout under the recorded Arduino IDE and FQBN. Header inclusion and `.cpp` compile/link were verified on 2026-11-01; see [the compile spike record](PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md).
 - [ ] The Step 4 diagnostic touch-gap reporting caveat is either corrected in a future temporary test revision or explicitly kept as a limitation.
 - [ ] The first extraction PR names its owner, behaviour-preservation checks, expected memory impact and rollback point.
 
