@@ -3678,6 +3678,7 @@ void loop() {
       Serial.println("[P0DIAG] Manual forecast test started");
       fetchForecast();
       if (currentTab == 1) drawForecast();
+      else if (weatherAvailable) drawWeather();
     } else if (command == 'r' || command == 'R') {
       Serial.println("[P0DIAG] Manual full refresh started");
       const bool ok = fetchWeather();
