@@ -3,7 +3,6 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Arduino_GFX_Library.h>
-#include <Wire.h>
 #include <PNGdec.h>
 #include <time.h>
 #include <sys/time.h>
@@ -13,6 +12,7 @@
 #include "secrets.h"
 #include "src/input/TouchSample.h"
 #include "src/hardware/DisplayManager.h"
+#include "src/hardware/Cst816Reader.h"
 
 // =====================================================
 // CONFIGURATION
@@ -76,10 +76,8 @@ DisplayManager displayManager;
 // TOUCH
 // =====================================================
 
-#define TOUCH_SDA 48
-#define TOUCH_SCL 47
-#define TOUCH_ADDR 0x15
-#define REG_GESTURE 0x01
+// The raw reader owns I2C access; gesture codes and state remain in Weather.
+Cst816Reader touchReader;
 
 // Values are kept as configurable raw codes. The diagnostic logs below
 // report each transition so physical swipe directions can be verified.
@@ -88,7 +86,6 @@ DisplayManager displayManager;
 #define GESTURE_SCREEN_DOWN 0x03
 #define GESTURE_SCREEN_UP 0x04
 
-bool touchAvailable = false;
 uint8_t lastHandledGesture = 0;
 uint8_t previousRawGesture = 0;
 unsigned long lastGestureTime = 0;
@@ -1923,35 +1920,8 @@ void animateForecastSnap(int startPixels, int targetOffset) {
   drawForecastFooter();
 }
 
-// =====================================================
-// TOUCH REGISTER
-// =====================================================
-
-bool readTouchSample(TouchSample& sample) {
-  Wire.beginTransmission(TOUCH_ADDR);
-  Wire.write(REG_GESTURE);
-  if (Wire.endTransmission(false) != 0) return false;
-
-  uint8_t data[6];
-  const uint8_t sampleSize = sizeof(data);
-  uint8_t received = Wire.requestFrom(
-    (uint8_t)TOUCH_ADDR,
-    sampleSize);
-  if (received != sampleSize) {
-    while (Wire.available()) Wire.read();
-    return false;
-  }
-  for (uint8_t i = 0; i < sampleSize; i++) {
-    data[i] = (uint8_t)Wire.read();
-  }
-
-  sample.gesture = data[0];
-  sample.fingerCount = data[1] & 0x0F;
-  sample.event = (data[2] >> 6) & 0x03; // 0=down, 1=up, 2=contact
-  sample.rawX = ((uint16_t)(data[2] & 0x0F) << 8) | data[3];
-  sample.rawY = ((uint16_t)(data[4] & 0x0F) << 8) | data[5];
-  return true;
-}
+// Raw I2C register access and six-byte packet decoding live in
+// src/hardware/Cst816Reader.h. Keep all interpretation below in Weather.
 
 // The CST816 coordinates are reported in the panel's portrait-native frame.
 // This board is mounted in landscape. The observed gesture mapping corresponds
@@ -2542,10 +2512,10 @@ void handleGesture(uint8_t gesture) {
 }
 
 void pollTouch() {
-  if (!touchAvailable) return;
+  if (!touchReader.available()) return;
 
   TouchSample sample;
-  if (!readTouchSample(sample)) return;
+  if (!touchReader.readSample(sample)) return;
   uint8_t gesture = sample.gesture;
 
   // Always log transitions in demo mode, including the return to zero.
@@ -3460,12 +3430,11 @@ void setup() {
   reportHeapSummary();
 
   DEBUG_PRINTF("Logical display size: %d x %d\n", displayManager.width(), displayManager.height());
-  Wire.begin(TOUCH_SDA, TOUCH_SCL);
-  Wire.setClock(100000);
-
-  Wire.beginTransmission(TOUCH_ADDR);
-  touchAvailable = Wire.endTransmission() == 0;
-  DEBUG_PRINTLN(touchAvailable ? "CST816 detected at 0x15" : "Touch controller not detected");
+  touchReader.begin();
+  DEBUG_PRINTLN(
+    touchReader.available()
+      ? "CST816 detected at 0x15"
+      : "Touch controller not detected");
 
   initialiseTimeZone();
 
