@@ -3750,7 +3750,7 @@ void loop() {
 
 #if ENABLE_PHASE0_DIAGNOSTICS
   // Manual test commands through Serial Monitor (115200 baud, newline optional):
-  // w = weather request, f = forecast request, r = both, h = print help.
+  // w = weather, f = forecast, r = both, m = memory snapshot, i = force icon cache miss, h = help.
   while (Serial.available() > 0) {
     const char command = (char)Serial.read();
     if (command == 'h' || command == 'H') {
