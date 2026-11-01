@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 1.7  
+**Version:** 2.0  
 **Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 — Steps 1–4 initial baseline complete; next: on-device memory/PSRAM profiling, documentation/regression review and module-boundary plan
+**Current roadmap status:** Phase 0 — Steps 1–4 baseline, memory profile, regression checklist and module-boundary plan documented; Arduino `src/` compile-layout spike passed; final review remains
 
 ---
 
@@ -316,35 +316,40 @@ The phases below are agreed. Keep the order unless an audit finding provides a c
 
 ### Phase 0 — Codebase audit and baseline
 
-**Status: IN PROGRESS — Steps 1–4 initial baseline complete; memory profiling, documentation/regression review and module-boundary plan outstanding**
+**Status: IN PROGRESS — Steps 1–4 baseline, memory profile, regression checklist and proposed module-boundary plan documented; Arduino `src/` compile-layout spike passed; final review remains**
 
-No broad refactor should begin until this review is complete.
+No broad refactor should begin until the Phase 0 acceptance review is complete.
 
 **Phase 0 progress:**
 
-- [x] **Step 1 — Source inventory:** functions, file-scope state, custom structures, direct dependencies and major coupling relationships documented in [docs/PHASE0_STEP1_CODE_INVENTORY.md](docs/PHASE0_STEP1_CODE_INVENTORY.md). Inventory snapshot: `weatherDashboard.ino` at main commit `55602880ff11e2f4091234091c25b5d23afd22dd`.
-- [x] **Step 2 — Runtime data-flow map:** startup, loop, periodic refresh, touch, rendering, network and location/time paths documented in [docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md](docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md). Static trace based on `main` commit `9721eb688c7b96ecb55e7ee00c61096e08c8fd5f`.
-- [x] **Step 3 — Build/toolchain baseline:** repository layout, direct dependencies, clean-checkout preparation, IDE/core/compiler/library versions, board options, successful compile and physical upload/boot are documented in [docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md](docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md). Verified on the Waveshare ESP32-S3 Touch LCD 2.
-- [x] **Step 4 — Blocking-operation audit and initial physical baseline:** synchronous network paths, Wi-Fi waits/scanning, animation delays and render-triggered icon downloads documented; initial startup, idle, weather, forecast and full-refresh measurements recorded in [docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md). Static audit based on `main` commit `48734f4dc1443e0e830ce34154033d2e2a07f7e2`; physical results are specific to the tested board and networks.
-- [ ] **Step 4 extended verification —** animation touch gaps, failed HTTP, Wi-Fi unavailable/loss recovery and icon cache-miss behaviour remain untested; startup stage timings and instrumented touch-to-response latency are not yet isolated.
-- [ ] **Next — Memory/PSRAM baseline:** measure on-device heap headroom and canvas placement/size across startup, data loading, refresh and icon-cache changes.
+- [x] **Step 1 — Source inventory:** functions, file-scope state, custom structures, direct dependencies and coupling documented in [docs/PHASE0_STEP1_CODE_INVENTORY.md](docs/PHASE0_STEP1_CODE_INVENTORY.md). The inventory is an earlier source snapshot; use the current main source as authority for implementation details.
+- [x] **Step 2 — Runtime data-flow map:** startup, loop, periodic refresh, touch, rendering, network and location/time paths documented in [docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md](docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md).
+- [x] **Step 3 — Build/toolchain baseline:** repository layout, dependencies, IDE/core/compiler/library versions, board options, successful clean-checkout build and physical upload/boot documented in [docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md](docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md).
+- [x] **Step 4 — Blocking-operation audit and initial physical baseline:** synchronous network paths, Wi-Fi waits/scanning, animation delays and render-triggered icon downloads documented in [docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md). Follow-up healthy request and icon cache-miss measurements are now appended to that audit.
+- [x] **Memory/PSRAM profile:** on-device canvas placement, current free heap, largest blocks, low-water marks, refresh behaviour and forced icon cache-miss recovery recorded in [docs/PHASE0_MEMORY_PROFILE.md](docs/PHASE0_MEMORY_PROFILE.md).
+- [x] **Regression procedure:** reproducible build, UI/input, network, time/location, performance, memory and credential checks documented in [docs/PHASE0_REGRESSION_CHECKLIST.md](docs/PHASE0_REGRESSION_CHECKLIST.md).
+- [x] **Data ownership and module boundaries:** current global-state ownership, genuinely shared versus screen-specific behaviour, candidate boundaries and a staged extraction order documented in [docs/PHASE0_MODULE_BOUNDARY_PLAN.md](docs/PHASE0_MODULE_BOUNDARY_PLAN.md).
+- [ ] **Step 4 follow-up verification:** metric/tab animation gaps, controlled HTTP failure, Wi-Fi unavailable/loss recovery and physical touch-to-visible-response latency remain outstanding. Icon cache-miss behaviour has been measured once. The temporary diagnostic's full-refresh touch-gap reporting window is misaligned and its 31 ms result must not be used as an acceptance result.
+- [x] **Arduino source-layout compile spike:** verified header inclusion, recursive `.cpp` compilation and linking under the recorded IDE/FQBN. See [the compile spike record](docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md) and [PR #26](https://github.com/mdrmx/esp32-gadget/pull/26).
+- [ ] **Final Phase 0 review:** review the regression checklist and proposed ownership plan, confirm must-preserve behaviour and then agree Phase 1 entry.
 
 Tasks:
 
-- [x] Inventory all functions, globals, shared state and dependencies in weatherDashboard.ino. See [the Step 1 inventory](docs/PHASE0_STEP1_CODE_INVENTORY.md).
-- [x] Map how setup(), loop(), touch handling, rendering, network requests and periodic updates interact. See [the Step 2 runtime map](docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md).
-- [x] Identify direct Wi-Fi calls, HTTP/TLS clients, API requests and blocking waits. See [the Step 4 blocking/responsiveness audit](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md).
-- Identify current data models, location/time ownership and persistence.
-- Map touch/gesture/drag state, metric scrolling, forecast scrolling and graph scrolling.
-- Inventory Arduino_GFX canvases, heap/PSRAM use, buffer lifetimes and allocation fallbacks.
-- [x] Inspect tracked build configuration and source-level library dependencies; document the verified gaps in [the Step 3 build/toolchain baseline](docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md).
-- [x] Capture the actual board package, toolchain, build process, library versions and successful clean-checkout build result from the working development environment.
+- [x] Inventory functions, globals, shared state and direct dependencies in the Weather sketch.
+- [x] Map startup, loop, touch handling, rendering, network requests and periodic updates.
+- [x] Identify direct Wi-Fi calls, HTTP/TLS clients, API requests and blocking waits.
+- [x] Review current data models, location/time ownership and persistence. No Preferences/NVS persistence exists in the current sketch; Wi-Fi/API credentials come from local `secrets.h`.
+- [x] Map touch/gesture/drag state, metric scrolling, forecast-list scrolling and graph scrolling. Preserve their distinct ownership and suppression behaviour.
+- [x] Inventory canvas sizes, framebuffer placement, memory headroom, buffer lifetime and allocation fallbacks using the on-device profile.
+- [x] Inspect tracked build configuration and source-level library dependencies; document the verified gaps in [Step 3](docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md).
+- [x] Capture the working board package, toolchain, build process, library versions and successful clean-checkout build result.
 - [x] Reconcile `DEVELOPMENT_MODE.md` with the actual firmware default (`USE_DEMO_WEATHER_DATA 0` means live mode; `1` opts into offline demo mode).
-- Identify code that is genuinely duplicated versus code that only looks similar.
-- Record a reproducible build and hardware regression checklist.
-- [ ] Capture useful baseline memory/PSRAM measurements; this is the next Phase 0 task.
-- [x] Capture an initial physical responsiveness baseline using the [Step 4 test matrix](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md#72-test-matrix); retain outstanding fault-path and animation tests as follow-up validation.
-- Produce an agreed module-boundary plan and resolve high-risk technical questions before Phase 1.
+- [x] Distinguish genuinely reusable behaviour from screen-specific lookalikes; see [the module-boundary plan](docs/PHASE0_MODULE_BOUNDARY_PLAN.md).
+- [x] Record a reproducible build and hardware regression checklist in [docs/PHASE0_REGRESSION_CHECKLIST.md](docs/PHASE0_REGRESSION_CHECKLIST.md).
+- [x] Capture the initial physical responsiveness and memory/PSRAM baselines; retain their limitations and untested fault paths as follow-up work.
+- [x] Produce a proposed module-boundary plan and a staged extraction sequence.
+- [x] Validate the proposed Arduino source layout with a compile-only spike using the recorded Arduino IDE 2.3.10 / ESP32 core 3.3.12 / FQBN. The `.cpp` object was compiled and linked successfully; no upload was performed. See [the spike record](docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md).
+- [ ] Complete final Phase 0 review and agree Phase 1 entry.
 
 **Deliverables:**
 
@@ -352,16 +357,17 @@ Tasks:
 2. Current architecture and data-flow description.
 3. Memory review and blocking-operation / responsiveness audit.
 4. Regression checklist and baseline build instructions.
-5. Finalised module boundaries and a refined implementation sequence.
+5. Data ownership map, proposed module boundaries and refined implementation sequence.
 
 **Acceptance criteria:**
 
 - Existing firmware build path is known and reproducible.
 - Current weather and forecast behaviour is documented.
-- Critical touch and scrolling behaviours have explicit test steps.
-- Network and location ownership is understood.
-- Memory-sensitive areas and refactor risks are identified.
-- Proposed structure is validated against the actual toolchain.
+- Critical touch and scrolling behaviours have explicit, repeatable test steps.
+- Network, location and time ownership is understood.
+- Memory-sensitive areas and refactor risks are identified using measurements from the actual board.
+- Proposed source layout is validated against the actual toolchain.
+- Phase 1 begins only after the user reviews and accepts the proposed plan.
 
 ### Phase 1 — Project structure and shared foundations
 
@@ -578,44 +584,36 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ### Current handover — 2026-11-01
 
-This is the current project checkpoint. Recheck GitHub before acting, but use the following as the last verified state:
+Recheck GitHub before acting; the following is the latest state covered by this documentation update.
 
 - **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
-- **Latest verified main commit:** `4a0cde967c26c69f8cf569f55e75650af384b09f` — merge commit for PR #22.
-- **PR #22:** [Step 4 blocking/responsiveness audit](https://github.com/mdrmx/esp32-gadget/pull/22) is merged. The audit now includes the startup, idle, weather, forecast and full-refresh measurements and the reported touchscreen observations.
-- **PR #23:** [temporary Phase 0 hardware diagnostics](https://github.com/mdrmx/esp32-gadget/pull/23), branch `test/phase0-step4-diagnostics`, remains a separate temporary diagnostics change and is not part of `main`. Do not merge it into production. Reuse it only for deliberate hardware measurement work, then remove/close or otherwise retire the temporary instrumentation after the measurements are complete.
-- **Phase 0:** Steps 1–4 static/initial-baseline deliverables are complete. Phase 0 is **not** closed: the next task is the on-device memory/PSRAM baseline, followed by documentation/regression review and the final module-boundary plan.
-- **Demo mode:** the firmware currently defaults to live mode (`USE_DEMO_WEATHER_DATA 0`). `DEVELOPMENT_MODE.md` now agrees; set the macro to `1` only for offline demo development.
-- **Step 4 physical baseline:** startup was observed at 9.6 s on a fast mesh and about 10 s ±0.5 s on a slower network. Idle loop gaps were 32–33 ms; healthy weather, forecast and full-refresh operations produced maximum diagnostic loop gaps of 820–1,509 ms. The user reported no noticeable touchscreen interruption during those network tests. These are setup-specific observations, not guarantees; fault-path and animation tests remain follow-up work.
+- **Latest verified main commit:** `7657264db4fac8437d7b2cfc5a4b080239726ee3` — merge commit for PR #24. The changes in this handover are on the separate documentation branch / PR #25, not on `main`.
+- **PR #22:** [Step 4 blocking/responsiveness audit](https://github.com/mdrmx/esp32-gadget/pull/22) is merged.
+- **PR #24:** [Phase 0 handover refresh](https://github.com/mdrmx/esp32-gadget/pull/24) is merged.
+- **PR #23:** [temporary Phase 0 hardware diagnostics](https://github.com/mdrmx/esp32-gadget/pull/23), branch `test/phase0-step4-diagnostics`, remains an open draft and must **not** be merged into production. Its latest tested head is `59f2011f83b1ac8ce57d51d0f2760d84ecf4f6cd`. The user has uploaded and exercised this revision on the physical board, including `m`, `w`, `f`, `r` and forced icon cache-miss (`i`) tests. The memory profile records the results. The diagnostic code is temporary and is not needed in `main`.
+- **PR #25:** [Phase 0 memory handover and architecture documentation](https://github.com/mdrmx/esp32-gadget/pull/25) remains open and unmerged. It now contains the memory profile, regression checklist, proposed module-boundary plan, Step 4 measurement addendum and corrections to the hourly-weather and touch diagnostic guides.
+- **PR #26:** [Arduino `src/` layout compile spike](https://github.com/mdrmx/esp32-gadget/pull/26), branch `test/phase0-arduino-src-layout-spike`, remains open as a draft from `main`. The compile/link test **passed** using Arduino IDE 2.3.10, ESP32 core 3.3.12 and the recorded Waveshare FQBN. The compiler included `src/phase0/CompileLayoutSpike.cpp.o` in the final link. The log shows image generation and memory totals but no upload. The record is in [docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md](docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md). Keep the temporary spike unmerged.
+- **Phase 0:** source inventory, runtime map, toolchain baseline, responsiveness baseline, memory profiling, regression procedure and proposed module boundaries are documented. The Arduino `src/` layout compile/link spike passed. Phase 0 remains open for final review and agreement on Phase 1 entry.
+- **Demo mode:** the firmware defaults to live mode (`USE_DEMO_WEATHER_DATA 0`). `DEVELOPMENT_MODE.md` matches. Set it to `1` only for offline demo UI testing; normal debug macros are compiled out in live mode.
+- **Memory baseline:** after startup, the measured internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes; minimum-ever free since boot was 110,532 bytes. All three canvases were in PSRAM. See [the full profile](docs/PHASE0_MEMORY_PROFILE.md).
+- **Responsiveness caveat:** the full-refresh diagnostic reported a 1,207 ms loop and 31 ms touch-poll gap. Source inspection shows these can be placed in different 10-second summary windows; the 31 ms value is not a valid full-refresh touch-gap result. Do not use it as evidence of responsiveness.
 
-### Immediate next task — memory and PSRAM baseline
+### Next action — final Phase 0 review
 
-Before extracting modules, establish the memory budget on the physical Waveshare ESP32-S3 Touch LCD 2 using the recorded Step 3 board/toolchain configuration.
+1. Review [the regression checklist](docs/PHASE0_REGRESSION_CHECKLIST.md) against the current physical device and confirm any missing must-preserve behaviour.
+2. Review [the data ownership and module-boundary plan](docs/PHASE0_MODULE_BOUNDARY_PLAN.md). Confirm the staged extraction order before any production code is moved.
+3. The Arduino `src/` layout compile spike has passed with the recorded IDE/FQBN. Use its verified include/source pattern for the first real extraction; do not merge the temporary spike marker itself.
+4. Complete the final review and agree Phase 1 entry. The first extraction PR should be small, behaviour-preserving and include its own build and physical regression evidence.
+5. Keep PR #23 as an unmerged, test-only diagnostics branch. Retire it after any remaining diagnostic correction/retest is no longer needed; do not merge it into `main`.
 
-1. Record total/free PSRAM, free internal 8-bit heap, largest free internal block and minimum-ever free values where supported.
-2. Record the actual framebuffer address region and requested byte size for the forecast, weather-metrics and tab-transition canvases.
-3. Capture comparable snapshots after canvas allocation, after startup location/weather/forecast loading, after repeated weather/forecast refreshes, and after an icon cache change/cache miss.
-4. Compare free-space deltas and the largest internal block; watch for cumulative loss or fragmentation rather than interpreting one snapshot in isolation.
-5. Keep this as temporary test instrumentation. Do not introduce a memory-management refactor or change canvas placement until the measurements justify it.
-
-**Important diagnostic caveat:** on the current live firmware, `USE_DEMO_WEATHER_DATA` is `0`, and the `DEBUG_PRINT` / `DEBUG_PRINTF` macros compile to no-ops in that mode. The existing `reportCanvasAllocation()` and `reportHeapSummary()` helpers use those macros, so their output is suppressed in live mode. The temporary PR #23 branch's separate `[P0DIAG]` logging does not automatically make those helper messages visible. Before relying on them, add a dedicated temporary memory-diagnostic switch or use explicit guarded `Serial.printf()` output in the diagnostics branch; do not enable noisy general debug logging or commit credentials.
-
-### Phase 0 close-out after memory profiling
-
-After the memory baseline:
-
-- Reconcile any remaining root-level setup guides against current firmware behaviour and settings.
-- Produce a concise hardware regression checklist covering display/touch, metric scrolling, forecast list/graph, navigation, clock, live weather/forecast, location fallback and offline demo mode.
-- Complete the remaining data/ownership review (weather and forecast models, location/time ownership, persistence, canvas/buffer lifetime, scroll/gesture state).
-- Agree module boundaries and the first extraction sequence using Steps 1–4 and measured memory headroom.
-- Update this roadmap and the relevant Phase 0 documents before starting Phase 1.
+Do not start a broad source split, asynchronous networking or cellular integration before this review. The initial extraction should preserve runtime behaviour and use the memory profile and regression checklist as acceptance evidence.
 
 ### Standing handover procedure
 
 When resuming work after a context reset:
 
 1. Read this roadmap first.
-2. Check the live repository, current `main` commit, relevant feature branches and all open PRs; this handover can become stale.
+2. Check the live repository, current `main` commit, relevant branches and all open PRs; this handover can become stale.
 3. Check the current firmware and related documentation rather than assuming recorded snapshots are unchanged.
 4. Identify the latest completed phase and next incomplete acceptance criteria.
 5. Confirm implementation decisions in code, PR discussion and user instruction.
@@ -629,7 +627,7 @@ When resuming work after a context reset:
 
 | Phase | Description | Status |
 |---|---|---|
-| 0 | Codebase audit and baseline | In progress — Steps 1–4 initial baseline complete; memory profiling, documentation/regression review and module-boundary plan outstanding |
+| 0 | Codebase audit and baseline | In progress — memory profile, regression checklist and proposed boundaries documented; compile-layout spike passed; final review outstanding |
 | 1 | Project structure and shared foundations | Not started |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
@@ -649,3 +647,6 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-01 — Version 1.5:** Added the Phase 0 Step 4 static blocking-operation audit. Identified synchronous Wi-Fi and HTTP/TLS paths, render-triggered icon downloads and delay-based animations; added a physical measurement matrix.
 - **2026-11-01 — Version 1.6:** Recorded initial physical startup, idle, weather, forecast and full-refresh measurements in the Step 4 audit. Captured the user's observation that touchscreen interaction remained subjectively uninterrupted during network tests, while retaining measured loop gaps as a technical finding. Marked the initial physical baseline complete; extended fault-path, animation and remaining Phase 0 audit work stay open.
 - **2026-11-01 — Version 1.7:** Updated the handover after PR #22 merged. Recorded the verified main checkpoint, temporary PR #23 status, measured Step 4 baseline, current live/demo-mode behaviour and the next task (on-device memory/PSRAM profiling). Corrected stale Step 1/2 handover notes and reconciled `DEVELOPMENT_MODE.md` with the live firmware default.
+- **2026-11-01 — Version 1.8:** Updated the handover after PR #24 merged and the temporary PR #23 diagnostics branch gained live-mode-safe heap/PSRAM snapshots, canvas allocation reporting and repeatable icon cache-miss testing. Recorded the exact pending branch head and hardware validation steps; no diagnostics code was merged into production.
+- **2026-11-01 — Version 1.9:** Recorded the completed on-device memory/PSRAM profile, including PSRAM canvas placement, startup/internal-heap observations, stable weather/forecast refreshes and icon-cache recovery. Added the reproducible regression checklist and proposed data-ownership/module-boundary plan, documented the diagnostic touch-gap reporting-window caveat, and corrected two source/documentation mismatches. Phase 0 remains open pending a compile-only Arduino source-layout spike and final review.
+- **2026-11-01 — Version 2.0:** Recorded the successful Arduino `src/` compile/link spike using the exact IDE 2.3.10, ESP32 core 3.3.12 and Waveshare board configuration. The minimal `.cpp` object was included in the final link and an ESP32-S3 image was generated. No firmware upload or production extraction was performed. Phase 0 now requires final review before Phase 1.

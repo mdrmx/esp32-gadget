@@ -279,10 +279,10 @@ The user continuously touched the screen during the weather, forecast and full-r
 | Failed HTTP request | Pending | Controlled failure path not tested |
 | Wi-Fi unavailable at startup | Pending | Association timeout / recovery not tested |
 | Wi-Fi loss while running | Pending | Runtime reconnection not tested |
-| Icon cache miss | Pending | Only cached icon path observed (0 ms) |
-| Cached icon redraw | Observed | Cache check reported 0 ms during weather tests; full redraw behaviour not separately timed |
+| Icon cache miss | Measured once | Forced cache-miss operation: 564 ms; maximum loop duration and reported touch-poll gap were both 667 ms |
+| Cached icon redraw | Observed | Cache check reported 0 ms during weather and forecast tests; full redraw behaviour was not separately timed |
 
-The initial healthy-operation and startup baseline is sufficient to document current behaviour and proceed with the next planned work. Keep the outstanding fault-path and animation tests as follow-up validation rather than treating them as completed.
+The healthy-operation baseline is sufficient to document current behaviour and proceed with Phase 0 close-out. Fault-path and animation tests remain follow-up validation rather than being treated as complete. The memory and cache-allocation observations are recorded separately in [the Phase 0 memory profile](PHASE0_MEMORY_PROFILE.md).
 
 ## 8. Recommended boundaries before Phase 1
 
@@ -319,12 +319,41 @@ Potential implementation approaches include a cooperative state machine, a bound
 - [ ] Isolate Wi-Fi association and scan durations; startup stopwatch result is end-to-end only.
 - [x] Measure full startup and healthy periodic refresh durations.
 - [x] Record qualitative touchscreen interaction during healthy network operations.
-- [ ] Measure icon cache-miss behaviour; cached icon path observed at 0 ms.
+- [x] Measure one forced icon cache miss (564 ms); repeated misses and failed/short downloads remain untested.
 - [x] Record initial results and identify limits of the measurements.
 
-**Step 4 static audit and initial physical baseline are complete.** Extended fault-path, animation and icon-cache-miss measurements remain follow-up validation. The recorded healthy-operation timings are observations from the tested setup, not universal targets.
+**Step 4 static audit and initial healthy-operation baseline are complete.** One forced icon cache miss has now also been measured. Extended fault-path, animation and instrumented touch-to-response measurements remain follow-up validation. The recorded healthy-operation timings are observations from the tested setup, not universal targets.
 
-## 10. Change history
+## 10. Follow-up hardware measurements — 2026-11-01
+
+The temporary diagnostics revision was subsequently uploaded and exercised on the physical Waveshare ESP32-S3 Touch LCD 2. The tested revision was PR #23 head `59f2011f83b1ac8ce57d51d0f2760d84ecf4f6cd`. The following are additional observations, not changes to the original baseline runs.
+
+### 10.1 Additional request timings
+
+| Scenario | Operation duration | Diagnostic summary | Notes |
+|---|---:|---:|---|
+| Manual weather | 462 ms | Not included in the supplied 10-second summary | Icon cache hit: 0 ms |
+| Manual forecast | 742 ms | 845 ms maximum loop and touch-poll gap; 297 loops in the summary | Page 1: 645 ms; page 2: 95 ms; cache hit: 0 ms |
+| Forced icon cache miss | 564 ms | 667 ms maximum loop and reported touch-poll gap; 302 loops | Temporary internal-heap pressure recovered after the operation |
+| Manual full refresh | Weather 448 ms; forecast 655 ms; approximately 1,103 ms combined request time | 1,207 ms maximum loop; 31 ms maximum touch-poll gap | The two maxima are not aligned reliably; see the diagnostic caveat below |
+
+The full-refresh forecast pages took 558 ms and 95 ms. Rendering returned internal free heap to within 48 bytes of the pre-refresh value.
+
+### 10.2 Touch-poll summary caveat
+
+The full-refresh result of 1,207 ms maximum loop alongside 31 ms maximum touch-poll gap is a diagnostic reporting-window defect, not evidence that the touch input remained responsive during that request.
+
+In PR #23, the touch gap is sampled at the next loop start, whereas the loop duration is recorded and the 10-second summary may be emitted/reset at the end of the current loop. A long iteration can therefore be included in the loop maximum before its corresponding touch-poll gap is recorded in the next reporting window.
+
+Do not use the 31 ms figure as the touch gap for that full-refresh operation. Correct the instrumentation's sample/report alignment before using it for further acceptance measurements. Physical touch-to-visible-response latency remains unmeasured.
+
+### 10.3 Memory profile
+
+The full on-device heap/PSRAM record, including canvas placement, startup headroom, weather/forecast refresh, icon cache miss and final post-refresh snapshot, is in [PHASE0_MEMORY_PROFILE.md](PHASE0_MEMORY_PROFILE.md).
+
+## 11. Change history
 
 - **2026-11-01 — Version 1.0:** Initial static blocking-operation and responsiveness audit against `main` commit `48734f4`. Records synchronous network paths, Wi-Fi waits/scanning, animation delays, render-triggered icon downloads, a physical measurement plan and provisional architecture priorities. No firmware code changed.
 - **2026-11-01 — Version 1.1:** Added initial target-device measurements: reset-to-usable startup of 9.6 s on a fast mesh and approximately 10 s ± 0.5 s on a slower network; idle loop gaps of 32–33 ms; weather, forecast and full-refresh timings; Wi-Fi location and time-sync observations; and the user's report of no noticeable touchscreen interruption during network tests. Clarified that startup timing is end-to-end and that maximum loop gaps are not direct touch-to-response measurements. Extended fault-path, animation and icon-cache-miss tests remain outstanding.
+
+- **2026-11-01 — Version 1.2:** Added follow-up weather, forecast, forced icon-cache-miss and combined-refresh timings from the updated temporary diagnostic revision. Recorded the memory profile separately and identified a diagnostic reporting-window mismatch that makes the full-refresh touch-poll figure unreliable. Fault-path and animation tests remain follow-up work.
