@@ -3754,11 +3754,27 @@ void loop() {
   while (Serial.available() > 0) {
     const char command = (char)Serial.read();
     if (command == 'h' || command == 'H') {
-      Serial.println("[P0DIAG] Commands: w=weather, f=forecast, r=both, m=memory snapshot");
+      Serial.println("[P0DIAG] Commands: w=weather, f=forecast, r=both, m=memory snapshot, i=force icon cache miss");
     } else if (command == 'm' || command == 'M') {
       Serial.println("[P0DIAG] Manual memory snapshot");
       phase0ReportMemorySnapshot("manual");
       phase0ReportCanvasAllocations();
+    } else if (command == 'i' || command == 'I') {
+      Serial.println("[P0DIAG] Forced icon cache-miss test");
+      if (!weatherAvailable || currentTab != 0) {
+        Serial.println("[P0DIAG] Select the Weather tab with loaded weather data, then retry 'i'.");
+      } else {
+        phase0ReportMemorySnapshot("before-forced-icon-cache-miss");
+        if (weatherIconPngData != nullptr) {
+          free(weatherIconPngData);
+          weatherIconPngData = nullptr;
+        }
+        weatherIconPngLength = 0;
+        cachedWeatherIconCode = "";
+        phase0ReportMemorySnapshot("after-icon-cache-clear");
+        drawWeather();
+        phase0ReportMemorySnapshot("after-forced-icon-cache-miss");
+      }
     } else if (command == 'w' || command == 'W') {
       Serial.println("[P0DIAG] Manual weather test started");
       phase0ReportMemorySnapshot("before-manual-weather");
