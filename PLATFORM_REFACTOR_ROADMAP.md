@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 1.9  
+**Version:** 2.0  
 **Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -318,7 +318,7 @@ The phases below are agreed. Keep the order unless an audit finding provides a c
 
 **Status: IN PROGRESS — Steps 1–4 baseline, memory profile, regression checklist and proposed module-boundary plan documented; Arduino `src/` compile-layout spike passed; final review remains**
 
-No broad refactor should begin until the Phase 0 acceptance review and Arduino source-layout compile spike are complete.
+No broad refactor should begin until the Phase 0 acceptance review is complete.
 
 **Phase 0 progress:**
 
