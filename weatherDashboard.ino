@@ -11,6 +11,7 @@
 #include <esp_memory_utils.h>
 #include <stdlib.h>
 #include "secrets.h"
+#include "TouchSample.h"
 
 // =====================================================
 // CONFIGURATION
@@ -156,13 +157,7 @@ uint8_t lastHandledGesture = 0;
 uint8_t previousRawGesture = 0;
 unsigned long lastGestureTime = 0;
 
-struct TouchSample {
-  uint8_t gesture;
-  uint8_t fingerCount;
-  uint8_t event;
-  uint16_t rawX;
-  uint16_t rawY;
-};
+
 
 bool metricsTouchDragActive = false;
 bool metricsTouchCandidate = false;
