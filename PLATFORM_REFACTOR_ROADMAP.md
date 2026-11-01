@@ -342,14 +342,14 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PR #27 merged after compile, upload and physical input regression; display ownership is the current task in draft PR #28**
+**Status: IN PROGRESS — PR #27 merged; PR #28 has passed compile, upload and physical display/input regression and is ready to merge**
 
 The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The first production extraction has also passed the recorded hardware validation. The next small step establishes explicit ownership of display resources without moving Weather rendering or interaction logic.
 
 **Current task:**
 
 - [x] **PR #27 — Extract `TouchSample`:** the five-field data-only type now lives in `src/input/TouchSample.h`. The firmware compiled, uploaded and passed physical input regression on the Waveshare board before merge.
-- [ ] **PR #28 — Extract display ownership:** add `src/hardware/DisplayManager.h` to own ST7789 initialisation, logical dimensions, the three existing canvases and tab-transition render-target selection. Weather drawing and interaction remain in the sketch. Compile, upload, display/input regression and memory comparison are pending.
+- [x] **PR #28 — Extract display ownership:** `src/hardware/DisplayManager.h` owns ST7789 initialisation, logical dimensions, the three existing canvases and tab-transition render-target selection. The user reports successful compile, upload and physical display/input regression. Ready to merge; exact post-change heap figures have not been supplied, so the numeric comparison with the Phase 0 memory baseline remains unrecorded.
 - [ ] After PR #28 is built and physically checked, continue with the staged extraction sequence in [docs/PHASE0_MODULE_BOUNDARY_PLAN.md](docs/PHASE0_MODULE_BOUNDARY_PLAN.md).
 
 **Phase 1 tasks:**
@@ -575,20 +575,18 @@ Recheck GitHub before acting; this is the latest checkpoint covered by this road
 - **PR #26:** temporary Arduino `src/` compile spike is closed without merging; its compile/link result is retained in `docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md`.
 - **Phase 0:** complete. The extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups and are not being represented as completed.
 - **Phase 1:** in progress. [PR #28 — Extract display ownership](https://github.com/mdrmx/esp32-gadget/pull/28) is open as a draft on branch `phase1/02-display-manager`.
-- **PR #28 scope:** `DisplayManager` owns ST7789 setup, logical dimensions, the forecast/metrics/transition canvases and the active render-target selection. Weather drawing and interaction policies remain in the sketch. Build and hardware regression are pending.
+- **PR #28 scope:** `DisplayManager` owns ST7789 setup, logical dimensions, the forecast/metrics/transition canvases and the active render-target selection. Weather drawing and interaction policies remain in the sketch. The user reports successful compile, upload and physical regression; the numeric post-change memory comparison is not yet recorded.
 - **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the local ignored `secrets.h`.
 - **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. All three current canvases were in PSRAM before this extraction. See [the memory profile](docs/PHASE0_MEMORY_PROFILE.md).
 
-### Next action — validate PR #28
+### Next action — merge PR #28 after review
 
-1. Fetch `phase1/02-display-manager` and open the sketch from a local folder named `weatherDashboard`.
-2. Run Arduino IDE **Verify** using the exact Step 3 FQBN and local ignored `secrets.h`.
-3. If compilation succeeds, upload to the Waveshare ESP32-S3 Touch LCD 2.
-4. Run the display and input checks in [docs/PHASE0_REGRESSION_CHECKLIST.md](docs/PHASE0_REGRESSION_CHECKLIST.md): startup/backlight, Weather and Forecast rendering, list/graph mode, metric/list/graph scrolling, horizontal tab transitions and canvas-unavailable fallbacks where practical.
-5. Capture the three canvas memory-region readings and internal heap summary. Compare them against the Phase 0 memory profile.
-6. Report compile and hardware results before merging. Do not merge PR #28 until the build and required physical checks pass and I explicitly say it is ready.
+PR #28 has passed the reported compile, upload and physical display/input regression. The remaining unrecorded evidence item is the numeric post-change heap comparison; its allocation sizes and order are unchanged by the refactor.
 
-Keep this PR limited to display resource ownership. Do not combine it with the CST816 reader or gesture/scroll extraction.
+1. Review [PR #28 — Extract display ownership](https://github.com/mdrmx/esp32-gadget/pull/28) and merge it when ready.
+2. Optionally add the three canvas memory-region readings and internal heap summary to the Phase 0 comparison record if those logs are available.
+
+After merge, continue with the CST816 raw touch reader extraction as the next isolated Phase 1 step. Do not combine it with gesture recognition or scroll-controller work.
 
 ### Standing handover procedure
 
@@ -610,7 +608,7 @@ When resuming work after a context reset:
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
-| 1 | Project structure and shared foundations | In progress — PR #27 merged and hardware-verified; display ownership in PR #28 pending validation |
+| 1 | Project structure and shared foundations | In progress — PR #27 merged; PR #28 compile/upload/physical regression passed and ready to merge |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
@@ -635,3 +633,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-01 — Version 2.1:** Recorded Phase 0 as complete with documented follow-up tests, reconciled the PR #23 / #26 closed-without-merge state, and started Phase 1 with PR #27 extracting the data-only `TouchSample` type into `src/input/TouchSample.h`. Build and hardware input regression remain pending.
 
 - **2026-11-01 — Version 2.2:** Recorded successful compile, upload and physical input regression for PR #27 and its merge into `main`. Started the next isolated Phase 1 extraction in PR #28, moving ST7789 setup, dimensions, canvas allocation/lifetime and tab-transition target selection behind `DisplayManager`; build and physical display regression remain pending.
+
+- **2026-11-01 — Version 2.3:** Recorded the user's successful compile, upload and physical display/input regression for PR #28 and marked the PR ready for review. Exact post-change canvas memory-region and internal-heap figures were not supplied, so the numeric baseline comparison remains unrecorded.
