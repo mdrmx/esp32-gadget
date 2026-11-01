@@ -574,7 +574,7 @@ Recheck GitHub before acting; this is the latest checkpoint covered by this road
 - **PR #23:** temporary hardware diagnostics is closed without merging; its remote branch is no longer present. Its reusable measurements are recorded in the Phase 0 docs.
 - **PR #26:** temporary Arduino `src/` compile spike is closed without merging; its compile/link result is retained in `docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md`.
 - **Phase 0:** complete. The extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups and are not being represented as completed.
-- **Phase 1:** in progress. [PR #28 — Extract display ownership](https://github.com/mdrmx/esp32-gadget/pull/28) is being prepared on branch `phase1/02-display-manager`.
+- **Phase 1:** in progress. [PR #28 — Extract display ownership](https://github.com/mdrmx/esp32-gadget/pull/28) is open as a draft on branch `phase1/02-display-manager`.
 - **PR #28 scope:** `DisplayManager` owns ST7789 setup, logical dimensions, the forecast/metrics/transition canvases and the active render-target selection. Weather drawing and interaction policies remain in the sketch. Build and hardware regression are pending.
 - **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the local ignored `secrets.h`.
 - **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. All three current canvases were in PSRAM before this extraction. See [the memory profile](docs/PHASE0_MEMORY_PROFILE.md).
