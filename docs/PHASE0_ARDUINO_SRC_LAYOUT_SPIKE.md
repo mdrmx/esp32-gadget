@@ -1,5 +1,7 @@
 # Phase 0 — Arduino `src/` layout compile spike
 
+**Status: PASS — compile and link verified on the recorded development toolchain (2026-11-01).**
+
 **Purpose:** verify that the recorded Arduino IDE / ESP32 board toolchain compiles a small header and implementation placed under the sketch's `src/` directory before production code is moved into modules.
 
 **Branch:** `test/phase0-arduino-src-layout-spike`  
@@ -24,12 +26,32 @@ The temporary sketch call to `phase0_layout_spike::linkCheck()` forces the linke
    `esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`.
 5. Run **Verify** only. Do not upload; this is a compile/link test.
 
+## Recorded result — PASS
+
+The supplied verbose Arduino IDE build log for this branch confirms:
+
+- The sketch was built from `/Users/mdrmx/Documents/weatherDashboard`, matching the root `weatherDashboard.ino` name.
+- FQBN: `esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`.
+- ESP32 Arduino core: 3.3.12.
+- GCC toolchain: 14.2.0 (ESP32-S3 Xtensa toolchain).
+- esptool: 5.3.1.
+- The sketch-root include `src/phase0/CompileLayoutSpike.h` resolved.
+- The compiler compiled `src/phase0/CompileLayoutSpike.cpp`; the linker command included `sketch/src/phase0/CompileLayoutSpike.cpp.o`.
+- The ESP32-S3 binary image was generated successfully. No compiler or linker error appears in the supplied log.
+
+Build output:
+- Program storage: **1,150,479 bytes (36%) of 3,145,728 bytes**.
+- Global variables: **97,196 bytes (29%) of 327,680 bytes**.
+- Remaining dynamic memory reported by the build: **230,484 bytes**.
+
+This is a compile/link validation only. The log does not show a firmware upload or runtime test. The production code was not refactored by this spike.
+
 ## Pass criteria
 
 - The sketch header include `src/phase0/CompileLayoutSpike.h` resolves.
 - `src/phase0/CompileLayoutSpike.cpp` is compiled.
 - The final firmware image links without an undefined reference to `phase0_layout_spike::linkCheck()`.
-- The compile succeeds with the exact recorded board/toolchain configuration.
+- The compile succeeds with the exact recorded board/toolchain configuration. (Verified: 2026-11-01.)
 
 ## Failure handling
 
