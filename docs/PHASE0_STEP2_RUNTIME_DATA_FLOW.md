@@ -537,9 +537,9 @@ The exact interfaces remain subject to the remaining Phase 0 audit and the Ardui
 - The current Weather screen's icon rendering path can initiate a network request.
 - There is no persistent Wi-Fi profile manager, shared connectivity layer or application manager in the current sketch.
 
-### Documentation discrepancy still open
+### Documentation discrepancy — resolved
 
-The source currently defines `USE_DEMO_WEATHER_DATA` as `0`, while `DEVELOPMENT_MODE.md` describes `1` as the current default and instructs the developer to set it manually. The roadmap already flags this discrepancy. It remains a documentation / workflow reconciliation task; this Step 2 PR deliberately does not change either file or the firmware setting.
+The source defines `USE_DEMO_WEATHER_DATA` as `0` (live mode). `DEVELOPMENT_MODE.md` has been corrected to describe live mode as the current default and `1` as the opt-in offline demo setting. No firmware setting was changed to resolve this documentation mismatch.
 
 ### Not established by this static trace
 
@@ -551,19 +551,20 @@ The source currently defines `USE_DEMO_WEATHER_DATA` as `0`, while `DEVELOPMENT_
 - Whether the current hardware behaviour matches every edge-case path described by the state machine.
 - Whether any library internals use additional tasks or asynchronous behaviour; this map describes the explicit sketch-level call flow.
 
-## 13. Recommended remaining Phase 0 work
+## 13. Remaining Phase 0 work and next action
 
-The next audit work should use this map as the behavioural reference and close the remaining baseline questions before extracting modules:
+The map remains the behavioural reference for the remaining baseline work. Current status, in sequence:
 
-1. **Build/toolchain verification:** record the exact Waveshare board selection, ESP32 Arduino core version, Arduino IDE / CLI version, library versions and a reproducible build procedure.
-2. **Blocking-operation review:** decide which network operations must become non-blocking or deadline-driven for touch and UI responsiveness. Measure, rather than estimate, current behaviour on hardware.
-3. **Memory baseline:** record internal heap, largest free block, PSRAM availability / usage and canvas allocations on the actual device. Repeat after weather refreshes and icon changes.
-4. **Documentation reconciliation:** resolve the demo-mode default discrepancy and check setup notes against the live code.
-5. **Regression procedure:** turn the current Weather, list, graph, touch, clock, location and network behaviour into a reproducible physical-device checklist.
-6. **Module boundary plan:** combine the Step 1 inventory with this runtime map and the verified toolchain constraints to settle the first extraction boundaries.
+1. [x] **Build/toolchain verification:** exact Waveshare board selection, ESP32 Arduino core, IDE/compiler/library versions, FQBN and successful physical build/upload are recorded in [Step 3](PHASE0_STEP3_BUILD_TOOLCHAIN.md).
+2. [x] **Blocking-operation review and initial physical baseline:** synchronous network paths and initial startup/idle/weather/forecast/full-refresh measurements are recorded in [Step 4](PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md). Additional fault-path, animation and cache-miss checks remain useful follow-up validation, not a reason to discard the baseline.
+3. [ ] **Memory baseline — next:** capture PSRAM capacity/free space, internal 8-bit heap free space, largest internal free block, minimum-ever free heap where available, and the actual allocation region/size of each canvas. Take comparable snapshots after canvas setup, after startup network/data loading, after repeated weather/forecast refreshes, and after an icon change/cache miss. See the current handover in [the Platform Refactor Roadmap](../PLATFORM_REFACTOR_ROADMAP.md) for the diagnostic caveat and intended procedure.
+4. [x] **Demo-mode documentation reconciliation:** `DEVELOPMENT_MODE.md` now matches the live firmware default (`USE_DEMO_WEATHER_DATA 0`).
+5. [ ] **Documentation and regression procedure:** check the remaining setup guides against current source and turn Weather, forecast list/graph, touch, clock, location and network behaviour into a reproducible hardware regression checklist.
+6. [ ] **Module boundary plan:** combine this map with the Step 1 inventory, Step 3 toolchain constraints, Step 4 findings and measured memory headroom to settle the first extraction boundaries.
 
-No firmware refactor should be started solely on the basis of this static trace. The remaining Phase 0 evidence is needed to avoid choosing file boundaries or interfaces that conflict with the actual toolchain or the device's memory / responsiveness limits.
+Do not begin broad source extraction until the memory baseline, documentation/regression review and module-boundary plan are complete. The remaining evidence is needed to avoid choosing file boundaries or interfaces that conflict with the actual toolchain, memory constraints or observed device behaviour.
 
 ## 14. Change history
 
 - **2026-10-31 — Version 1.0:** Initial Step 2 runtime trace. Documents startup, loop scheduling, touch ownership and gesture arbitration, rendering paths, network / location / time flows, blocking operations and candidate platform boundaries. Static source inspection only.
+- **2026-11-01 — Version 1.1:** Updated remaining-work guidance after the Step 4 physical baseline; marked build/toolchain and initial blocking-operation verification complete, clarified that memory profiling is the next Phase 0 activity, and recorded the demo-mode documentation discrepancy as resolved.
