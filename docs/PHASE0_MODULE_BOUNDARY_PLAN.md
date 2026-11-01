@@ -197,7 +197,7 @@ This is a candidate, not a mandate to create all files at once. Validate Arduino
 Each item should be its own reviewable PR and keep runtime behaviour unchanged unless a specific change is separately agreed.
 
 1. **Build/layout spike and value types.** The Arduino `src/` compile/link spike has passed. The first real value-type extraction, [PR #27](https://github.com/mdrmx/esp32-gadget/pull/27), moved the data-only `TouchSample` into `src/input/TouchSample.h`. It passed compilation, upload and physical input regression on the Waveshare board and is merged into `main`.
-2. **Display ownership.** Encapsulate ST7789 initialisation, logical dimensions, canvas allocation/lifetime/fallback and render-target selection. [PR #28](https://github.com/mdrmx/esp32-gadget/pull/28) implements this boundary in `src/hardware/DisplayManager.h`; Weather drawing and interaction remain in the sketch. The user reports successful compilation, upload and physical display/input regression. The post-change heap figures were not supplied, so the numeric comparison with the Phase 0 memory profile remains unrecorded.
+2. **Display ownership.** Encapsulate ST7789 initialisation, logical dimensions, canvas allocation/lifetime/fallback and render-target selection. [PR #28](https://github.com/mdrmx/esp32-gadget/pull/28) implements this boundary in `src/hardware/DisplayManager.h`; Weather drawing and interaction remain in the sketch. The initial extraction compiled, uploaded and passed the reported physical display/input regression. A review follow-up now adds resource cleanup for destruction, failed/repeated initialisation and canvas replacement; the updated header is awaiting a fresh compile check. The post-change heap figures were not supplied, so the numeric comparison with the Phase 0 memory profile remains unrecorded.
 3. **Raw touch reader.** Move CST816 register access and raw sample decoding behind a small reader. Do not change gesture mappings.
 4. **Gesture/interaction separation.** Extract gesture recognition and ownership incrementally. Retain the distinct metric, forecast-list and graph interaction states; test after each movement.
 5. **Scroll mechanics.** Extract only common bounded drag/overscroll/snap calculations. Keep hit testing, graph hold/selection and per-view state in Weather.
@@ -234,7 +234,8 @@ Phase 1 has started. The agreed ownership plan and regression checklist are the 
 - [x] The Arduino `src/` layout compile/link spike passed under the recorded IDE and FQBN; see [the compile spike record](PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md).
 - [x] The Step 4 diagnostic touch-gap reporting caveat is retained in the permanent audit and memory profile. The 31 ms full-refresh result is not treated as an acceptance measurement.
 - [x] PR #27 — `TouchSample` value-type extraction compiled, uploaded and passed physical input regression before merge.
-- [x] PR #28 — display ownership extraction compiled, uploaded and passed the reported physical display/input regression.
+- [x] PR #28 initial display ownership extraction compiled, uploaded and passed the reported physical display/input regression.
+- [ ] Recompile and re-upload the PR #28 resource-lifecycle review fix, then repeat the relevant physical regression.
 - [ ] Record the post-change canvas memory-region and internal-heap figures for PR #28 against the Phase 0 memory profile.
 - [ ] Each subsequent extraction PR documents its scope, behaviour-preservation checks, expected memory impact and rollback point.
 
