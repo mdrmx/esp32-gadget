@@ -5,7 +5,7 @@
 **Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete; PRs #27 and #28 merged and hardware-verified; PR #29 CST816 raw reader open as draft pending validation
+**Current roadmap status:** Phase 0 baseline complete; PRs #27 and #28 merged and hardware-verified; PR #29 CST816 raw reader review fixes committed, pending fresh validation
 
 ---
 
@@ -342,7 +342,7 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PRs #27 and #28 merged after compile/upload/physical regression; PR #29 is the current CST816 raw reader extraction**
+**Status: IN PROGRESS — PRs #27 and #28 merged after compile/upload/physical regression; PR #29 CST816 reader review fixes are committed, pending fresh validation**
 
 The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample` and display ownership extractions have passed hardware validation and are merged. The current step isolates CST816 I2C acquisition without changing Weather gesture or interaction behaviour.
 
@@ -351,7 +351,7 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
 - [x] **PR #27 — Extract `TouchSample`:** the five-field data-only type now lives in `src/input/TouchSample.h`. The firmware compiled, uploaded and passed physical input regression on the Waveshare board before merge.
 - [x] **PR #28 — Extract display ownership:** `src/hardware/DisplayManager.h` owns ST7789 initialisation, logical dimensions, the three existing canvases and tab-transition render-target selection. It is merged at `31029cc4f3b9902bdc038ad1aab721b397ef4bc6` after the extraction and resource-lifecycle review fixes passed compile, upload and physical display/input regression.
 - [ ] Record exact post-change canvas memory-region and internal-heap figures against the Phase 0 baseline when those diagnostic readings are available.
-- [ ] **PR #29 — Extract CST816 raw reader:** move I2C setup, device detection and raw sample decoding into `src/hardware/Cst816Reader.h`; keep gesture interpretation and view-specific state in Weather. Compile, upload and physical input regression are pending.
+- [ ] **PR #29 — Extract CST816 raw reader:** move I2C setup, device detection and raw sample decoding into `src/hardware/Cst816Reader.h`; keep gesture interpretation and view-specific state in Weather. Compile, upload and physical input regression are pending after review fixes. `Cst816Reader::begin(bool initBus = true)` now allows callers to skip bus setup when sharing an already-initialised `TwoWire`, while preserving the current default behaviour. The `requestFrom()` result is stored as `size_t`.
 
 **Phase 1 tasks:**
 
@@ -647,3 +647,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-01 — Version 2.6:** Recorded PR #28 merge at `31029cc4f3b9902bdc038ad1aab721b397ef4bc6` and started PR #29, extracting CST816 I2C setup, device detection and raw sample decoding into `src/hardware/Cst816Reader.h` while leaving gesture and view interaction logic in the sketch.
 
 - **2026-11-01 — Version 2.7:** Confirmed PR #28 is merged and `main` is at merge commit `31029cc4f3b9902bdc038ad1aab721b397ef4bc6`. Opened draft PR #29 for the isolated CST816 raw-reader extraction; compilation and physical input regression are pending.
+
+- **2026-11-01 — Version 2.8:** Addressed PR #29 review comments in commit `d787bef1c8a112f9c59a1c9c7bfefd35faa5575d`: added optional bus initialisation with `begin(bool initBus = true)` and changed the `requestFrom()` result variable to `size_t`. Both inline review comments received replies. Fresh compile/upload/physical regression after these changes remains pending.
