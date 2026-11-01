@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 1.4  
-**Last reviewed:** 2026-10-31  
+**Version:** 1.5  
+**Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 — Steps 1–3 complete; remaining audit work in progress
+**Current roadmap status:** Phase 0 — Steps 1–3 complete; Step 4 static audit complete, hardware measurements outstanding
 
 ---
 
@@ -316,7 +316,7 @@ The phases below are agreed. Keep the order unless an audit finding provides a c
 
 ### Phase 0 — Codebase audit and baseline
 
-**Status: IN PROGRESS — Steps 1–3 complete; remaining audit work outstanding**
+**Status: IN PROGRESS — Steps 1–3 complete; Step 4 static audit complete, physical measurements outstanding**
 
 No broad refactor should begin until this review is complete.
 
@@ -325,13 +325,15 @@ No broad refactor should begin until this review is complete.
 - [x] **Step 1 — Source inventory:** functions, file-scope state, custom structures, direct dependencies and major coupling relationships documented in [docs/PHASE0_STEP1_CODE_INVENTORY.md](docs/PHASE0_STEP1_CODE_INVENTORY.md). Inventory snapshot: `weatherDashboard.ino` at main commit `55602880ff11e2f4091234091c25b5d23afd22dd`.
 - [x] **Step 2 — Runtime data-flow map:** startup, loop, periodic refresh, touch, rendering, network and location/time paths documented in [docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md](docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md). Static trace based on `main` commit `9721eb688c7b96ecb55e7ee00c61096e08c8fd5f`.
 - [x] **Step 3 — Build/toolchain baseline:** repository layout, direct dependencies, clean-checkout preparation, IDE/core/compiler/library versions, board options, successful compile and physical upload/boot are documented in [docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md](docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md). Verified on the Waveshare ESP32-S3 Touch LCD 2.
-- [ ] **Remaining audit —** blocking-operation review, memory measurements, documentation reconciliation, regression checklist and target module boundaries.
+- [x] **Step 4 — Blocking-operation static audit:** synchronous network paths, Wi-Fi waits/scanning, animation delays, render-triggered icon downloads and a physical measurement plan documented in [docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md). Static audit based on `main` commit `48734f4dc1443e0e830ce34154033d2e2a07f7e2`.
+- [ ] **Step 4 physical verification —** record actual operation durations and touch-service gaps on the Waveshare device; numerical responsiveness targets remain open.
+- [ ] **Remaining audit —** memory measurements, documentation reconciliation, regression checklist and final target module boundaries.
 
 Tasks:
 
 - [x] Inventory all functions, globals, shared state and dependencies in weatherDashboard.ino. See [the Step 1 inventory](docs/PHASE0_STEP1_CODE_INVENTORY.md).
 - [x] Map how setup(), loop(), touch handling, rendering, network requests and periodic updates interact. See [the Step 2 runtime map](docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md).
-- Identify all direct Wi-Fi calls, HTTP/TLS clients, API requests and blocking waits.
+- [x] Identify direct Wi-Fi calls, HTTP/TLS clients, API requests and blocking waits. See the Step 4 blocking/responsiveness audit.
 - Identify current data models, location/time ownership and persistence.
 - Map touch/gesture/drag state, metric scrolling, forecast scrolling and graph scrolling.
 - Inventory Arduino_GFX canvases, heap/PSRAM use, buffer lifetimes and allocation fallbacks.
@@ -340,14 +342,15 @@ Tasks:
 - Check documentation against actual firmware, including the demo-mode discrepancy noted above.
 - Identify code that is genuinely duplicated versus code that only looks similar.
 - Record a reproducible build and hardware regression checklist.
-- Capture useful baseline memory and responsiveness measurements where practical.
+- Capture useful baseline memory measurements.
+- [ ] Capture physical responsiveness measurements using the Step 4 test matrix; source-configured timeout values are not substitutes for measurements.
 - Produce an agreed module-boundary plan and resolve high-risk technical questions before Phase 1.
 
 **Deliverables:**
 
 1. Codebase / dependency inventory.
 2. Current architecture and data-flow description.
-3. Memory and blocking-operation review.
+3. Memory review and blocking-operation / responsiveness audit.
 4. Regression checklist and baseline build instructions.
 5. Finalised module boundaries and a refined implementation sequence.
 
@@ -590,7 +593,7 @@ When resuming work after a context reset:
 
 | Phase | Description | Status |
 |---|---|---|
-| 0 | Codebase audit and baseline | In progress — Steps 1–3 complete; remaining audit items outstanding |
+| 0 | Codebase audit and baseline | In progress — Steps 1–3 complete; Step 4 static audit complete, physical measurements and remaining audit items outstanding |
 | 1 | Project structure and shared foundations | Not started |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
@@ -607,3 +610,4 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-10-31 — Version 1.2:** Phase 0, Step 2 marked complete and linked to `docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md`. The map records startup, loop scheduling, touch arbitration, rendering, network / location / time flow and source-configured blocking operations. Remaining Phase 0 verification is still outstanding.
 - **2026-10-31 — Version 1.3:** Added the Step 3 repository-side build/toolchain audit and a placeholder-only `secrets.example.h`. Documented the Arduino sketch-folder naming constraint and clean-checkout procedure.
 - **2026-10-31 — Version 1.4:** Completed Phase 0 Step 3 after capturing the working IDE, ESP32 core, GCC toolchain, board configuration and direct library versions; a successful compile, physical upload and boot were verified on the Waveshare ESP32-S3 Touch LCD 2.
+- **2026-11-01 — Version 1.5:** Added the Phase 0 Step 4 static blocking-operation audit. Identified synchronous Wi-Fi and HTTP/TLS paths, render-triggered icon downloads and delay-based animations; added a physical measurement matrix. Hardware timing measurements remain outstanding.
