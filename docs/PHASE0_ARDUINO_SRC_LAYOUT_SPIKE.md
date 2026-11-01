@@ -26,7 +26,7 @@ The temporary sketch call to `phase0_layout_spike::linkCheck()` forces the linke
 
 ## Pass criteria
 
-- The sketch header include `phase0/CompileLayoutSpike.h` resolves.
+- The sketch header include `src/phase0/CompileLayoutSpike.h` resolves.
 - `src/phase0/CompileLayoutSpike.cpp` is compiled.
 - The final firmware image links without an undefined reference to `phase0_layout_spike::linkCheck()`.
 - The compile succeeds with the exact recorded board/toolchain configuration.
