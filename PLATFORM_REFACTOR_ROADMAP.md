@@ -5,7 +5,7 @@
 **Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 — Steps 1–3 complete; Step 4 static audit complete, hardware measurements outstanding
+**Current roadmap status:** Phase 0 — Steps 1–4 initial baseline complete; next: on-device memory/PSRAM profiling, documentation/regression review and module-boundary plan
 
 ---
 
@@ -316,7 +316,7 @@ The phases below are agreed. Keep the order unless an audit finding provides a c
 
 ### Phase 0 — Codebase audit and baseline
 
-**Status: IN PROGRESS — Steps 1–3 complete; Step 4 static audit and initial physical baseline complete; remaining Phase 0 audit work outstanding**
+**Status: IN PROGRESS — Steps 1–4 initial baseline complete; memory profiling, documentation/regression review and module-boundary plan outstanding**
 
 No broad refactor should begin until this review is complete.
 
@@ -327,7 +327,7 @@ No broad refactor should begin until this review is complete.
 - [x] **Step 3 — Build/toolchain baseline:** repository layout, direct dependencies, clean-checkout preparation, IDE/core/compiler/library versions, board options, successful compile and physical upload/boot are documented in [docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md](docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md). Verified on the Waveshare ESP32-S3 Touch LCD 2.
 - [x] **Step 4 — Blocking-operation audit and initial physical baseline:** synchronous network paths, Wi-Fi waits/scanning, animation delays and render-triggered icon downloads documented; initial startup, idle, weather, forecast and full-refresh measurements recorded in [docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md). Static audit based on `main` commit `48734f4dc1443e0e830ce34154033d2e2a07f7e2`; physical results are specific to the tested board and networks.
 - [ ] **Step 4 extended verification —** animation touch gaps, failed HTTP, Wi-Fi unavailable/loss recovery and icon cache-miss behaviour remain untested; startup stage timings and instrumented touch-to-response latency are not yet isolated.
-- [ ] **Remaining audit —** memory measurements, documentation reconciliation, regression checklist and final target module boundaries.
+- [ ] **Next — Memory/PSRAM baseline:** measure on-device heap headroom and canvas placement/size across startup, data loading, refresh and icon-cache changes.
 
 Tasks:
 
@@ -339,10 +339,10 @@ Tasks:
 - Inventory Arduino_GFX canvases, heap/PSRAM use, buffer lifetimes and allocation fallbacks.
 - [x] Inspect tracked build configuration and source-level library dependencies; document the verified gaps in [the Step 3 build/toolchain baseline](docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md).
 - [x] Capture the actual board package, toolchain, build process, library versions and successful clean-checkout build result from the working development environment.
-- Check documentation against actual firmware, including the demo-mode discrepancy noted above.
+- [x] Reconcile `DEVELOPMENT_MODE.md` with the actual firmware default (`USE_DEMO_WEATHER_DATA 0` means live mode; `1` opts into offline demo mode).
 - Identify code that is genuinely duplicated versus code that only looks similar.
 - Record a reproducible build and hardware regression checklist.
-- Capture useful baseline memory measurements.
+- [ ] Capture useful baseline memory/PSRAM measurements; this is the next Phase 0 task.
 - [x] Capture an initial physical responsiveness baseline using the [Step 4 test matrix](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md#72-test-matrix); retain outstanding fault-path and animation tests as follow-up validation.
 - Produce an agreed module-boundary plan and resolve high-risk technical questions before Phase 1.
 
@@ -576,24 +576,60 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ## 10. Handover instructions for future development sessions
 
+### Current handover — 2026-11-01
+
+This is the current project checkpoint. Recheck GitHub before acting, but use the following as the last verified state:
+
+- **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
+- **Latest verified main commit:** `4a0cde967c26c69f8cf569f55e75650af384b09f` — merge commit for PR #22.
+- **PR #22:** [Step 4 blocking/responsiveness audit](https://github.com/mdrmx/esp32-gadget/pull/22) is merged. The audit now includes the startup, idle, weather, forecast and full-refresh measurements and the reported touchscreen observations.
+- **PR #23:** [temporary Phase 0 hardware diagnostics](https://github.com/mdrmx/esp32-gadget/pull/23), branch `test/phase0-step4-diagnostics`, remains a separate temporary diagnostics change and is not part of `main`. Do not merge it into production. Reuse it only for deliberate hardware measurement work, then remove/close or otherwise retire the temporary instrumentation after the measurements are complete.
+- **Phase 0:** Steps 1–4 static/initial-baseline deliverables are complete. Phase 0 is **not** closed: the next task is the on-device memory/PSRAM baseline, followed by documentation/regression review and the final module-boundary plan.
+- **Demo mode:** the firmware currently defaults to live mode (`USE_DEMO_WEATHER_DATA 0`). `DEVELOPMENT_MODE.md` now agrees; set the macro to `1` only for offline demo development.
+- **Step 4 physical baseline:** startup was observed at 9.6 s on a fast mesh and about 10 s ±0.5 s on a slower network. Idle loop gaps were 32–33 ms; healthy weather, forecast and full-refresh operations produced maximum diagnostic loop gaps of 820–1,509 ms. The user reported no noticeable touchscreen interruption during those network tests. These are setup-specific observations, not guarantees; fault-path and animation tests remain follow-up work.
+
+### Immediate next task — memory and PSRAM baseline
+
+Before extracting modules, establish the memory budget on the physical Waveshare ESP32-S3 Touch LCD 2 using the recorded Step 3 board/toolchain configuration.
+
+1. Record total/free PSRAM, free internal 8-bit heap, largest free internal block and minimum-ever free values where supported.
+2. Record the actual framebuffer address region and requested byte size for the forecast, weather-metrics and tab-transition canvases.
+3. Capture comparable snapshots after canvas allocation, after startup location/weather/forecast loading, after repeated weather/forecast refreshes, and after an icon cache change/cache miss.
+4. Compare free-space deltas and the largest internal block; watch for cumulative loss or fragmentation rather than interpreting one snapshot in isolation.
+5. Keep this as temporary test instrumentation. Do not introduce a memory-management refactor or change canvas placement until the measurements justify it.
+
+**Important diagnostic caveat:** on the current live firmware, `USE_DEMO_WEATHER_DATA` is `0`, and the `DEBUG_PRINT` / `DEBUG_PRINTF` macros compile to no-ops in that mode. The existing `reportCanvasAllocation()` and `reportHeapSummary()` helpers use those macros, so their output is suppressed in live mode. The temporary PR #23 branch's separate `[P0DIAG]` logging does not automatically make those helper messages visible. Before relying on them, add a dedicated temporary memory-diagnostic switch or use explicit guarded `Serial.printf()` output in the diagnostics branch; do not enable noisy general debug logging or commit credentials.
+
+### Phase 0 close-out after memory profiling
+
+After the memory baseline:
+
+- Reconcile any remaining root-level setup guides against current firmware behaviour and settings.
+- Produce a concise hardware regression checklist covering display/touch, metric scrolling, forecast list/graph, navigation, clock, live weather/forecast, location fallback and offline demo mode.
+- Complete the remaining data/ownership review (weather and forecast models, location/time ownership, persistence, canvas/buffer lifetime, scroll/gesture state).
+- Agree module boundaries and the first extraction sequence using Steps 1–4 and measured memory headroom.
+- Update this roadmap and the relevant Phase 0 documents before starting Phase 1.
+
+### Standing handover procedure
+
 When resuming work after a context reset:
 
-1. Read this file first.
-2. Check the live repository, current main commit, relevant feature branches and open PRs. This file may not yet reflect work completed in a later session.
-3. Check the current firmware and related documentation rather than assuming the baseline described here is unchanged.
-4. Identify the latest completed phase and the next incomplete acceptance criteria.
-5. Confirm which implementation decisions have since been made in code, PR discussion or user instruction.
-6. Report the current state and proposed next small task before making changes.
-7. Continue from the existing branch / PR where appropriate; do not overwrite work or create a duplicate branch.
-8. Preserve the user's established workflow: complete, copy-paste-ready code when code is requested; hardware regression checks; feature branches and PRs; no unrequested merge.
+1. Read this roadmap first.
+2. Check the live repository, current `main` commit, relevant feature branches and all open PRs; this handover can become stale.
+3. Check the current firmware and related documentation rather than assuming recorded snapshots are unchanged.
+4. Identify the latest completed phase and next incomplete acceptance criteria.
+5. Confirm implementation decisions in code, PR discussion and user instruction.
+6. Report the current state and next small task before making changes.
+7. Continue from an existing branch/PR where appropriate; do not overwrite work or create a duplicate branch.
+8. Use complete, copy-paste-ready code when code is requested; run the hardware regression checks; use feature branches and PRs; **never merge without the user's explicit instruction**.
 
-**Source of truth:** the live repository is authoritative for what is implemented. This document is authoritative for the agreed direction and staged plan. If they differ, explain the difference and update the roadmap deliberately; do not silently assume either one is current.
+**Source of truth:** the live repository is authoritative for implementation. This roadmap is authoritative for the agreed direction and staged plan. If they differ, explain the discrepancy and update the roadmap deliberately rather than silently assuming either is current.
 
 ## 11. Roadmap status
 
 | Phase | Description | Status |
 |---|---|---|
-| 0 | Codebase audit and baseline | In progress — Steps 1–3 complete; Step 4 static audit and initial physical baseline complete; remaining audit and extended verification items outstanding |
+| 0 | Codebase audit and baseline | In progress — Steps 1–4 initial baseline complete; memory profiling, documentation/regression review and module-boundary plan outstanding |
 | 1 | Project structure and shared foundations | Not started |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
@@ -612,3 +648,4 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-10-31 — Version 1.4:** Completed Phase 0 Step 3 after capturing the working IDE, ESP32 core, GCC toolchain, board configuration and direct library versions; a successful compile, physical upload and boot were verified on the Waveshare ESP32-S3 Touch LCD 2.
 - **2026-11-01 — Version 1.5:** Added the Phase 0 Step 4 static blocking-operation audit. Identified synchronous Wi-Fi and HTTP/TLS paths, render-triggered icon downloads and delay-based animations; added a physical measurement matrix.
 - **2026-11-01 — Version 1.6:** Recorded initial physical startup, idle, weather, forecast and full-refresh measurements in the Step 4 audit. Captured the user's observation that touchscreen interaction remained subjectively uninterrupted during network tests, while retaining measured loop gaps as a technical finding. Marked the initial physical baseline complete; extended fault-path, animation and remaining Phase 0 audit work stay open.
+- **2026-11-01 — Version 1.7:** Updated the handover after PR #22 merged. Recorded the verified main checkpoint, temporary PR #23 status, measured Step 4 baseline, current live/demo-mode behaviour and the next task (on-device memory/PSRAM profiling). Corrected stale Step 1/2 handover notes and reconciled `DEVELOPMENT_MODE.md` with the live firmware default.
