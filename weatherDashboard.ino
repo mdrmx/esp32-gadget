@@ -11,6 +11,7 @@
 #include <esp_memory_utils.h>
 #include <stdlib.h>
 #include "secrets.h"
+#include "phase0/CompileLayoutSpike.h"
 
 // =====================================================
 // CONFIGURATION
