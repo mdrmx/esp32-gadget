@@ -5,7 +5,7 @@
 **Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete; PR #27 merged; PR #28's initial display manager passed board testing, with resource-lifecycle review fixes awaiting revalidation
+**Current roadmap status:** Phase 0 baseline complete; PR #27 merged; PR #28 display manager and lifecycle fixes verified on hardware and ready to merge
 
 ---
 
@@ -342,16 +342,17 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PR #27 merged; PR #28 initial implementation passed board testing, then received resource-lifecycle review fixes that now need revalidation**
+**Status: IN PROGRESS — PR #27 merged; PR #28 display manager and resource-lifecycle fixes have passed compile, upload and physical regression and are ready to merge**
 
 The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The first production extraction has also passed the recorded hardware validation. The next small step establishes explicit ownership of display resources without moving Weather rendering or interaction logic.
 
 **Current task:**
 
 - [x] **PR #27 — Extract `TouchSample`:** the five-field data-only type now lives in `src/input/TouchSample.h`. The firmware compiled, uploaded and passed physical input regression on the Waveshare board before merge.
-- [x] **PR #28 — Extract display ownership:** `src/hardware/DisplayManager.h` owns ST7789 initialisation, logical dimensions, the three existing canvases and tab-transition render-target selection. The initial implementation passed the user's compile, upload and physical display/input regression.
-- [ ] **PR #28 lifecycle review follow-up:** add safe ownership cleanup, failed/repeated initialisation handling and canvas replacement cleanup. These changes are committed; fresh compile and hardware revalidation are pending. Exact post-change heap figures remain unrecorded.
-- [ ] After PR #28 is built and physically checked, continue with the staged extraction sequence in [docs/PHASE0_MODULE_BOUNDARY_PLAN.md](docs/PHASE0_MODULE_BOUNDARY_PLAN.md).
+- [x] **PR #28 — Extract display ownership:** `src/hardware/DisplayManager.h` owns ST7789 initialisation, logical dimensions, the three existing canvases and tab-transition render-target selection. The extraction and all three resource-lifecycle review fixes have passed compile, upload and the reported physical display/input regression.
+- [x] **PR #28 lifecycle review follow-up:** the destructor, failed/repeated initialisation cleanup and canvas replacement cleanup are committed and revalidated on the board.
+- [ ] Record exact post-change canvas memory-region and internal-heap figures against the Phase 0 baseline when those diagnostic readings are available.
+- [ ] After PR #28 is merged, continue with the staged extraction sequence in [docs/PHASE0_MODULE_BOUNDARY_PLAN.md](docs/PHASE0_MODULE_BOUNDARY_PLAN.md).
 
 **Phase 1 tasks:**
 
@@ -576,18 +577,16 @@ Recheck GitHub before acting; this is the latest checkpoint covered by this road
 - **PR #26:** temporary Arduino `src/` compile spike is closed without merging; its compile/link result is retained in `docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md`.
 - **Phase 0:** complete. The extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups and are not being represented as completed.
 - **Phase 1:** in progress. [PR #28 — Extract display ownership](https://github.com/mdrmx/esp32-gadget/pull/28) is open as a draft on branch `phase1/02-display-manager`.
-- **PR #28 scope:** `DisplayManager` owns ST7789 setup, logical dimensions, the forecast/metrics/transition canvases and the active render-target selection. Weather drawing and interaction policies remain in the sketch. The initial implementation passed the user's compile, upload and physical regression. The resource-lifecycle review follow-up is now awaiting fresh compile and hardware revalidation; the numeric post-change memory comparison is not yet recorded.
+- **PR #28 scope:** `DisplayManager` owns ST7789 setup, logical dimensions, the forecast/metrics/transition canvases and the active render-target selection. Weather drawing and interaction policies remain in the sketch. The original implementation and subsequent resource-lifecycle review fixes have all passed the user's compile, upload and physical regression. The numeric post-change memory comparison is not yet recorded.
 - **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the local ignored `secrets.h`.
 - **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. All three current canvases were in PSRAM before this extraction. See [the memory profile](docs/PHASE0_MEMORY_PROFILE.md).
 
-### Next action — revalidate PR #28 lifecycle fixes
+### Next action — merge PR #28 after review
 
-The original display-manager extraction passed the user's compile, upload and physical display/input checks. Follow-up review changes now add destruction and failure/replacement cleanup, so the latest branch head needs a fresh Arduino Verify before merge.
+PR #28's display ownership extraction and resource-lifecycle review fixes have passed the user's latest compile, upload and physical regression checks.
 
-1. Fetch the updated `phase1/02-display-manager` branch and run Arduino IDE **Verify** with the exact Step 3 FQBN.
-2. If it compiles, upload to the Waveshare ESP32-S3 Touch LCD 2 and repeat startup, Weather/Forecast rendering, list/graph selection, scrolling and horizontal tab-transition checks.
-3. Confirm memory diagnostics still report the three canvases and compare the readings with the Phase 0 profile when available.
-4. Once the latest commit passes, merge PR #28.
+1. Review and merge [PR #28 — Extract display ownership](https://github.com/mdrmx/esp32-gadget/pull/28).
+2. Record the post-change canvas memory-region and internal-heap figures against the Phase 0 profile when available.
 
 After merge, continue with the CST816 raw touch reader extraction as the next isolated Phase 1 step. Do not combine it with gesture recognition or scroll-controller work.
 
@@ -611,7 +610,7 @@ When resuming work after a context reset:
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
-| 1 | Project structure and shared foundations | In progress — PR #27 merged; PR #28 lifecycle review fixes committed, awaiting fresh validation |
+| 1 | Project structure and shared foundations | In progress — PR #27 merged; PR #28 extraction and lifecycle fixes hardware-verified, ready to merge |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
@@ -640,3 +639,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-01 — Version 2.3:** Recorded the user's successful compile, upload and physical display/input regression for PR #28 and marked the PR ready for review. Exact post-change canvas memory-region and internal-heap figures were not supplied, so the numeric baseline comparison remains unrecorded.
 
 - **2026-11-01 — Version 2.4:** Recorded the PR #28 review follow-up: `DisplayManager` now owns and releases its resources, cleans up failed initialisation and replaces canvases without retaining the previous framebuffer. Concrete Arduino_GFX display and SPI bus pointer types are retained for safe deletion because the installed library's abstract base types do not declare virtual destructors. The initial extraction had passed board tests; the lifecycle follow-up awaits fresh Verify and hardware revalidation.
+
+- **2026-11-01 — Version 2.5:** Recorded successful revalidation of PR #28 after the resource-lifecycle review fixes. The updated firmware compiled, uploaded and passed the reported physical display/input regression; PR #28 is ready to merge. Exact post-change memory diagnostic figures remain unrecorded.
