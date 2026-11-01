@@ -11,11 +11,13 @@ public:
   explicit Cst816Reader(TwoWire& wire = Wire)
     : wire_(wire) {}
 
-  bool begin() {
+  bool begin(bool initBus = true) {
     available_ = false;
 
-    wire_.begin(TOUCH_SDA_PIN, TOUCH_SCL_PIN);
-    wire_.setClock(I2C_CLOCK_HZ);
+    if (initBus) {
+      wire_.begin(TOUCH_SDA_PIN, TOUCH_SCL_PIN);
+      wire_.setClock(I2C_CLOCK_HZ);
+    }
 
     wire_.beginTransmission(TOUCH_ADDRESS);
     available_ = wire_.endTransmission() == 0;
@@ -35,7 +37,7 @@ public:
 
     uint8_t data[SAMPLE_SIZE];
     const uint8_t sampleSize = sizeof(data);
-    const uint8_t received = wire_.requestFrom(
+    const size_t received = wire_.requestFrom(
       (uint8_t)TOUCH_ADDRESS,
       sampleSize);
     if (received != sampleSize) {
