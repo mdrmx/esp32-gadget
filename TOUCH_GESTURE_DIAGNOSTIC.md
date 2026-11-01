@@ -11,7 +11,9 @@ The CST816 register values must be measured on the actual screen orientation. Do
 
 ## Capture procedure
 
-With the current firmware running, open Serial Monitor at 115200 baud and record the `Touch raw gesture: 0xNN` line for each gesture, performing only one gesture at a time:
+The current live-mode default (`USE_DEMO_WEATHER_DATA 0`) compiles the normal `DEBUG_PRINT` / `DEBUG_PRINTF` macros to no-ops. To use this guide's gesture log, temporarily set `USE_DEMO_WEATHER_DATA 1`, compile and upload, then open Serial Monitor at 115200 baud. Demo mode keeps the UI interaction available but disables live Wi-Fi, location, time and weather requests. Restore `0` and recompile after the diagnostic session. Do not enable or publish credentials just to obtain gesture logs.
+
+Record the `Touch raw gesture: 0xNN` line for each gesture, performing only one gesture at a time:
 
 1. Right to left, while on current weather.
 2. Left to right, while on forecast.
