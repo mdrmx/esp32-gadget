@@ -1,6 +1,6 @@
 # Phase 0, Step 4 — Blocking-operation and responsiveness audit
 
-**Status:** Static blocking-operation audit complete; physical timing measurements outstanding  
+**Status:** Static audit and initial physical baseline complete; extended fault-path and animation measurements outstanding  
 **Roadmap:** [Platform Refactor Roadmap](../PLATFORM_REFACTOR_ROADMAP.md)  
 **Repository:** `mdrmx/esp32-gadget`  
 **Source file:** `weatherDashboard.ino`  
@@ -25,7 +25,7 @@ The audit is based on a complete static inspection of `weatherDashboard.ino` at 
 - The configured timeout values and their limitations.
 - A repeatable physical-device measurement procedure.
 
-This is a **source-level audit**. No physical timing measurements were available during this document's preparation. Configured timeout values are not reported as observed durations or guaranteed end-to-end upper bounds. No firmware behaviour is changed by this audit.
+This is a **source-level audit supplemented by initial physical measurements** on the target board. The recorded timings are observations from the tested hardware and network environments, not guaranteed bounds or universal performance targets. Configured timeout values are not reported as observed durations or guaranteed end-to-end upper bounds. No firmware behaviour is changed by this audit.
 
 ## 2. Executive findings
 
@@ -194,7 +194,7 @@ These priorities identify architectural risk, not a prescribed implementation. T
 
 ## 7. Physical-device measurement plan
 
-The static audit does not contain observed latency measurements. Complete the following tests on the Waveshare ESP32-S3 Touch LCD 2 before setting numerical responsiveness targets.
+The following initial measurements were captured on the Waveshare ESP32-S3 Touch LCD 2 using the temporary Phase 0 diagnostic build. They establish a useful baseline, but do not constitute exhaustive fault-path testing or justify fixed responsiveness targets.
 
 ### 7.1 Test conditions to record
 
@@ -241,22 +241,48 @@ Use `millis()` for millisecond-scale durations and `micros()` where a shorter di
 
 ### 7.4 Measurement record
 
-No hardware measurements have been recorded in this audit yet.
+Measurements below were captured on the Waveshare ESP32-S3 Touch LCD 2 using the temporary Phase 0 diagnostic build. Values are observed run results, not guaranteed upper bounds.
 
-| Scenario | Runs | Observed duration | Maximum touch gap | Notes |
+#### Startup
+
+| Scenario | Runs | Reset to usable screen | Notes |
+|---|---:|---:|---|
+| Fast mesh network with multiple repeaters | 1 reported measurement | 9.6 s | User described the network as very fast; mesh topology and repeater selection make this environment-specific |
+| Second, slower network | 1 reported measurement | 10 s ± 0.5 s | Wi-Fi connection appeared almost immediate despite lower network speed |
+
+The near-identical startup times across these two networks suggest that internet throughput and the perceived Wi-Fi association delay are not the dominant determinants of total startup time. This is an inference, not a measured breakdown. The stopwatch measurement covers reset through the screen becoming usable; it does **not** isolate Wi-Fi association, DHCP, time sync, location resolution, weather requests or first render. Stage-level startup instrumentation would be needed to attribute the delay.
+
+#### Main-loop and network operations
+
+| Scenario | Runs | Operation duration | Maximum touch-poll gap / loop duration | Notes |
 |---|---:|---:|---:|---|
-| Idle baseline | Pending | Pending | Pending | |
-| Metric animation | Pending | Pending | Pending | |
-| Tab transition | Pending | Pending | Pending | |
-| Healthy refresh | Pending | Pending | Pending | |
-| Failed HTTP request | Pending | Pending | Pending | |
-| Wi-Fi unavailable at startup | Pending | Pending | Pending | |
-| Wi-Fi loss while running | Pending | Pending | Pending | |
-| Wi-Fi scan / location | Pending | Pending | Pending | |
-| Icon cache miss | Pending | Pending | Pending | |
-| Cached icon redraw | Pending | Pending | Pending | |
+| Idle baseline | 2 summaries | — | 32–33 ms | 323 loops per 10 s in one summary; 323 in the other |
+| Weather refresh | 2 | 718 ms; 726 ms | 820 ms; 829 ms | Wi-Fi already connected (0 ms); icon cache hit (0 ms) |
+| Forecast refresh | 1 | 907 ms total | 1,048 ms | Page 1: 846 ms; page 2: 61 ms |
+| Full refresh | 1 | 1,369 ms combined | 1,509 ms | Weather: 724 ms; forecast: 645 ms (pages 578 ms + 66 ms) |
+| Wi-Fi location lookup | 1 startup log | 3,076 ms | Not separately recorded | Includes synchronous scan and Google positioning request; scan found 12 networks, 6 usable BSSIDs |
+| Reverse geocoding | 1 startup log | 389 ms | Not separately recorded | Followed successful Google Wi-Fi positioning |
+| Time API request | 1 startup log | 507 ms | Not separately recorded | Captured during startup connection flow |
 
-Do not mark the physical measurement portion complete until these results have been captured from the target device.
+Loop/touch figures are diagnostic maximum gaps over the reported 10-second summary windows. The diagnostic measures loop-entry/touch-poll opportunity cadence; it is not a direct measurement of physical touch-to-visible-response latency.
+
+#### Observed interaction during network tests
+
+The user continuously touched the screen during the weather, forecast and full-refresh tests and reported **no noticeable interruption to touchscreen interaction**. This is an important qualitative observation, but it does not negate the measured loop gaps. Touch-controller behaviour, the type/timing of gestures and the display's retained image may affect perceived responsiveness. No instrumented touch-to-response latency was captured.
+
+#### Remaining physical tests
+
+| Scenario | Status | Notes |
+|---|---|---|
+| Metric animation | Pending | Measure animation duration and touch gap |
+| Tab transition | Pending | Measure transition duration and touch gap |
+| Failed HTTP request | Pending | Controlled failure path not tested |
+| Wi-Fi unavailable at startup | Pending | Association timeout / recovery not tested |
+| Wi-Fi loss while running | Pending | Runtime reconnection not tested |
+| Icon cache miss | Pending | Only cached icon path observed (0 ms) |
+| Cached icon redraw | Observed | Cache check reported 0 ms during weather tests; full redraw behaviour not separately timed |
+
+The initial healthy-operation and startup baseline is sufficient to document current behaviour and proceed with the next planned work. Keep the outstanding fault-path and animation tests as follow-up validation rather than treating them as completed.
 
 ## 8. Recommended boundaries before Phase 1
 
@@ -286,16 +312,19 @@ Potential implementation approaches include a cooperative state machine, a bound
 
 ### Physical verification
 
-- [ ] Record idle touch/input baseline.
+- [x] Record initial idle loop/touch-poll baseline.
 - [ ] Measure animation and tab-transition touch gaps.
-- [ ] Measure healthy and failed HTTP request durations.
-- [ ] Measure Wi-Fi association and scan durations.
-- [ ] Measure full startup and periodic refresh durations.
-- [ ] Measure icon cache-miss and cached redraw behaviour.
-- [ ] Record results and agree numerical responsiveness targets.
+- [x] Measure healthy weather, forecast and full-refresh durations.
+- [ ] Measure failed HTTP request duration and touch gap.
+- [ ] Isolate Wi-Fi association and scan durations; startup stopwatch result is end-to-end only.
+- [x] Measure full startup and healthy periodic refresh durations.
+- [x] Record qualitative touchscreen interaction during healthy network operations.
+- [ ] Measure icon cache-miss behaviour; cached icon path observed at 0 ms.
+- [x] Record initial results and identify limits of the measurements.
 
-**Step 4 status remains in progress until the physical verification items are complete.** The static audit is complete, but the device measurements cannot be inferred from source configuration.
+**Step 4 static audit and initial physical baseline are complete.** Extended fault-path, animation and icon-cache-miss measurements remain follow-up validation. The recorded healthy-operation timings are observations from the tested setup, not universal targets.
 
 ## 10. Change history
 
-- **2026-11-01 — Version 1.0:** Initial static blocking-operation and responsiveness audit against `main` commit `48734f4`. Records synchronous network paths, Wi-Fi waits/scanning, animation delays, render-triggered icon downloads, a physical measurement plan and provisional architecture priorities. No firmware code changed; physical measurements remain outstanding.
+- **2026-11-01 — Version 1.0:** Initial static blocking-operation and responsiveness audit against `main` commit `48734f4`. Records synchronous network paths, Wi-Fi waits/scanning, animation delays, render-triggered icon downloads, a physical measurement plan and provisional architecture priorities. No firmware code changed.
+- **2026-11-01 — Version 1.1:** Added initial target-device measurements: reset-to-usable startup of 9.6 s on a fast mesh and approximately 10 s ± 0.5 s on a slower network; idle loop gaps of 32–33 ms; weather, forecast and full-refresh timings; Wi-Fi location and time-sync observations; and the user's report of no noticeable touchscreen interruption during network tests. Clarified that startup timing is end-to-end and that maximum loop gaps are not direct touch-to-response measurements. Extended fault-path, animation and icon-cache-miss tests remain outstanding.
