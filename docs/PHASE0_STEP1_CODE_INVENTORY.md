@@ -462,7 +462,7 @@ The repository tree at the time included:
 6. Can the full touch interaction state machine be documented from touch-down through drag, release, suppression and controller gesture dispatch?
 7. Which duplicated scroll behaviours are truly common, and which are graph/list-specific by design?
 8. Which source files and build layout can be introduced without disrupting the current Arduino build workflow?
-9. What current documentation is stale or inaccurate? In particular, `weatherDashboard.ino` currently defines `USE_DEMO_WEATHER_DATA 0`, while `DEVELOPMENT_MODE.md` says that 1 is the current default.
+9. What current documentation is stale or inaccurate? The previously identified `USE_DEMO_WEATHER_DATA` default-mode discrepancy has been resolved: `DEVELOPMENT_MODE.md` now describes `0` as the live-mode default and `1` as opt-in offline demo mode. Continue checking other setup guides against the live firmware.
 
 ## 12. Step 1 completion and handover
 
@@ -479,3 +479,5 @@ Phase 0 itself remains open. The next planned activity is to capture a repeatabl
 For current branch, PR and diagnostic status, read the **Handover instructions** and latest status in [the Platform Refactor Roadmap](../PLATFORM_REFACTOR_ROADMAP.md). Treat the live repository as authoritative; this inventory describes the recorded source snapshot and is not a substitute for checking current code.
 
 No firmware source was changed as part of this inventory.
+
+**Documentation handover update (2026-11-01):** the original Step 2 next-action note has been replaced with the current Phase 0 handover. Steps 2–4 are now complete to the extent recorded in their own documents; the next planned baseline task is on-device memory/PSRAM profiling.
