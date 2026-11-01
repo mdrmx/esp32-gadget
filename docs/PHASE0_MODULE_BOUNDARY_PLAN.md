@@ -196,7 +196,7 @@ This is a candidate, not a mandate to create all files at once. Validate Arduino
 
 Each item should be its own reviewable PR and keep runtime behaviour unchanged unless a specific change is separately agreed.
 
-1. **Build/layout spike and value types.** Validate one small header and one `src/` implementation with the exact IDE/FQBN. Move only low-risk value types/configuration; compile before continuing.
+1. **Build/layout spike and value types.** The Arduino `src/` compile/link spike has passed. The first real value-type extraction is now in [PR #27](https://github.com/mdrmx/esp32-gadget/pull/27): `TouchSample` moves into `src/input/TouchSample.h` with all readers, gesture mappings and view state unchanged. Compile, upload and physical input regression are pending before this extraction is accepted.
 2. **Display ownership.** Encapsulate display initialisation, dimensions and canvas lifetime/fallback. Replace implicit global render-target mutation with explicit target ownership. Compare canvas-region and heap figures with the memory profile.
 3. **Raw touch reader.** Move CST816 register access and raw sample decoding behind a small reader. Do not change gesture mappings.
 4. **Gesture/interaction separation.** Extract gesture recognition and ownership incrementally. Retain the distinct metric, forecast-list and graph interaction states; test after each movement.
