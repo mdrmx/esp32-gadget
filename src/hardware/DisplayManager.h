@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Arduino.h>
 #include <Arduino_GFX_Library.h>
 
 // Owns the ST7789 display, its render target and the Weather app's current
@@ -78,7 +79,14 @@ private:
     LCD_HEIGHT = 320
   };
 
-  bool createCanvas(Arduino_Canvas*& canvas,int width,int height,int x,int y) {
+  bool createCanvas(
+    Arduino_Canvas*& canvas,
+    int width,
+    int height,
+    int x,
+    int y
+  ) {
+    if (display_ == nullptr) return false;
     canvas = new Arduino_Canvas(width, height, display_, x, y, 0);
     if (canvas == nullptr || !canvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
       delete canvas;
