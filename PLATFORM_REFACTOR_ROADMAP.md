@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 2.2  
+**Version:** 2.9  
 **Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete; PRs #27 and #28 merged and hardware-verified; PR #29 CST816 raw reader review fixes committed, pending fresh validation
+**Current roadmap status:** Phase 0 baseline complete; PRs #27, #28 and #29 hardware-verified; PR #29 is ready to merge
 
 ---
 
@@ -342,7 +342,7 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PRs #27 and #28 merged after compile/upload/physical regression; PR #29 CST816 reader review fixes are committed, pending fresh validation**
+**Status: IN PROGRESS — PRs #27, #28 and #29 have passed compile/upload/physical regression; PR #29 is ready to merge**
 
 The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample` and display ownership extractions have passed hardware validation and are merged. The current step isolates CST816 I2C acquisition without changing Weather gesture or interaction behaviour.
 
@@ -351,7 +351,7 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
 - [x] **PR #27 — Extract `TouchSample`:** the five-field data-only type now lives in `src/input/TouchSample.h`. The firmware compiled, uploaded and passed physical input regression on the Waveshare board before merge.
 - [x] **PR #28 — Extract display ownership:** `src/hardware/DisplayManager.h` owns ST7789 initialisation, logical dimensions, the three existing canvases and tab-transition render-target selection. It is merged at `31029cc4f3b9902bdc038ad1aab721b397ef4bc6` after the extraction and resource-lifecycle review fixes passed compile, upload and physical display/input regression.
 - [ ] Record exact post-change canvas memory-region and internal-heap figures against the Phase 0 baseline when those diagnostic readings are available.
-- [ ] **PR #29 — Extract CST816 raw reader:** move I2C setup, device detection and raw sample decoding into `src/hardware/Cst816Reader.h`; keep gesture interpretation and view-specific state in Weather. Compile, upload and physical input regression are pending after review fixes. `Cst816Reader::begin(bool initBus = true)` now allows callers to skip bus setup when sharing an already-initialised `TwoWire`, while preserving the current default behaviour. The `requestFrom()` result is stored as `size_t`.
+- [x] **PR #29 — Extract CST816 raw reader:** move I2C setup, device detection and raw sample decoding into `src/hardware/Cst816Reader.h`; keep gesture interpretation and view-specific state in Weather. The user confirmed successful compile, upload and physical input regression after review fixes. `Cst816Reader::begin(bool initBus = true)` allows callers to skip bus setup when sharing an already-initialised `TwoWire`, while preserving current default behaviour. The `requestFrom()` result is stored as `size_t`.
 
 **Phase 1 tasks:**
 
@@ -562,7 +562,7 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ## 10. Handover instructions for future development sessions
 
-### Current handover — 2026-11-01 (Phase 1 CST816 reader in progress)
+### Current handover — 2026-11-01 (Phase 1 CST816 reader verified; PR #29 ready to merge)
 
 Recheck GitHub before acting; this is the latest checkpoint covered by this roadmap.
 
@@ -576,19 +576,14 @@ Recheck GitHub before acting; this is the latest checkpoint covered by this road
 - **PR #23:** temporary hardware diagnostics is closed without merging; its reusable measurements are recorded in the Phase 0 docs.
 - **PR #26:** temporary Arduino `src/` compile spike is closed without merging; its compile/link result is retained in `docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md`.
 - **Phase 0:** complete. Extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups.
-- **Phase 1:** in progress. [PR #29 — Extract CST816 raw touch reader](https://github.com/mdrmx/esp32-gadget/pull/29) is open as a draft on branch `phase1/03-cst816-reader`.
-- **PR #29 scope:** move I2C initialisation, CST816 presence detection and six-byte sample acquisition/decoding to `src/hardware/Cst816Reader.h`. Keep `TouchSample`, coordinate mapping, gesture codes, drag ownership, suppression and Weather view actions unchanged. Compile/upload/input regression are pending.
+- **Phase 1:** in progress. [PR #29 — Extract CST816 raw touch reader](https://github.com/mdrmx/esp32-gadget/pull/29) has passed the user's compile, upload and physical regression after review fixes and is ready to merge from branch `phase1/03-cst816-reader`.
+- **PR #29 scope:** move I2C initialisation, CST816 presence detection and six-byte sample acquisition/decoding to `src/hardware/Cst816Reader.h`. Keep `TouchSample`, coordinate mapping, gesture codes, drag ownership, suppression and Weather view actions unchanged. The user confirmed the updated branch compiles, uploads and passes the physical input regression.
 - **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the ignored local `secrets.h`.
 - **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. All three display canvases remain in PSRAM by the pre-extraction baseline.
 
-### Next action — validate PR #29
+### Next action — close PR #29
 
-1. Fetch `phase1/03-cst816-reader` and open the sketch from a local folder named `weatherDashboard`.
-2. Run Arduino IDE **Verify** using IDE 2.3.10, ESP32 core 3.3.12 and the exact recorded ESP32-S3 FQBN.
-3. If compilation succeeds, upload to the Waveshare ESP32-S3 Touch LCD 2.
-4. Check CST816 detection at address `0x15`, raw touch sampling, horizontal tab swipes, metric vertical drag, forecast-list drag, graph hold/drag, release and existing gesture-suppression behaviour.
-5. Confirm a missing/unavailable controller still disables polling cleanly, as before.
-6. Report compile and physical regression results before merging. Do not merge PR #29 until the latest branch head passes and I explicitly say it is ready.
+The latest branch head has passed the user's compile, upload and physical input regression after the two code-review fixes. Merge PR #29, then remove the feature branch. Do not start gesture/interaction extraction in this session; that is the next Phase 1 task for the next development session.
 
 Do not combine this raw-reader extraction with gesture recognition, interaction arbitration or scroll-controller changes.
 
@@ -612,7 +607,7 @@ When resuming work after a context reset:
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
-| 1 | Project structure and shared foundations | In progress — PRs #27 and #28 merged and hardware-verified; CST816 reader in PR #29 pending validation |
+| 1 | Project structure and shared foundations | In progress — PRs #27 and #28 merged; PR #29 hardware-verified and ready to merge |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
@@ -649,3 +644,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-01 — Version 2.7:** Confirmed PR #28 is merged and `main` is at merge commit `31029cc4f3b9902bdc038ad1aab721b397ef4bc6`. Opened draft PR #29 for the isolated CST816 raw-reader extraction; compilation and physical input regression are pending.
 
 - **2026-11-01 — Version 2.8:** Addressed PR #29 review comments in commit `d787bef1c8a112f9c59a1c9c7bfefd35faa5575d`: added optional bus initialisation with `begin(bool initBus = true)` and changed the `requestFrom()` result variable to `size_t`. Both inline review comments received replies. Fresh compile/upload/physical regression after these changes remains pending.
+
+- **2026-11-01 — Version 2.9:** Recorded the user's successful Verify, upload and full physical input regression for PR #29 after review fixes. PR #29 is ready to merge; the next Phase 1 task remains gesture/interaction separation and is intentionally deferred to the next session.
