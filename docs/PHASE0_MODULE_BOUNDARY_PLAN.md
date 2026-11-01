@@ -198,7 +198,7 @@ Each item should be its own reviewable PR and keep runtime behaviour unchanged u
 
 1. **Build/layout spike and value types.** The Arduino `src/` compile/link spike has passed. The first real value-type extraction, [PR #27](https://github.com/mdrmx/esp32-gadget/pull/27), moved the data-only `TouchSample` into `src/input/TouchSample.h`. It passed compilation, upload and physical input regression on the Waveshare board and is merged into `main`.
 2. **Display ownership.** Encapsulate ST7789 initialisation, logical dimensions, canvas allocation/lifetime/fallback and render-target selection. [PR #28](https://github.com/mdrmx/esp32-gadget/pull/28) implements this boundary in `src/hardware/DisplayManager.h`; Weather drawing and interaction remain in the sketch. The initial extraction and subsequent resource-lifecycle review fixes have both passed compilation, upload and physical display/input regression on the Waveshare board. Exact post-change heap figures were not supplied, so the numeric comparison with the Phase 0 memory profile remains unrecorded.
-3. **Raw touch reader.** Move CST816 register access and raw sample decoding behind a small reader. Do not change gesture mappings.
+3. **Raw touch reader.** [PR #29](https://github.com/mdrmx/esp32-gadget/pull/29) moves CST816 I2C setup, presence probing and six-byte raw sample decoding into `src/hardware/Cst816Reader.h`. The Weather polling loop delegates to the reader; coordinate conversion, gesture codes, interaction state and suppression remain in the sketch. Compile, upload and physical input regression are pending.
 4. **Gesture/interaction separation.** Extract gesture recognition and ownership incrementally. Retain the distinct metric, forecast-list and graph interaction states; test after each movement.
 5. **Scroll mechanics.** Extract only common bounded drag/overscroll/snap calculations. Keep hit testing, graph hold/selection and per-view state in Weather.
 6. **Time and location boundaries.** Introduce explicit service results and keep device time separate from forecast-local offset. Preserve provider priority and existing fallbacks.
@@ -236,6 +236,7 @@ Phase 1 has started. The agreed ownership plan and regression checklist are the 
 - [x] PR #27 — `TouchSample` value-type extraction compiled, uploaded and passed physical input regression before merge.
 - [x] PR #28 display ownership extraction and resource-lifecycle review fixes compiled, uploaded and passed the reported physical display/input regression.
 - [ ] Record the post-change canvas memory-region and internal-heap figures for PR #28 against the Phase 0 memory profile when those diagnostic readings are available.
+- [ ] PR #29 — compile, upload and test the CST816 reader extraction. Gesture mapping, raw-to-screen conversion, drag behaviour and suppression must remain unchanged.
 - [ ] Each subsequent extraction PR documents its scope, behaviour-preservation checks, expected memory impact and rollback point.
 
 Phase 1 acceptance remains: firmware compiles and runs on the existing board, Weather behaviour is unchanged, regression checks pass, credentials stay untracked and memory use is compared against the Phase 0 profile.
