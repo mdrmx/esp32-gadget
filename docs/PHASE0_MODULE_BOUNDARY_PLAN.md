@@ -196,8 +196,8 @@ This is a candidate, not a mandate to create all files at once. Validate Arduino
 
 Each item should be its own reviewable PR and keep runtime behaviour unchanged unless a specific change is separately agreed.
 
-1. **Build/layout spike and value types.** The Arduino `src/` compile/link spike has passed. The first real value-type extraction is now in [PR #27](https://github.com/mdrmx/esp32-gadget/pull/27): `TouchSample` moves into `src/input/TouchSample.h` with all readers, gesture mappings and view state unchanged. Compile, upload and physical input regression are pending before this extraction is accepted.
-2. **Display ownership.** Encapsulate display initialisation, dimensions and canvas lifetime/fallback. Replace implicit global render-target mutation with explicit target ownership. Compare canvas-region and heap figures with the memory profile.
+1. **Build/layout spike and value types.** The Arduino `src/` compile/link spike has passed. The first real value-type extraction, [PR #27](https://github.com/mdrmx/esp32-gadget/pull/27), moved the data-only `TouchSample` into `src/input/TouchSample.h`. It passed compilation, upload and physical input regression on the Waveshare board and is merged into `main`.
+2. **Display ownership.** Encapsulate ST7789 initialisation, logical dimensions, canvas allocation/lifetime/fallback and render-target selection. [PR #28](https://github.com/mdrmx/esp32-gadget/pull/28) implements this boundary in `src/hardware/DisplayManager.h`; Weather drawing and interaction remain in the sketch. The initial extraction and subsequent resource-lifecycle review fixes have both passed compilation, upload and physical display/input regression on the Waveshare board. Exact post-change heap figures were not supplied, so the numeric comparison with the Phase 0 memory profile remains unrecorded.
 3. **Raw touch reader.** Move CST816 register access and raw sample decoding behind a small reader. Do not change gesture mappings.
 4. **Gesture/interaction separation.** Extract gesture recognition and ownership incrementally. Retain the distinct metric, forecast-list and graph interaction states; test after each movement.
 5. **Scroll mechanics.** Extract only common bounded drag/overscroll/snap calculations. Keep hit testing, graph hold/selection and per-view state in Weather.
@@ -227,14 +227,15 @@ Non-goals for the first refactor:
 - No unconditional large buffer allocation for future apps.
 - No commitment to a cellular transport implementation before hardware is selected.
 
-## 8. Phase 1 entry criteria
+## 8. Phase 1 acceptance and ongoing checks
 
-Before the first extraction PR:
+Phase 1 has started. The agreed ownership plan and regression checklist are the working baseline for each extraction PR.
 
-- [ ] User reviews/accepts this ownership plan.
-- [ ] User reviews the regression checklist and confirms the current behaviour baseline.
-- [x] A compile-only spike confirms the proposed module layout under the recorded Arduino IDE and FQBN. Header inclusion and `.cpp` compile/link were verified on 2026-11-01; see [the compile spike record](PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md).
-- [x] The Step 4 diagnostic touch-gap reporting caveat is explicitly retained as a limitation in the permanent audit and memory profile. The 31 ms full-refresh result is not treated as an acceptance measurement.
-- [ ] The first extraction PR names its owner, behaviour-preservation checks, expected memory impact and rollback point.
+- [x] The Arduino `src/` layout compile/link spike passed under the recorded IDE and FQBN; see [the compile spike record](PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md).
+- [x] The Step 4 diagnostic touch-gap reporting caveat is retained in the permanent audit and memory profile. The 31 ms full-refresh result is not treated as an acceptance measurement.
+- [x] PR #27 — `TouchSample` value-type extraction compiled, uploaded and passed physical input regression before merge.
+- [x] PR #28 display ownership extraction and resource-lifecycle review fixes compiled, uploaded and passed the reported physical display/input regression.
+- [ ] Record the post-change canvas memory-region and internal-heap figures for PR #28 against the Phase 0 memory profile when those diagnostic readings are available.
+- [ ] Each subsequent extraction PR documents its scope, behaviour-preservation checks, expected memory impact and rollback point.
 
 Phase 1 acceptance remains: firmware compiles and runs on the existing board, Weather behaviour is unchanged, regression checks pass, credentials stay untracked and memory use is compared against the Phase 0 profile.

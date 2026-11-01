@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include "secrets.h"
 #include "src/input/TouchSample.h"
+#include "src/hardware/DisplayManager.h"
 
 // =====================================================
 // CONFIGURATION
@@ -68,33 +69,8 @@ const unsigned long TIME_API_SYNC_INTERVAL = 6UL * 60UL * 60UL * 1000UL;
 // DISPLAY
 // =====================================================
 
-#define LCD_SCLK 39
-#define LCD_MOSI 38
-#define LCD_MISO 40
-#define LCD_DC 42
-#define LCD_RST -1
-#define LCD_CS 45
-#define LCD_BL 1
-
-#define LCD_ROTATION 1
-#define LCD_WIDTH 240
-#define LCD_HEIGHT 320
-
-Arduino_DataBus* bus = new Arduino_ESP32SPI(
-  LCD_DC, LCD_CS, LCD_SCLK, LCD_MOSI, LCD_MISO);
-
-Arduino_GFX* gfx = new Arduino_ST7789(
-  bus, LCD_RST, LCD_ROTATION, true, LCD_WIDTH, LCD_HEIGHT);
-
-// Buffered forecast viewport used to render each scroll frame off-screen,
-// then send it to the ST7789 as one bitmap transfer.
-Arduino_Canvas* forecastCanvas = nullptr;
-Arduino_Canvas* weatherMetricsCanvas = nullptr;
-Arduino_Canvas* tabTransitionCanvas = nullptr;
-bool renderingTabTransition = false;
-
-int screenW = 320;
-int screenH = 240;
+// Owns the physical display, render target, dimensions and off-screen buffers.
+DisplayManager displayManager;
 
 // =====================================================
 // TOUCH
@@ -288,41 +264,41 @@ int currentTab = 0;
 // =====================================================
 
 void drawText(const String& text, int x, int y, uint8_t size, uint16_t colour) {
-  gfx->setTextSize(size);
-  gfx->setTextColor(colour);
-  gfx->setCursor(x, y);
-  gfx->print(text);
+  displayManager.target()->setTextSize(size);
+  displayManager.target()->setTextColor(colour);
+  displayManager.target()->setCursor(x, y);
+  displayManager.target()->print(text);
 }
 
 void drawCenteredText(const String& text, int y, uint8_t size, uint16_t colour) {
-  gfx->setTextSize(size);
-  gfx->setTextColor(colour);
+  displayManager.target()->setTextSize(size);
+  displayManager.target()->setTextColor(colour);
 
   int16_t x1, y1;
   uint16_t w, h;
-  gfx->getTextBounds(text.c_str(), 0, y, &x1, &y1, &w, &h);
+  displayManager.target()->getTextBounds(text.c_str(), 0, y, &x1, &y1, &w, &h);
 
-  int x = (screenW - (int)w) / 2;
+  int x = (displayManager.width() - (int)w) / 2;
   if (x < 4) x = 4;
-  if (x + (int)w > screenW - 4) x = screenW - 4 - w;
+  if (x + (int)w > displayManager.width() - 4) x = displayManager.width() - 4 - w;
 
-  gfx->setCursor(x, y);
-  gfx->print(text);
+  displayManager.target()->setCursor(x, y);
+  displayManager.target()->print(text);
 }
 
 int measureTextWidth(const String& text, uint8_t size) {
-  gfx->setTextSize(size);
+  displayManager.target()->setTextSize(size);
   int16_t x1, y1;
   uint16_t w, h;
-  gfx->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &w, &h);
+  displayManager.target()->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &w, &h);
   return (int)w;
 }
 
 int measureTextHeight(const String& text, uint8_t size) {
-  gfx->setTextSize(size);
+  displayManager.target()->setTextSize(size);
   int16_t x1, y1;
   uint16_t w, h;
-  gfx->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &w, &h);
+  displayManager.target()->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &w, &h);
   return (int)h;
 }
 
@@ -383,8 +359,8 @@ int drawWrappedCenteredText(
   }
   if (lineCount == 0) return 0;
 
-  gfx->setTextSize(size);
-  gfx->setTextColor(colour);
+  displayManager.target()->setTextSize(size);
+  displayManager.target()->setTextColor(colour);
   int lineHeight = measureTextHeight(lines[0], size);
   if (lineHeight <= 0) lineHeight = 8 * size;
 
@@ -404,10 +380,10 @@ int drawCenteredWeatherLine(
   uint8_t size,
   uint16_t colour
 ) {
-  gfx->setTextSize(size);
+  displayManager.target()->setTextSize(size);
   int16_t x1, y1;
   uint16_t width, height;
-  gfx->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &width, &height);
+  displayManager.target()->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &width, &height);
   drawText(text, centreX - (int)width / 2, y, size, colour);
   return height > 0 ? (int)height : 8 * size;
 }
@@ -508,16 +484,16 @@ String getHeaderLocationText() {
 }
 
 void drawHeaderClockOnly(const String& clockText) {
-  gfx->fillRect(screenW - 78, 0, 78, 36, PANEL);
+  displayManager.target()->fillRect(displayManager.width() - 78, 0, 78, 36, PANEL);
 
-  gfx->setTextSize(2);
-  gfx->setTextColor(ACCENT);
+  displayManager.target()->setTextSize(2);
+  displayManager.target()->setTextColor(ACCENT);
   int16_t x1, y1;
   uint16_t w, h;
-  gfx->getTextBounds(clockText.c_str(), 0, 10, &x1, &y1, &w, &h);
-  int x = screenW - 10 - (int)w;
-  if (x < screenW - 70) {
-    x = screenW - 70;
+  displayManager.target()->getTextBounds(clockText.c_str(), 0, 10, &x1, &y1, &w, &h);
+  int x = displayManager.width() - 10 - (int)w;
+  if (x < displayManager.width() - 70) {
+    x = displayManager.width() - 70;
   }
   drawText(clockText, x, 10, 2, ACCENT);
   lastHeaderClock = clockText;
@@ -683,30 +659,30 @@ void initialiseTimeZone() {
 // =====================================================
 
 void drawHeader() {
-  gfx->fillRect(0, 0, screenW, 36, PANEL);
+  displayManager.target()->fillRect(0, 0, displayManager.width(), 36, PANEL);
 
   String locationLabel = getHeaderLocationText();
   drawText(locationLabel, 10, 10, 2, UI_WHITE);
 
   String clockText = getHeaderClockText();
-  gfx->setTextSize(2);
+  displayManager.target()->setTextSize(2);
   int16_t x1, y1;
   uint16_t w, h;
-  gfx->getTextBounds(clockText.c_str(), 0, 10, &x1, &y1, &w, &h);
-  int x = screenW - 10 - (int)w;
-  if (x < screenW - 70) {
-    x = screenW - 70;
+  displayManager.target()->getTextBounds(clockText.c_str(), 0, 10, &x1, &y1, &w, &h);
+  int x = displayManager.width() - 10 - (int)w;
+  if (x < displayManager.width() - 70) {
+    x = displayManager.width() - 70;
   }
   drawText(clockText, x, 10, 2, ACCENT);
   lastHeaderClock = clockText;
 
-  gfx->drawFastHLine(0, 36, screenW, ACCENT);
+  displayManager.target()->drawFastHLine(0, 36, displayManager.width(), ACCENT);
 }
 
 void drawTabIndicator() {
-  int y = screenH - 8;
-  gfx->fillRoundRect(screenW / 2 - 24, y, 48, 4, 2, PANEL);
-  gfx->fillRoundRect(screenW / 2 - 24 + (currentTab * 24), y, 24, 4, 2, UI_YELLOW);
+  int y = displayManager.height() - 8;
+  displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24, y, 48, 4, 2, PANEL);
+  displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24 + (currentTab * 24), y, 24, 4, 2, UI_YELLOW);
 }
 
 // =====================================================
@@ -714,14 +690,14 @@ void drawTabIndicator() {
 // =====================================================
 
 void drawLoading(const String& message) {
-  gfx->fillScreen(BG);
+  displayManager.target()->fillScreen(BG);
   drawHeader();
   drawCenteredText("OpenWeatherMap", 83, 2, ACCENT);
   drawCenteredText(message, 119, 1, UI_WHITE);
 }
 
 void drawError(const String& message) {
-  gfx->fillScreen(BG);
+  displayManager.target()->fillScreen(BG);
   drawHeader();
   drawCenteredText("WEATHER ERROR", 82, 2, ERROR_COLOUR);
   drawCenteredText(message, 117, 1, UI_WHITE);
@@ -758,7 +734,7 @@ int drawWeatherPngLine(PNGDRAW* pDraw) {
     PNG_RGB565_LITTLE_ENDIAN,
     context->backgroundBGR);
 
-  gfx->draw16bitRGBBitmap(
+  displayManager.target()->draw16bitRGBBitmap(
     context->x,
     context->y + pDraw->y,
     linePixels,
@@ -910,11 +886,11 @@ int drawOpenWeatherIcon(int x, int y) {
 // =====================================================
 
 int weatherMetricsPanelX() {
-  return (screenW * 60) / 100;
+  return (displayManager.width() * 60) / 100;
 }
 
 int weatherMetricsPanelWidth() {
-  return screenW - weatherMetricsPanelX() - 10;
+  return displayManager.width() - weatherMetricsPanelX() - 10;
 }
 
 String weatherMetricLabel(int index) {
@@ -1035,8 +1011,8 @@ void drawWeatherMetricItem(
 void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
   int panelWidth = weatherMetricsPanelWidth();
 
-  if (weatherMetricsCanvas != nullptr && !renderingTabTransition) {
-    weatherMetricsCanvas->fillScreen(BG);
+  if (displayManager.weatherMetricsCanvas() != nullptr && !displayManager.renderingTabTransition()) {
+    displayManager.weatherMetricsCanvas()->fillScreen(BG);
 
     int firstIndex = max(0, baseOffset - 1);
     int lastIndex = min(
@@ -1053,16 +1029,16 @@ void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
       }
 
       drawWeatherMetricItem(
-        weatherMetricsCanvas, index, 0, y, panelWidth, 0);
+        displayManager.weatherMetricsCanvas(), index, 0, y, panelWidth, 0);
     }
 
-    weatherMetricsCanvas->flush();
+    displayManager.weatherMetricsCanvas()->flush();
     return;
   }
 
   // Direct-render fallback if the PSRAM buffer is unavailable. Use the same
   // clipping renderer so boundary overscroll doesn't make edge cards vanish.
-  gfx->fillRect(
+  displayManager.target()->fillRect(
     weatherMetricsPanelX(),
     WEATHER_METRIC_PANEL_TOP,
     panelWidth,
@@ -1083,7 +1059,7 @@ void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
     }
 
     drawWeatherMetricItem(
-      gfx,
+      displayManager.target(),
       index,
       weatherMetricsPanelX(),
       WEATHER_METRIC_PANEL_TOP + localY,
@@ -1149,7 +1125,7 @@ void animateWeatherMetricsSnap(int startPixels, int targetOffset) {
   targetOffset = constrain(targetOffset, 0, maxOffset);
   int targetPixels = targetOffset * WEATHER_METRIC_ROW_STEP;
 
-  if (startPixels != targetPixels && weatherMetricsCanvas != nullptr) {
+  if (startPixels != targetPixels && displayManager.weatherMetricsCanvas() != nullptr) {
     const int animationFrames = 6;
     const int animationDelayMs = 8;
     for (int frame = 1; frame <= animationFrames; frame++) {
@@ -1177,7 +1153,7 @@ void animateWeatherMetricsScroll(int direction) {
 
   // If memory is too constrained for the buffer, update the page in one
   // redraw rather than using a multi-frame direct-render animation.
-  if (weatherMetricsCanvas == nullptr) {
+  if (displayManager.weatherMetricsCanvas() == nullptr) {
     weatherMetricOffset = targetOffset;
     drawWeatherMetricsPanel(weatherMetricOffset, 0);
     return;
@@ -1201,7 +1177,7 @@ void animateWeatherMetricsScroll(int direction) {
 
 void drawWeather() {
   currentTab = 0;
-  gfx->fillScreen(BG);
+  displayManager.target()->fillScreen(BG);
   drawHeader();
 
   // Lay out the weather stack from top to bottom. Each element's measured
@@ -1321,7 +1297,7 @@ void drawMiniWeatherIcon(
 
 void drawForecastItem(Arduino_GFX* target, int index, int y) {
   target->fillRoundRect(
-    4, y, screenW - 8, FORECAST_CARD_HEIGHT, 4, PANEL);
+    4, y, displayManager.width() - 8, FORECAST_CARD_HEIGHT, 4, PANEL);
 
   // Four concise fields fit on the small display: time, condition icon,
   // temperature, feels-like temperature, and probability of precipitation.
@@ -1352,7 +1328,7 @@ void drawForecastItem(Arduino_GFX* target, int index, int y) {
   uint16_t w, h;
   target->getTextBounds(rainText.c_str(), 0, 0, &x1, &y1, &w, &h);
   target->setTextColor(UI_WHITE);
-  target->setCursor(screenW - 10 - (int)w, y + 18);
+  target->setCursor(displayManager.width() - 10 - (int)w, y + 18);
   target->print(rainText);
 }
 
@@ -1373,7 +1349,7 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
 
   // Partial edge rows get a clipped body and only fields wholly inside the
   // viewport are drawn. Never pass negative/off-panel Y values to primitives.
-  target->fillRect(4, clippedTop, screenW - 8,
+  target->fillRect(4, clippedTop, displayManager.width() - 8,
                    clippedBottom - clippedTop, PANEL);
 
   const int fieldY = cardTop + 18;
@@ -1396,7 +1372,7 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
     uint16_t w, h;
     target->getTextBounds(rainText.c_str(), 0, 0, &x1, &y1, &w, &h);
     target->setTextColor(UI_WHITE);
-    target->setCursor(screenW - 10 - (int)w, fieldY);
+    target->setCursor(displayManager.width() - 10 - (int)w, fieldY);
     target->print(rainText);
   }
 
@@ -1416,11 +1392,11 @@ void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
 void drawForecastModeSelector() {
   // The viewport canvas begins at y=64, so its flush can overwrite the bottom
   // edge of this selector. This small repaint restores it after graph frames.
-  gfx->fillRoundRect(179, 41, 137, 26, 6, PANEL);
+  displayManager.target()->fillRoundRect(179, 41, 137, 26, 6, PANEL);
   if (forecastGraphView) {
-    gfx->fillRoundRect(248, 41, 67, 24, 5, UI_WHITE);
+    displayManager.target()->fillRoundRect(248, 41, 67, 24, 5, UI_WHITE);
   } else {
-    gfx->fillRoundRect(181, 41, 67, 24, 5, UI_WHITE);
+    displayManager.target()->fillRoundRect(181, 41, 67, 24, 5, UI_WHITE);
   }
   drawText("LIST", 201, 50, 1, forecastGraphView ? MUTED : BG);
   drawText("GRAPH", 265, 50, 1, forecastGraphView ? BG : MUTED);
@@ -1429,10 +1405,10 @@ void drawForecastModeSelector() {
 void drawForecastControls() {
   // Graph paging is gesture-based; the List/Graph selector stays in the same
   // position, with the same geometry in both modes.
-  gfx->fillRect(
+  displayManager.target()->fillRect(
     0,
     FORECAST_CONTROL_TOP - 1,
-    screenW,
+    displayManager.width(),
     FORECAST_CONTROL_BOTTOM - (FORECAST_CONTROL_TOP - 1),
     BG);
 
@@ -1460,7 +1436,7 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
   if (forecastCount <= 0) return;
 
   const int left = 23;
-  const int right = screenW - 17;
+  const int right = displayManager.width() - 17;
   const int plotWidth = right - left;
   const int pointSpacing = FORECAST_GRAPH_POINT_SPACING;
   const int maxScroll = maxForecastGraphScrollPixels();
@@ -1542,7 +1518,7 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     // The first and sixth visible points sit close to the plot edges. Their
     // icons still fit on the display, so clip against the screen rather than
     // hiding them just because they cross the inner plot boundary.
-    if (x >= 8 && x <= screenW - 8) {
+    if (x >= 8 && x <= displayManager.width() - 8) {
       drawMiniWeatherIcon(
         target, forecast[index].description, x - 8,
         originY + 2 + FORECAST_GRAPH_VERTICAL_SHIFT);
@@ -1554,7 +1530,7 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     target->setTextSize(1);
     target->getTextBounds(tempText.c_str(), 0, 0, &x1, &y1, &w, &h);
     if (x - (int)w / 2 >= 2 &&
-        x + ((int)w + 1) / 2 <= screenW - 2) {
+        x + ((int)w + 1) / 2 <= displayManager.width() - 2) {
       target->setTextColor(UI_WHITE);
       target->setCursor(x - (int)w / 2, originY + y - 10);
       target->print(tempText);
@@ -1563,7 +1539,7 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     String timeLabel = forecastCompactTime(index);
     target->getTextBounds(timeLabel.c_str(), 0, 0, &x1, &y1, &w, &h);
     if (x - (int)w / 2 >= 2 &&
-        x + ((int)w + 1) / 2 <= screenW - 2) {
+        x + ((int)w + 1) / 2 <= displayManager.width() - 2) {
       target->setTextColor(MUTED);
       target->setCursor(
         x - (int)w / 2,
@@ -1574,14 +1550,14 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     const int rainPercent = constrain(
       (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
     const int barHeight = (rainPercent * 18) / 100;
-    if (x >= 3 && x <= screenW - 3) {
+    if (x >= 3 && x <= displayManager.width() - 3) {
       target->fillRect(
         x - 3, originY + 139 - barHeight, 6, max(1, barHeight), ACCENT);
     }
     String rainLabel = String(rainPercent) + "%";
     target->getTextBounds(rainLabel.c_str(), 0, 0, &x1, &y1, &w, &h);
     if (x - (int)w / 2 >= 2 &&
-        x + ((int)w + 1) / 2 <= screenW - 2) {
+        x + ((int)w + 1) / 2 <= displayManager.width() - 2) {
       target->setTextColor(UI_WHITE);
       target->setCursor(x - (int)w / 2, originY + 143);
       target->print(rainLabel);
@@ -1596,8 +1572,8 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
 // Copy only the graph body from the existing canvas. The 8-pixel source crop
 // starts at screen y=72, below the selector, so controls never need repainting.
 bool flushForecastGraphCanvasBody() {
-  if (forecastCanvas == nullptr) return false;
-  uint16_t* framebuffer = forecastCanvas->getFramebuffer();
+  if (displayManager.forecastCanvas() == nullptr) return false;
+  uint16_t* framebuffer = displayManager.forecastCanvas()->getFramebuffer();
   if (framebuffer == nullptr) return false;
 
   const int graphRedrawTop = FORECAST_CONTROL_BOTTOM + 2;
@@ -1605,11 +1581,11 @@ bool flushForecastGraphCanvasBody() {
   const int bodyHeight = FORECAST_VIEWPORT_BOTTOM - graphRedrawTop;
   if (sourceTop < 0 || bodyHeight <= 0) return false;
 
-  gfx->draw16bitRGBBitmap(
+  displayManager.target()->draw16bitRGBBitmap(
     0,
     graphRedrawTop,
-    framebuffer + sourceTop * screenW,
-    screenW,
+    framebuffer + sourceTop * displayManager.width(),
+    displayManager.width(),
     bodyHeight);
   return true;
 }
@@ -1619,13 +1595,13 @@ bool flushForecastGraphCanvasBody() {
 void redrawForecastGraphAtCurrentScroll() {
   if (!forecastGraphView) return;
 
-  if (forecastCanvas != nullptr && !renderingTabTransition) {
-    forecastCanvas->fillScreen(BG);
+  if (displayManager.forecastCanvas() != nullptr && !displayManager.renderingTabTransition()) {
+    displayManager.forecastCanvas()->fillScreen(BG);
     if (forecastAvailable && forecastCount > 0) {
-      drawForecastGraph(forecastCanvas, 0);
+      drawForecastGraph(displayManager.forecastCanvas(), 0);
     }
     if (flushForecastGraphCanvasBody()) return;
-    forecastCanvas->flush();
+    displayManager.forecastCanvas()->flush();
     drawForecastModeSelector();
     return;
   }
@@ -1633,11 +1609,11 @@ void redrawForecastGraphAtCurrentScroll() {
   // Safe no-canvas fallback. The normal hardware path uses the buffered branch.
   const int graphRedrawTop = FORECAST_CONTROL_BOTTOM + 2;
   if (graphRedrawTop >= FORECAST_VIEWPORT_BOTTOM) return;
-  gfx->fillRect(
-    0, graphRedrawTop, screenW,
+  displayManager.target()->fillRect(
+    0, graphRedrawTop, displayManager.width(),
     FORECAST_VIEWPORT_BOTTOM - graphRedrawTop, BG);
   if (forecastAvailable && forecastCount > 0) {
-    drawForecastGraph(gfx, FORECAST_VIEWPORT_TOP);
+    drawForecastGraph(displayManager.target(), FORECAST_VIEWPORT_TOP);
   }
 }
 
@@ -1712,12 +1688,12 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
     -SCROLL_OVERSCROLL_MAX_PX,
     FORECAST_ROW_STEP - 1);
 
-  if (forecastCanvas != nullptr && !renderingTabTransition) {
-    forecastCanvas->fillScreen(BG);
+  if (displayManager.forecastCanvas() != nullptr && !displayManager.renderingTabTransition()) {
+    displayManager.forecastCanvas()->fillScreen(BG);
     if (forecastGraphView) {
-      drawForecastGraph(forecastCanvas, 0);
+      drawForecastGraph(displayManager.forecastCanvas(), 0);
       if (flushForecastGraphCanvasBody()) return;
-      forecastCanvas->flush();
+      displayManager.forecastCanvas()->flush();
       drawForecastModeSelector();
       return;
     }
@@ -1740,37 +1716,37 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
         continue;
       }
 
-      drawForecastItemClipped(forecastCanvas, index, y);
+      drawForecastItemClipped(displayManager.forecastCanvas(), index, y);
     }
 
-    forecastCanvas->flush();
+    displayManager.forecastCanvas()->flush();
     return;
   }
 
   // Safe fallback if the canvas buffer could not be allocated: render the
   // three settled rows directly if the canvas buffer is unavailable.
-  gfx->fillRect(
+  displayManager.target()->fillRect(
     0,
     FORECAST_VIEWPORT_TOP,
-    screenW,
+    displayManager.width(),
     FORECAST_VIEWPORT_HEIGHT,
     BG);
 
   if (forecastGraphView) {
-    drawForecastGraph(gfx, FORECAST_VIEWPORT_TOP);
+    drawForecastGraph(displayManager.target(), FORECAST_VIEWPORT_TOP);
     return;
   }
 
   int visible = min(ITEMS_PER_PAGE, max(0, forecastCount - baseOffset));
   for (int i = 0; i < visible; i++) {
     int y = FORECAST_ROW_TOP + i * FORECAST_ROW_STEP;
-    drawForecastItem(gfx, baseOffset + i, y);
+    drawForecastItem(displayManager.target(), baseOffset + i, y);
   }
 }
 
 void drawForecast() {
   currentTab = 1;
-  gfx->fillScreen(BG);
+  displayManager.target()->fillScreen(BG);
   drawHeader();
 
   if (!forecastAvailable || forecastCount == 0) {
@@ -1782,10 +1758,10 @@ void drawForecast() {
 
   // Draw the viewport first so the graph controls can safely overlay its blank
   // top strip without being overwritten by the canvas flush.
-  gfx->fillRect(
+  displayManager.target()->fillRect(
     0,
     FORECAST_VIEWPORT_TOP,
-    screenW,
+    displayManager.width(),
     FORECAST_VIEWPORT_HEIGHT,
     BG);
   drawForecastViewport(forecastOffset, 0);
@@ -1817,23 +1793,21 @@ void animateTabTransition(int targetTab, int direction) {
   // Reset outgoing and incoming content before composing the destination frame.
   resetScrollableViewPositions();
 
-  if (tabTransitionCanvas == nullptr) {
+  if (displayManager.tabTransitionCanvas() == nullptr) {
     if (targetTab == 0) drawWeather();
     else drawForecast();
     return;
   }
 
-  Arduino_GFX* liveDisplay = gfx;
-  renderingTabTransition = true;
-  gfx = tabTransitionCanvas;
+  Arduino_GFX* liveDisplay = displayManager.physicalDisplay();
+  displayManager.beginTabTransitionRender();
 
   if (targetTab == 0) drawWeather();
   else drawForecast();
 
-  gfx = liveDisplay;
-  renderingTabTransition = false;
+  displayManager.endTabTransitionRender();
 
-  uint16_t* frameBuffer = tabTransitionCanvas->getFramebuffer();
+  uint16_t* frameBuffer = displayManager.tabTransitionCanvas()->getFramebuffer();
   if (frameBuffer == nullptr) {
     // The composed frame is unavailable: redraw directly rather than leave
     // the previous tab visible.
@@ -1842,11 +1816,11 @@ void animateTabTransition(int targetTab, int direction) {
     return;
   }
 
-  const int contentHeight = screenH -
+  const int contentHeight = displayManager.height() -
     TAB_TRANSITION_CONTENT_TOP -
     TAB_TRANSITION_FOOTER_HEIGHT;
   const uint16_t* contentFrame = frameBuffer +
-    ((size_t)TAB_TRANSITION_CONTENT_TOP * (size_t)screenW);
+    ((size_t)TAB_TRANSITION_CONTENT_TOP * (size_t)displayManager.width());
 
   const int animationFrames = 8;
   const int animationDelayMs = 9;
@@ -1854,8 +1828,8 @@ void animateTabTransition(int targetTab, int direction) {
   for (int frame = 1; frame < animationFrames; frame++) {
     float progress = (float)frame / animationFrames;
     float easedProgress = progress * progress * (3.0f - 2.0f * progress);
-    int travel = (int)(screenW * easedProgress);
-    int xOffset = direction > 0 ? screenW - travel : -screenW + travel;
+    int travel = (int)(displayManager.width() * easedProgress);
+    int xOffset = direction > 0 ? displayManager.width() - travel : -displayManager.width() + travel;
 
     // Slide only the central content. Header, divider and footer remain fixed
     // while the incoming page covers the outgoing page from one side.
@@ -1863,7 +1837,7 @@ void animateTabTransition(int targetTab, int direction) {
       xOffset,
       TAB_TRANSITION_CONTENT_TOP,
       (uint16_t*)contentFrame,
-      screenW,
+      displayManager.width(),
       contentHeight);
     delay(animationDelayMs);
   }
@@ -1874,7 +1848,7 @@ void animateTabTransition(int targetTab, int direction) {
     0,
     TAB_TRANSITION_CONTENT_TOP,
     (uint16_t*)contentFrame,
-    screenW,
+    displayManager.width(),
     contentHeight);
   drawTabIndicator();
 }
@@ -1928,7 +1902,7 @@ void animateForecastSnap(int startPixels, int targetOffset) {
   targetOffset = constrain(targetOffset, 0, maxOffset);
   const int targetPixels = targetOffset * FORECAST_ROW_STEP;
 
-  if (startPixels != targetPixels && forecastCanvas != nullptr) {
+  if (startPixels != targetPixels && displayManager.forecastCanvas() != nullptr) {
     const int animationFrames = 6;
     const int animationDelayMs = 8;
     for (int frame = 1; frame <= animationFrames; frame++) {
@@ -1988,10 +1962,10 @@ void touchCoordinatesToScreen(
   int& screenY
 ) {
   screenX = (int)sample.rawY;
-  screenY = screenH - 1 - (int)sample.rawX;
+  screenY = displayManager.height() - 1 - (int)sample.rawX;
 
-  screenX = constrain(screenX, 0, screenW - 1);
-  screenY = constrain(screenY, 0, screenH - 1);
+  screenX = constrain(screenX, 0, displayManager.width() - 1);
+  screenY = constrain(screenY, 0, displayManager.height() - 1);
 }
 
 void updateTouchDrag(const TouchSample& sample) {
@@ -2031,14 +2005,14 @@ void updateTouchDrag(const TouchSample& sample) {
     metricsGestureStartedInsidePanel =
       currentTab == 0 &&
       touchX >= weatherMetricsPanelX() &&
-      touchX < screenW &&
+      touchX < displayManager.width() &&
       touchY >= WEATHER_METRIC_PANEL_TOP &&
       touchY < WEATHER_METRIC_PANEL_BOTTOM;
     forecastGestureStartedInsideViewport =
       currentTab == 1 &&
       !forecastGraphView &&
       touchX >= 8 &&
-      touchX < screenW - 8 &&
+      touchX < displayManager.width() - 8 &&
       touchY >= FORECAST_VIEWPORT_TOP &&
       touchY < FORECAST_VIEWPORT_BOTTOM;
 
@@ -2082,7 +2056,7 @@ void updateTouchDrag(const TouchSample& sample) {
       currentTab == 1 &&
       forecastGraphView &&
       touchX >= 0 &&
-      touchX < screenW &&
+      touchX < displayManager.width() &&
       touchY >= FORECAST_CONTROL_BOTTOM + 2 &&
       touchY < FORECAST_VIEWPORT_BOTTOM;
     forecastGraphTouchCandidate = forecastGraphTouchOwned;
@@ -2107,7 +2081,7 @@ void updateTouchDrag(const TouchSample& sample) {
       !metricsTouchCandidate &&
       touchJustStarted &&
       currentTab == 0 &&
-      weatherMetricsCanvas != nullptr) {
+      displayManager.weatherMetricsCanvas() != nullptr) {
     bool insideMetricsPanel =
       touchX >= weatherMetricsPanelX() &&
       touchY >= WEATHER_METRIC_PANEL_TOP &&
@@ -2145,11 +2119,11 @@ void updateTouchDrag(const TouchSample& sample) {
       forecastControlTouch == 0 &&
       touchJustStarted &&
       currentTab == 1 &&
-      forecastCanvas != nullptr &&
+      displayManager.forecastCanvas() != nullptr &&
       forecastAvailable &&
       forecastCount > ITEMS_PER_PAGE &&
       touchX >= 8 &&
-      touchX < screenW - 8 &&
+      touchX < displayManager.width() - 8 &&
       touchY >= FORECAST_VIEWPORT_TOP &&
       touchY < FORECAST_VIEWPORT_BOTTOM) {
     forecastTouchCandidate = true;
@@ -3420,53 +3394,34 @@ void setup() {
   DEBUG_PRINTLN();
   Serial.println("Waveshare Weather Dashboard");
 
-  if (!gfx->begin()) {
+  if (!displayManager.begin()) {
     Serial.println("Display initialisation failed!");
     while (true) delay(1000);
   }
 
-  pinMode(LCD_BL, OUTPUT);
-  digitalWrite(LCD_BL, HIGH);
-  screenW = gfx->width();
-  screenH = gfx->height();
-
   // Buffer only the scrolling forecast viewport, not the entire 320x240 UI.
   // This keeps memory use modest while letting each animation frame flush
   // as one rectangular bitmap to the ST7789.
-  forecastCanvas = new Arduino_Canvas(
-    screenW,
-    FORECAST_VIEWPORT_HEIGHT,
-    gfx,
-    0,
-    FORECAST_VIEWPORT_TOP,
-    0);
-
-  if (forecastCanvas == nullptr ||
-      !forecastCanvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
+  if (!displayManager.createForecastCanvas(
+        displayManager.width(),
+        FORECAST_VIEWPORT_HEIGHT,
+        0,
+        FORECAST_VIEWPORT_TOP)) {
     DEBUG_PRINTLN("Forecast canvas unavailable; animated scrolling disabled.");
-    delete forecastCanvas;
-    forecastCanvas = nullptr;
   } else {
     DEBUG_PRINTF(
       "Forecast canvas ready: %d x %d\n",
-      screenW,
+      displayManager.width(),
       FORECAST_VIEWPORT_HEIGHT);
   }
 
   // Buffer just the narrow metrics column (about 42 KB at 118x177 RGB565).
-  weatherMetricsCanvas = new Arduino_Canvas(
-    weatherMetricsPanelWidth(),
-    WEATHER_METRIC_PANEL_HEIGHT,
-    gfx,
-    weatherMetricsPanelX(),
-    WEATHER_METRIC_PANEL_TOP,
-    0);
-
-  if (weatherMetricsCanvas == nullptr ||
-      !weatherMetricsCanvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
+  if (!displayManager.createWeatherMetricsCanvas(
+        weatherMetricsPanelWidth(),
+        WEATHER_METRIC_PANEL_HEIGHT,
+        weatherMetricsPanelX(),
+        WEATHER_METRIC_PANEL_TOP)) {
     DEBUG_PRINTLN("Weather-metrics canvas unavailable; scrolling animation disabled.");
-    delete weatherMetricsCanvas;
-    weatherMetricsCanvas = nullptr;
   } else {
     DEBUG_PRINTF(
       "Weather-metrics canvas ready: %d x %d\n",
@@ -3476,44 +3431,35 @@ void setup() {
 
   // Full-screen RGB565 buffer used only when changing tabs. This is the
   // largest canvas, so allocate it last and keep instant-switch fallback.
-  tabTransitionCanvas = new Arduino_Canvas(
-    screenW,
-    screenH,
-    gfx,
-    0,
-    0,
-    0);
-
-  if (tabTransitionCanvas == nullptr ||
-      !tabTransitionCanvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
+  if (!displayManager.createTabTransitionCanvas(
+        displayManager.width(),
+        displayManager.height())) {
     DEBUG_PRINTLN("Tab-transition canvas unavailable; tab changes will be instant.");
-    delete tabTransitionCanvas;
-    tabTransitionCanvas = nullptr;
   } else {
     DEBUG_PRINTF(
       "Tab-transition canvas ready: %d x %d\n",
-      screenW,
-      screenH);
+      displayManager.width(),
+      displayManager.height());
   }
 
   // Determine the actual heap region for every canvas, rather than assuming
   // aligned_alloc() placed them in PSRAM. These checks inspect live pointers.
   reportCanvasAllocation(
     "forecast",
-    forecastCanvas,
-    (size_t)screenW * FORECAST_VIEWPORT_HEIGHT * sizeof(uint16_t));
+    displayManager.forecastCanvas(),
+    (size_t)displayManager.width() * FORECAST_VIEWPORT_HEIGHT * sizeof(uint16_t));
   reportCanvasAllocation(
     "weather metrics",
-    weatherMetricsCanvas,
+    displayManager.weatherMetricsCanvas(),
     (size_t)weatherMetricsPanelWidth() *
       WEATHER_METRIC_PANEL_HEIGHT * sizeof(uint16_t));
   reportCanvasAllocation(
     "tab transition",
-    tabTransitionCanvas,
-    (size_t)screenW * screenH * sizeof(uint16_t));
+    displayManager.tabTransitionCanvas(),
+    (size_t)displayManager.width() * displayManager.height() * sizeof(uint16_t));
   reportHeapSummary();
 
-  DEBUG_PRINTF("Logical display size: %d x %d\n", screenW, screenH);
+  DEBUG_PRINTF("Logical display size: %d x %d\n", displayManager.width(), displayManager.height());
   Wire.begin(TOUCH_SDA, TOUCH_SCL);
   Wire.setClock(100000);
 
