@@ -8,17 +8,36 @@
 class DisplayManager {
 public:
   DisplayManager() = default;
+
   DisplayManager(const DisplayManager&) = delete;
   DisplayManager& operator=(const DisplayManager&) = delete;
 
+  ~DisplayManager() {
+    releaseResources();
+  }
+
   bool begin() {
+    // Keep begin() safe to call again after successful initialisation.
+    if (display_ != nullptr) return true;
+
+    // Clean up any partial state left by a previous failed initialisation.
+    releaseResources();
+
     bus_ = new Arduino_ESP32SPI(
       LCD_DC, LCD_CS, LCD_SCLK, LCD_MOSI, LCD_MISO);
     if (bus_ == nullptr) return false;
 
     display_ = new Arduino_ST7789(
       bus_, LCD_RST, LCD_ROTATION, true, LCD_WIDTH, LCD_HEIGHT);
-    if (display_ == nullptr || !display_->begin()) return false;
+    if (display_ == nullptr) {
+      releaseResources();
+      return false;
+    }
+
+    if (!display_->begin()) {
+      releaseResources();
+      return false;
+    }
 
     pinMode(LCD_BL, OUTPUT);
     digitalWrite(LCD_BL, HIGH);
@@ -79,6 +98,33 @@ private:
     LCD_HEIGHT = 320
   };
 
+  void releaseCanvas(Arduino_Canvas*& canvas) {
+    delete canvas;
+    canvas = nullptr;
+  }
+
+  // Release dependants before the objects they reference. Arduino_Canvas
+  // keeps a non-owning output pointer to the physical display.
+  void releaseResources() {
+    renderTarget_ = nullptr;
+    renderingTabTransition_ = false;
+
+    releaseCanvas(forecastCanvas_);
+    releaseCanvas(weatherMetricsCanvas_);
+    releaseCanvas(tabTransitionCanvas_);
+
+    // Keep concrete pointer types here: Arduino_GFX and Arduino_DataBus do
+    // not provide virtual destructors in the library API.
+    delete display_;
+    display_ = nullptr;
+
+    delete bus_;
+    bus_ = nullptr;
+
+    width_ = 320;
+    height_ = 240;
+  }
+
   bool createCanvas(
     Arduino_Canvas*& canvas,
     int width,
@@ -86,18 +132,23 @@ private:
     int x,
     int y
   ) {
+    // Replacing a buffer must release its previous framebuffer first.
+    releaseCanvas(canvas);
+
     if (display_ == nullptr) return false;
+
     canvas = new Arduino_Canvas(width, height, display_, x, y, 0);
     if (canvas == nullptr || !canvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
-      delete canvas;
-      canvas = nullptr;
+      releaseCanvas(canvas);
       return false;
     }
     return true;
   }
 
-  Arduino_DataBus* bus_ = nullptr;
-  Arduino_GFX* display_ = nullptr;
+  // These concrete types are important for safe deletion: the library's
+  // Arduino_GFX / Arduino_DataBus base classes do not have virtual destructors.
+  Arduino_ESP32SPI* bus_ = nullptr;
+  Arduino_ST7789* display_ = nullptr;
   Arduino_GFX* renderTarget_ = nullptr;
 
   Arduino_Canvas* forecastCanvas_ = nullptr;
