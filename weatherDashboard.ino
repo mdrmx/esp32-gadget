@@ -528,6 +528,67 @@ void reportHeapSummary() {
     (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 }
 
+#if ENABLE_PHASE0_DIAGNOSTICS
+// Use Serial directly: DEBUG_PRINTF is compiled out in live mode.
+void phase0ReportMemorySnapshot(const char* label) {
+  const uint32_t internalCaps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+  Serial.printf(
+    "[P0MEM] %s: PSRAM total=%lu free=%lu largest=%lu min-ever=%lu; "
+    "internal8 free=%lu largest=%lu min-ever=%lu\n",
+    label,
+    (unsigned long)heap_caps_get_total_size(MALLOC_CAP_SPIRAM),
+    (unsigned long)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+    (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM),
+    (unsigned long)heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM),
+    (unsigned long)heap_caps_get_free_size(internalCaps),
+    (unsigned long)heap_caps_get_largest_free_block(internalCaps),
+    (unsigned long)heap_caps_get_minimum_free_size(internalCaps));
+}
+
+void phase0ReportCanvasAllocation(
+  const char* label,
+  Arduino_Canvas* canvas,
+  size_t requestedBytes
+) {
+  if (canvas == nullptr) {
+    Serial.printf("[P0MEM] canvas=%s unavailable\n", label);
+    return;
+  }
+
+  void* framebuffer = canvas->getFramebuffer();
+  if (framebuffer == nullptr) {
+    Serial.printf(
+      "[P0MEM] canvas=%s framebuffer=null requested=%lu\n",
+      label,
+      (unsigned long)requestedBytes);
+    return;
+  }
+
+  Serial.printf(
+    "[P0MEM] canvas=%s framebuffer=%p requested=%lu region=%s\n",
+    label,
+    framebuffer,
+    (unsigned long)requestedBytes,
+    esp_ptr_external_ram(framebuffer) ? "PSRAM" : "internal/other");
+}
+
+void phase0ReportCanvasAllocations() {
+  phase0ReportCanvasAllocation(
+    "forecast",
+    forecastCanvas,
+    (size_t)screenW * FORECAST_VIEWPORT_HEIGHT * sizeof(uint16_t));
+  phase0ReportCanvasAllocation(
+    "weather-metrics",
+    weatherMetricsCanvas,
+    (size_t)weatherMetricsPanelWidth() *
+      WEATHER_METRIC_PANEL_HEIGHT * sizeof(uint16_t));
+  phase0ReportCanvasAllocation(
+    "tab-transition",
+    tabTransitionCanvas,
+    (size_t)screenW * screenH * sizeof(uint16_t));
+}
+#endif
+
 String getHeaderLocationText() {
   // Prefer the resolved IP location in the UI. The weather provider's "name"
   // may instead identify a nearby reporting station or larger city.
@@ -858,12 +919,22 @@ String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
     return false;
   }
 
+#if ENABLE_PHASE0_DIAGNOSTICS
+  phase0ReportMemorySnapshot("before-icon-buffer-allocation");
+#endif
   uint8_t* newData = (uint8_t*)malloc((size_t)contentLength);
   if (newData == nullptr) {
+#if ENABLE_PHASE0_DIAGNOSTICS
+    Serial.printf("[P0MEM] icon buffer allocation failed; requested=%d bytes\n", contentLength);
+    phase0ReportMemorySnapshot("icon-buffer-allocation-failed");
+#endif
     DEBUG_PRINTLN("Not enough RAM to cache OpenWeather icon");
     http.end();
     return false;
   }
+#if ENABLE_PHASE0_DIAGNOSTICS
+  phase0ReportMemorySnapshot("after-icon-buffer-allocation");
+#endif
 
   Stream* stream = http.getStreamPtr();
   size_t bytesRead = 0;
@@ -904,6 +975,10 @@ String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   weatherIconPngData = newData;
   weatherIconPngLength = bytesRead;
   cachedWeatherIconCode = weatherIcon;
+
+#if ENABLE_PHASE0_DIAGNOSTICS
+  phase0ReportMemorySnapshot("after-icon-cache-update");
+#endif
 
   DEBUG_PRINTF(
     "Cached OpenWeather icon %s (%u bytes)\n",
@@ -3502,6 +3577,10 @@ void setup() {
   screenW = gfx->width();
   screenH = gfx->height();
 
+#if ENABLE_PHASE0_DIAGNOSTICS
+  phase0ReportMemorySnapshot("before-canvas-allocation");
+#endif
+
   // Buffer only the scrolling forecast viewport, not the entire 320x240 UI.
   // This keeps memory use modest while letting each animation frame flush
   // as one rectangular bitmap to the ST7789.
@@ -3585,6 +3664,11 @@ void setup() {
     (size_t)screenW * screenH * sizeof(uint16_t));
   reportHeapSummary();
 
+#if ENABLE_PHASE0_DIAGNOSTICS
+  phase0ReportCanvasAllocations();
+  phase0ReportMemorySnapshot("after-canvas-allocation");
+#endif
+
   DEBUG_PRINTF("Logical display size: %d x %d\n", screenW, screenH);
   Wire.begin(TOUCH_SDA, TOUCH_SCL);
   Wire.setClock(100000);
@@ -3625,8 +3709,16 @@ void setup() {
   fetchWeather();
   fetchForecast();
 
+#if ENABLE_PHASE0_DIAGNOSTICS
+  phase0ReportMemorySnapshot("after-startup-weather-forecast-data");
+#endif
+
   if (weatherAvailable) drawWeather();
   else drawError("Weather unavailable");
+
+#if ENABLE_PHASE0_DIAGNOSTICS
+  phase0ReportMemorySnapshot("after-startup-first-render");
+#endif
 
   lastUpdate = millis();
 #if ENABLE_PHASE0_DIAGNOSTICS
@@ -3662,25 +3754,38 @@ void loop() {
   while (Serial.available() > 0) {
     const char command = (char)Serial.read();
     if (command == 'h' || command == 'H') {
-      Serial.println("[P0DIAG] Commands: w=weather, f=forecast, r=both");
+      Serial.println("[P0DIAG] Commands: w=weather, f=forecast, r=both, m=memory snapshot");
+    } else if (command == 'm' || command == 'M') {
+      Serial.println("[P0DIAG] Manual memory snapshot");
+      phase0ReportMemorySnapshot("manual");
+      phase0ReportCanvasAllocations();
     } else if (command == 'w' || command == 'W') {
       Serial.println("[P0DIAG] Manual weather test started");
+      phase0ReportMemorySnapshot("before-manual-weather");
       const bool ok = fetchWeather();
+      phase0ReportMemorySnapshot("after-manual-weather-data");
       if (currentTab == 1) drawForecast();
       else if (ok || weatherAvailable) drawWeather();
       else drawError("Refresh failed");
+      phase0ReportMemorySnapshot("after-manual-weather-render");
     } else if (command == 'f' || command == 'F') {
       Serial.println("[P0DIAG] Manual forecast test started");
+      phase0ReportMemorySnapshot("before-manual-forecast");
       fetchForecast();
+      phase0ReportMemorySnapshot("after-manual-forecast-data");
       if (currentTab == 1) drawForecast();
       else if (weatherAvailable) drawWeather();
+      phase0ReportMemorySnapshot("after-manual-forecast-render");
     } else if (command == 'r' || command == 'R') {
       Serial.println("[P0DIAG] Manual full refresh started");
+      phase0ReportMemorySnapshot("before-manual-full-refresh");
       const bool ok = fetchWeather();
       fetchForecast();
+      phase0ReportMemorySnapshot("after-manual-full-refresh-data");
       if (currentTab == 1) drawForecast();
       else if (ok || weatherAvailable) drawWeather();
       else drawError("Refresh failed");
+      phase0ReportMemorySnapshot("after-manual-full-refresh-render");
     }
   }
 #endif
@@ -3693,12 +3798,21 @@ void loop() {
   if (millis() - lastUpdate >= UPDATE_INTERVAL) {
     lastUpdate = millis();
     DEBUG_PRINTLN("Refreshing weather and forecast...");
+#if ENABLE_PHASE0_DIAGNOSTICS
+    phase0ReportMemorySnapshot("before-scheduled-refresh");
+#endif
     bool currentOK = fetchWeather();
     fetchForecast();
+#if ENABLE_PHASE0_DIAGNOSTICS
+    phase0ReportMemorySnapshot("after-scheduled-refresh-data");
+#endif
 
     if (currentTab == 1) drawForecast();
     else if (currentOK || weatherAvailable) drawWeather();
     else drawError("Refresh failed");
+#if ENABLE_PHASE0_DIAGNOSTICS
+    phase0ReportMemorySnapshot("after-scheduled-refresh-render");
+#endif
   }
 
   delay(30);
