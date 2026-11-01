@@ -11,7 +11,7 @@
 #include <esp_memory_utils.h>
 #include <stdlib.h>
 #include "secrets.h"
-#include "phase0/CompileLayoutSpike.h"
+#include "src/phase0/CompileLayoutSpike.h"
 
 static_assert(phase0_layout_spike::kVersion == 1,
               "Arduino src-layout spike header was not included");
