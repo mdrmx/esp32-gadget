@@ -316,7 +316,7 @@ The phases below are agreed. Keep the order unless an audit finding provides a c
 
 ### Phase 0 — Codebase audit and baseline
 
-**Status: IN PROGRESS — Steps 1–3 complete; Step 4 static audit complete, physical measurements outstanding**
+**Status: IN PROGRESS — Steps 1–3 complete; Step 4 static audit and initial physical baseline complete; remaining Phase 0 audit work outstanding**
 
 No broad refactor should begin until this review is complete.
 
@@ -325,8 +325,8 @@ No broad refactor should begin until this review is complete.
 - [x] **Step 1 — Source inventory:** functions, file-scope state, custom structures, direct dependencies and major coupling relationships documented in [docs/PHASE0_STEP1_CODE_INVENTORY.md](docs/PHASE0_STEP1_CODE_INVENTORY.md). Inventory snapshot: `weatherDashboard.ino` at main commit `55602880ff11e2f4091234091c25b5d23afd22dd`.
 - [x] **Step 2 — Runtime data-flow map:** startup, loop, periodic refresh, touch, rendering, network and location/time paths documented in [docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md](docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md). Static trace based on `main` commit `9721eb688c7b96ecb55e7ee00c61096e08c8fd5f`.
 - [x] **Step 3 — Build/toolchain baseline:** repository layout, direct dependencies, clean-checkout preparation, IDE/core/compiler/library versions, board options, successful compile and physical upload/boot are documented in [docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md](docs/PHASE0_STEP3_BUILD_TOOLCHAIN.md). Verified on the Waveshare ESP32-S3 Touch LCD 2.
-- [x] **Step 4 — Blocking-operation static audit:** synchronous network paths, Wi-Fi waits/scanning, animation delays, render-triggered icon downloads and a physical measurement plan documented in [docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md). Static audit based on `main` commit `48734f4dc1443e0e830ce34154033d2e2a07f7e2`.
-- [ ] **Step 4 physical verification —** record actual operation durations and touch-service gaps on the Waveshare device; numerical responsiveness targets remain open.
+- [x] **Step 4 — Blocking-operation audit and initial physical baseline:** synchronous network paths, Wi-Fi waits/scanning, animation delays and render-triggered icon downloads documented; initial startup, idle, weather, forecast and full-refresh measurements recorded in [docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md). Static audit based on `main` commit `48734f4dc1443e0e830ce34154033d2e2a07f7e2`; physical results are specific to the tested board and networks.
+- [ ] **Step 4 extended verification —** animation touch gaps, failed HTTP, Wi-Fi unavailable/loss recovery and icon cache-miss behaviour remain untested; startup stage timings and instrumented touch-to-response latency are not yet isolated.
 - [ ] **Remaining audit —** memory measurements, documentation reconciliation, regression checklist and final target module boundaries.
 
 Tasks:
@@ -343,7 +343,7 @@ Tasks:
 - Identify code that is genuinely duplicated versus code that only looks similar.
 - Record a reproducible build and hardware regression checklist.
 - Capture useful baseline memory measurements.
-- [ ] Capture physical responsiveness measurements using the [Step 4 test matrix](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md#72-test-matrix); source-configured timeout values are not substitutes for measurements.
+- [x] Capture an initial physical responsiveness baseline using the [Step 4 test matrix](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md#72-test-matrix); retain outstanding fault-path and animation tests as follow-up validation.
 - Produce an agreed module-boundary plan and resolve high-risk technical questions before Phase 1.
 
 **Deliverables:**
@@ -593,7 +593,7 @@ When resuming work after a context reset:
 
 | Phase | Description | Status |
 |---|---|---|
-| 0 | Codebase audit and baseline | In progress — Steps 1–3 complete; Step 4 static audit complete, physical measurements and remaining audit items outstanding |
+| 0 | Codebase audit and baseline | In progress — Steps 1–3 complete; Step 4 static audit and initial physical baseline complete; remaining audit and extended verification items outstanding |
 | 1 | Project structure and shared foundations | Not started |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
@@ -610,4 +610,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-10-31 — Version 1.2:** Phase 0, Step 2 marked complete and linked to `docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md`. The map records startup, loop scheduling, touch arbitration, rendering, network / location / time flow and source-configured blocking operations. Remaining Phase 0 verification is still outstanding.
 - **2026-10-31 — Version 1.3:** Added the Step 3 repository-side build/toolchain audit and a placeholder-only `secrets.example.h`. Documented the Arduino sketch-folder naming constraint and clean-checkout procedure.
 - **2026-10-31 — Version 1.4:** Completed Phase 0 Step 3 after capturing the working IDE, ESP32 core, GCC toolchain, board configuration and direct library versions; a successful compile, physical upload and boot were verified on the Waveshare ESP32-S3 Touch LCD 2.
-- **2026-11-01 — Version 1.5:** Added the Phase 0 Step 4 static blocking-operation audit. Identified synchronous Wi-Fi and HTTP/TLS paths, render-triggered icon downloads and delay-based animations; added a physical measurement matrix. Hardware timing measurements remain outstanding.
+- **2026-11-01 — Version 1.5:** Added the Phase 0 Step 4 static blocking-operation audit. Identified synchronous Wi-Fi and HTTP/TLS paths, render-triggered icon downloads and delay-based animations; added a physical measurement matrix.
+- **2026-11-01 — Version 1.6:** Recorded initial physical startup, idle, weather, forecast and full-refresh measurements in the Step 4 audit. Captured the user's observation that touchscreen interaction remained subjectively uninterrupted during network tests, while retaining measured loop gaps as a technical finding. Marked the initial physical baseline complete; extended fault-path, animation and remaining Phase 0 audit work stay open.
