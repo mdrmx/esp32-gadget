@@ -602,8 +602,8 @@ Recheck GitHub before acting; the following is the latest state covered by this 
 
 1. Review [the regression checklist](docs/PHASE0_REGRESSION_CHECKLIST.md) against the current physical device and confirm any missing must-preserve behaviour.
 2. Review [the data ownership and module-boundary plan](docs/PHASE0_MODULE_BOUNDARY_PLAN.md). Confirm the staged extraction order before any production code is moved.
-3. Run the compile-only spike in [PR #26](https://github.com/mdrmx/esp32-gadget/pull/26): validate one minimal header and one source file under the proposed Arduino `src/` layout using the Step 3 IDE/FQBN. Do not move production behaviour or introduce a new abstraction in this test.
-4. If the layout compiles, record the result and create the first Phase 1 extraction branch. If it fails, revise the layout based on the actual compiler result.
+3. The Arduino `src/` layout compile spike has passed with the recorded IDE/FQBN. Use its verified include/source pattern for the first real extraction; do not merge the temporary spike marker itself.
+4. Complete the final review and agree Phase 1 entry. The first extraction PR should be small, behaviour-preserving and include its own build and physical regression evidence.
 5. Keep PR #23 as an unmerged, test-only diagnostics branch. Retire it after any remaining diagnostic correction/retest is no longer needed; do not merge it into `main`.
 
 Do not start a broad source split, asynchronous networking or cellular integration before this review. The initial extraction should preserve runtime behaviour and use the memory profile and regression checklist as acceptance evidence.
