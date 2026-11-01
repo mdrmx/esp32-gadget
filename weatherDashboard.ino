@@ -13,6 +13,9 @@
 #include "secrets.h"
 #include "phase0/CompileLayoutSpike.h"
 
+static_assert(phase0_layout_spike::kVersion == 1,
+              "Arduino src-layout spike header was not included");
+
 // =====================================================
 // CONFIGURATION
 // =====================================================
@@ -3423,6 +3426,9 @@ bool fetchForecast() {
 // =====================================================
 
 void setup() {
+  // Temporary Phase 0 check: require the src/ implementation to compile and link.
+  (void)phase0_layout_spike::linkCheck();
+
   Serial.begin(115200);
   delay(500);
   DEBUG_PRINTLN();
