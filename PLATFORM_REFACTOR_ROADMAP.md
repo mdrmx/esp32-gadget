@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 1.7  
+**Version:** 1.8  
 **Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -581,10 +581,11 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 This is the current project checkpoint. Recheck GitHub before acting, but use the following as the last verified state:
 
 - **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
-- **Latest verified main commit:** `4a0cde967c26c69f8cf569f55e75650af384b09f` — merge commit for PR #22.
-- **PR #22:** [Step 4 blocking/responsiveness audit](https://github.com/mdrmx/esp32-gadget/pull/22) is merged. The audit now includes the startup, idle, weather, forecast and full-refresh measurements and the reported touchscreen observations.
-- **PR #23:** [temporary Phase 0 hardware diagnostics](https://github.com/mdrmx/esp32-gadget/pull/23), branch `test/phase0-step4-diagnostics`, remains a separate temporary diagnostics change and is not part of `main`. Do not merge it into production. Reuse it only for deliberate hardware measurement work, then remove/close or otherwise retire the temporary instrumentation after the measurements are complete.
-- **Phase 0:** Steps 1–4 static/initial-baseline deliverables are complete. Phase 0 is **not** closed: the next task is the on-device memory/PSRAM baseline, followed by documentation/regression review and the final module-boundary plan.
+- **Latest verified main commit:** `7657264db4fac8437d7b2cfc5a4b080239726ee3` — merge commit for PR #24.
+- **PR #22:** [Step 4 blocking/responsiveness audit](https://github.com/mdrmx/esp32-gadget/pull/22) is merged. The audit includes startup, idle, weather, forecast and full-refresh measurements plus the reported touchscreen observations.
+- **PR #24:** [Phase 0 handover refresh](https://github.com/mdrmx/esp32-gadget/pull/24) is merged. The live/demo-mode guide and stale Step 1/2 handover notes were corrected.
+- **PR #23:** [temporary Phase 0 hardware diagnostics](https://github.com/mdrmx/esp32-gadget/pull/23), branch `test/phase0-step4-diagnostics`, remains open as a draft and is not part of `main`. Its latest recorded branch head is `b0280416c1d63d1da10705560b458ccfe72ee04e`. It now includes live-mode-safe `[P0MEM]` memory/PSRAM snapshots and the `m` / `i` test commands, but this updated revision has **not yet been compiled or uploaded**. Do not merge it into production.
+- **Phase 0:** Steps 1–4 static/initial-baseline deliverables are complete. Phase 0 is **not** closed: the next action is to compile and upload the updated PR #23 diagnostic branch, then capture the on-device memory/PSRAM baseline. Documentation/regression review and the final module-boundary plan follow.
 - **Demo mode:** the firmware currently defaults to live mode (`USE_DEMO_WEATHER_DATA 0`). `DEVELOPMENT_MODE.md` now agrees; set the macro to `1` only for offline demo development.
 - **Step 4 physical baseline:** startup was observed at 9.6 s on a fast mesh and about 10 s ±0.5 s on a slower network. Idle loop gaps were 32–33 ms; healthy weather, forecast and full-refresh operations produced maximum diagnostic loop gaps of 820–1,509 ms. The user reported no noticeable touchscreen interruption during those network tests. These are setup-specific observations, not guarantees; fault-path and animation tests remain follow-up work.
 
@@ -592,13 +593,14 @@ This is the current project checkpoint. Recheck GitHub before acting, but use th
 
 Before extracting modules, establish the memory budget on the physical Waveshare ESP32-S3 Touch LCD 2 using the recorded Step 3 board/toolchain configuration.
 
-1. Record total/free PSRAM, free internal 8-bit heap, largest free internal block and minimum-ever free values where supported.
-2. Record the actual framebuffer address region and requested byte size for the forecast, weather-metrics and tab-transition canvases.
-3. Capture comparable snapshots after canvas allocation, after startup location/weather/forecast loading, after repeated weather/forecast refreshes, and after an icon cache change/cache miss.
-4. Compare free-space deltas and the largest internal block; watch for cumulative loss or fragmentation rather than interpreting one snapshot in isolation.
-5. Keep this as temporary test instrumentation. Do not introduce a memory-management refactor or change canvas placement until the measurements justify it.
+1. Check out `test/phase0-step4-diagnostics` and build/upload its latest head (`b0280416c1d63d1da10705560b458ccfe72ee04e`) using the Step 3 toolchain settings. This revision has not yet been physically validated.
+2. On Serial Monitor at 115200 baud, capture the startup `[P0MEM]` lines: `before-canvas-allocation`, the three canvas allocation records, `after-canvas-allocation`, `after-startup-weather-forecast-data` and `after-startup-first-render`.
+3. Use `m` for a manual snapshot; run `w`, `f` and `r` repeatedly (3–5 cycles each) and retain the before/data/render snapshots to compare heap changes over repeated refreshes.
+4. On the Weather tab with weather loaded, use `i` to clear and reload the icon cache. Capture the before/after snapshots, including `before-icon-buffer-allocation`, `after-icon-buffer-allocation` and `after-icon-cache-update`. Repeat this test to see whether memory returns to a stable level.
+5. Compare current free-space and largest-block deltas with the minimum-ever low-water marks; watch for cumulative loss or fragmentation rather than interpreting one snapshot in isolation.
+6. Keep this as temporary test instrumentation. Do not introduce a memory-management refactor or change canvas placement until the measurements justify it. **Do not merge PR #23.**
 
-**Important diagnostic caveat:** on the current live firmware, `USE_DEMO_WEATHER_DATA` is `0`, and the `DEBUG_PRINT` / `DEBUG_PRINTF` macros compile to no-ops in that mode. The existing `reportCanvasAllocation()` and `reportHeapSummary()` helpers use those macros, so their output is suppressed in live mode. The temporary PR #23 branch's separate `[P0DIAG]` logging does not automatically make those helper messages visible. Before relying on them, add a dedicated temporary memory-diagnostic switch or use explicit guarded `Serial.printf()` output in the diagnostics branch; do not enable noisy general debug logging or commit credentials.
+**Diagnostic implementation note:** the current `main` firmware still has `USE_DEMO_WEATHER_DATA 0`, and the normal `DEBUG_PRINT` / `DEBUG_PRINTF` macros compile to no-ops in live mode. The updated PR #23 diagnostics branch therefore adds separate guarded `[P0MEM]` helpers that write directly to Serial. This is implemented on the branch but remains unverified until it compiles and runs on the board. Do not switch demo mode on merely to expose debug output, and do not enable noisy general debug logging or commit credentials.
 
 ### Phase 0 close-out after memory profiling
 
@@ -649,3 +651,4 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-01 — Version 1.5:** Added the Phase 0 Step 4 static blocking-operation audit. Identified synchronous Wi-Fi and HTTP/TLS paths, render-triggered icon downloads and delay-based animations; added a physical measurement matrix.
 - **2026-11-01 — Version 1.6:** Recorded initial physical startup, idle, weather, forecast and full-refresh measurements in the Step 4 audit. Captured the user's observation that touchscreen interaction remained subjectively uninterrupted during network tests, while retaining measured loop gaps as a technical finding. Marked the initial physical baseline complete; extended fault-path, animation and remaining Phase 0 audit work stay open.
 - **2026-11-01 — Version 1.7:** Updated the handover after PR #22 merged. Recorded the verified main checkpoint, temporary PR #23 status, measured Step 4 baseline, current live/demo-mode behaviour and the next task (on-device memory/PSRAM profiling). Corrected stale Step 1/2 handover notes and reconciled `DEVELOPMENT_MODE.md` with the live firmware default.
+- **2026-11-01 — Version 1.8:** Updated the handover after PR #24 merged and the temporary PR #23 diagnostics branch gained live-mode-safe heap/PSRAM snapshots, canvas allocation reporting and repeatable icon cache-miss testing. Recorded the exact pending branch head and hardware validation steps; no diagnostics code was merged into production.
