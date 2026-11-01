@@ -30,6 +30,46 @@
   #define DEBUG_PRINTF(...) do {} while (0)
 #endif
 
+// =====================================================
+// PHASE 0 HARDWARE DIAGNOSTICS (temporary)
+// =====================================================
+// Set to 0 to compile out all diagnostic instrumentation.
+#define ENABLE_PHASE0_DIAGNOSTICS 1
+
+#if ENABLE_PHASE0_DIAGNOSTICS
+class Phase0DiagScope {
+public:
+  explicit Phase0DiagScope(const char* label)
+    : label_(label), startedMs_(millis()) {}
+
+  ~Phase0DiagScope() {
+    Serial.printf("[P0DIAG] %s: %lu ms\n",
+                  label_, (unsigned long)(millis() - startedMs_));
+  }
+
+private:
+  const char* label_;
+  unsigned long startedMs_;
+};
+
+unsigned long phase0MaxTouchGapMs = 0;
+unsigned long phase0MaxLoopMs = 0;
+unsigned long phase0LastReportMs = 0;
+unsigned long phase0LoopCount = 0;
+unsigned long phase0SetupStartedMs = 0;
+
+void phase0ReportSummary() {
+  Serial.printf(
+    "[P0DIAG] 10s summary: max touch-poll gap=%lu ms, max loop=%lu ms, loops=%lu\n",
+    phase0MaxTouchGapMs,
+    phase0MaxLoopMs,
+    phase0LoopCount);
+  phase0MaxTouchGapMs = 0;
+  phase0MaxLoopMs = 0;
+  phase0LoopCount = 0;
+}
+#endif
+
 const char* wifiSsid = WIFI_SSID;
 const char* wifiPassword = WIFI_PASSWORD;
 const char* apiKey = OPENWEATHER_API_KEY;
@@ -537,7 +577,7 @@ void refreshHeaderClock() {
   }
 }
 
-bool fetchTimeFromAPI() {
+bool fetchTimeFromAPI() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("fetchTimeFromAPI");\n#endif
 #if USE_DEMO_WEATHER_DATA
   DEBUG_PRINTLN("Demo mode: skipping TimeAPI.io request.");
   return false;
@@ -775,7 +815,7 @@ int drawWeatherPngLine(PNGDRAW* pDraw) {
   return 1;
 }
 
-bool loadOpenWeatherIconPNG() {
+bool loadOpenWeatherIconPNG() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("loadOpenWeatherIconPNG (cache check/download)");\n#endif
 #if USE_DEMO_WEATHER_DATA
   return false;  // Keep demo mode completely offline.
 #endif
@@ -2696,7 +2736,7 @@ void pollTouch() {
 // WI-FI
 // =====================================================
 
-bool connectWiFi() {
+bool connectWiFi() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("connectWiFi (includes due time sync)");\n#endif
   if (WiFi.status() == WL_CONNECTED) {
     maybeSyncTimeFromAPI();
     return true;
@@ -2730,7 +2770,7 @@ bool connectWiFi() {
 // Resolve the nearest named place for resolved coordinates through
 // OpenWeather's reverse-geocoding endpoint. Keep any existing location name
 // as a fallback if reverse geocoding fails.
-bool resolveLocationNameFromCoordinates() {
+bool resolveLocationNameFromCoordinates() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("resolveLocationNameFromCoordinates");\n#endif
 #if USE_DEMO_WEATHER_DATA
   Serial.println("[LOCATION] Demo mode: skipping OpenWeather reverse geocoding.");
   return false;
@@ -2790,7 +2830,7 @@ bool resolveLocationNameFromCoordinates() {
 // Resolve the device from nearby stationary Wi-Fi access points using Google's
 // Geolocation API. No connection to the scanned networks is required: only
 // broadcast BSSIDs and signal measurements are sent with the API request.
-bool resolveLocationFromWiFi() {
+bool resolveLocationFromWiFi() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("resolveLocationFromWiFi (includes scan + request)");\n#endif
 #if USE_DEMO_WEATHER_DATA
   Serial.println("[LOCATION] Demo mode: skipping Google Wi-Fi positioning.");
   return false;
@@ -3026,7 +3066,7 @@ bool resolveLocationFromWiFi() {
 
 // Resolve a coarse location from the public IP address until GPS is added.
 // IP geolocation can reflect an ISP/VPN exit point rather than the device.
-bool resolveLocationFromIP() {
+bool resolveLocationFromIP() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("resolveLocationFromIP");\n#endif
 #if USE_DEMO_WEATHER_DATA
   Serial.println("[LOCATION] Demo mode: skipping IP geolocation.");
   return false;
@@ -3089,7 +3129,7 @@ bool resolveLocationFromIP() {
   return true;
 }
 
-bool fetchWeather() {
+bool fetchWeather() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("fetchWeather (includes Wi-Fi/time sync)");\n#endif
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();
 #endif
@@ -3254,7 +3294,7 @@ bool loadDemoWeatherData() {
   return true;
 }
 
-bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
+bool fetchOneCallForecastPage(const String& url, String& nextUrl) {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("fetchOneCallForecastPage (single HTTP page)");\n#endif
   WiFiClientSecure client;
   client.setInsecure();
 
@@ -3360,7 +3400,7 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
   return true;
 }
 
-bool fetchForecast() {
+bool fetchForecast() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("fetchForecast (includes Wi-Fi + all pages)");\n#endif
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();
 #endif
@@ -3422,6 +3462,9 @@ bool fetchForecast() {
 // =====================================================
 
 void setup() {
+#if ENABLE_PHASE0_DIAGNOSTICS
+  phase0SetupStartedMs = millis();
+#endif
   Serial.begin(115200);
   delay(500);
   DEBUG_PRINTLN();
@@ -3564,6 +3607,11 @@ void setup() {
   else drawError("Weather unavailable");
 
   lastUpdate = millis();
+#if ENABLE_PHASE0_DIAGNOSTICS
+  Serial.printf("[P0DIAG] setup complete: %lu ms since setup start\n",
+                (unsigned long)(millis() - phase0SetupStartedMs));
+  phase0LastReportMs = millis();
+#endif
 }
 
 // =====================================================
@@ -3571,8 +3619,48 @@ void setup() {
 // =====================================================
 
 void loop() {
+#if ENABLE_PHASE0_DIAGNOSTICS
+  const unsigned long loopStartedMs = millis();
+  static unsigned long previousTouchPollMs = 0;
+  if (previousTouchPollMs != 0) {
+    const unsigned long touchGapMs = loopStartedMs - previousTouchPollMs;
+    if (touchGapMs > phase0MaxTouchGapMs) {
+      phase0MaxTouchGapMs = touchGapMs;
+    }
+  }
+  previousTouchPollMs = loopStartedMs;
+#endif
+
   pollTouch();
   maybeSyncTimeFromAPI();
+
+#if ENABLE_PHASE0_DIAGNOSTICS
+  // Manual test commands through Serial Monitor (115200 baud, newline optional):
+  // w = weather request, f = forecast request, r = both, h = print help.
+  while (Serial.available() > 0) {
+    const char command = (char)Serial.read();
+    if (command == 'h' || command == 'H') {
+      Serial.println("[P0DIAG] Commands: w=weather, f=forecast, r=both");
+    } else if (command == 'w' || command == 'W') {
+      Serial.println("[P0DIAG] Manual weather test started");
+      const bool ok = fetchWeather();
+      if (currentTab == 1) drawForecast();
+      else if (ok || weatherAvailable) drawWeather();
+      else drawError("Refresh failed");
+    } else if (command == 'f' || command == 'F') {
+      Serial.println("[P0DIAG] Manual forecast test started");
+      fetchForecast();
+      if (currentTab == 1) drawForecast();
+    } else if (command == 'r' || command == 'R') {
+      Serial.println("[P0DIAG] Manual full refresh started");
+      const bool ok = fetchWeather();
+      fetchForecast();
+      if (currentTab == 1) drawForecast();
+      else if (ok || weatherAvailable) drawWeather();
+      else drawError("Refresh failed");
+    }
+  }
+#endif
 
   if (millis() - lastClockCheckMs >= 1000UL) {
     lastClockCheckMs = millis();
@@ -3591,4 +3679,16 @@ void loop() {
   }
 
   delay(30);
+
+#if ENABLE_PHASE0_DIAGNOSTICS
+  const unsigned long loopDurationMs = millis() - loopStartedMs;
+  if (loopDurationMs > phase0MaxLoopMs) {
+    phase0MaxLoopMs = loopDurationMs;
+  }
+  phase0LoopCount++;
+  if (millis() - phase0LastReportMs >= 10000UL) {
+    phase0LastReportMs = millis();
+    phase0ReportSummary();
+  }
+#endif
 }
