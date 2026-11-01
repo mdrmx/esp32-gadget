@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 2.2  
+**Version:** 2.9  
 **Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete; PR #27 merged; PR #28 display manager and lifecycle fixes verified on hardware and ready to merge
+**Current roadmap status:** Phase 0 baseline complete; PRs #27, #28 and #29 hardware-verified; PR #29 is ready to merge
 
 ---
 
@@ -342,17 +342,16 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PR #27 merged; PR #28 display manager and resource-lifecycle fixes have passed compile, upload and physical regression and are ready to merge**
+**Status: IN PROGRESS — PRs #27, #28 and #29 have passed compile/upload/physical regression; PR #29 is ready to merge**
 
-The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The first production extraction has also passed the recorded hardware validation. The next small step establishes explicit ownership of display resources without moving Weather rendering or interaction logic.
+The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample` and display ownership extractions have passed hardware validation and are merged. The current step isolates CST816 I2C acquisition without changing Weather gesture or interaction behaviour.
 
 **Current task:**
 
 - [x] **PR #27 — Extract `TouchSample`:** the five-field data-only type now lives in `src/input/TouchSample.h`. The firmware compiled, uploaded and passed physical input regression on the Waveshare board before merge.
-- [x] **PR #28 — Extract display ownership:** `src/hardware/DisplayManager.h` owns ST7789 initialisation, logical dimensions, the three existing canvases and tab-transition render-target selection. The extraction and all three resource-lifecycle review fixes have passed compile, upload and the reported physical display/input regression.
-- [x] **PR #28 lifecycle review follow-up:** the destructor, failed/repeated initialisation cleanup and canvas replacement cleanup are committed and revalidated on the board.
+- [x] **PR #28 — Extract display ownership:** `src/hardware/DisplayManager.h` owns ST7789 initialisation, logical dimensions, the three existing canvases and tab-transition render-target selection. It is merged at `31029cc4f3b9902bdc038ad1aab721b397ef4bc6` after the extraction and resource-lifecycle review fixes passed compile, upload and physical display/input regression.
 - [ ] Record exact post-change canvas memory-region and internal-heap figures against the Phase 0 baseline when those diagnostic readings are available.
-- [ ] After PR #28 is merged, continue with the staged extraction sequence in [docs/PHASE0_MODULE_BOUNDARY_PLAN.md](docs/PHASE0_MODULE_BOUNDARY_PLAN.md).
+- [x] **PR #29 — Extract CST816 raw reader:** move I2C setup, device detection and raw sample decoding into `src/hardware/Cst816Reader.h`; keep gesture interpretation and view-specific state in Weather. The user confirmed successful compile, upload and physical input regression after review fixes. `Cst816Reader::begin(bool initBus = true)` allows callers to skip bus setup when sharing an already-initialised `TwoWire`, while preserving current default behaviour. The `requestFrom()` result is stored as `size_t`.
 
 **Phase 1 tasks:**
 
@@ -563,32 +562,30 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ## 10. Handover instructions for future development sessions
 
-### Current handover — 2026-11-01 (Phase 1 display ownership in progress)
+### Current handover — 2026-11-01 (Phase 1 CST816 reader verified; PR #29 ready to merge)
 
 Recheck GitHub before acting; this is the latest checkpoint covered by this roadmap.
 
 - **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
-- **Latest verified main commit:** `d1fa65f07e82a0394e17b5bd7d5af641dacc1aa6` (PR #27 merge commit).
+- **Latest verified main commit:** `31029cc4f3b9902bdc038ad1aab721b397ef4bc6` (PR #28 merge commit).
+- **PR #27:** TouchSample value-type extraction is merged after successful compile, upload and physical input regression.
+- **PR #28:** DisplayManager extraction and resource-lifecycle fixes are merged after successful compilation, upload and physical display/input regression. The exact post-change heap comparison has not been recorded.
 - **PR #22:** permanent Step 4 blocking/responsiveness audit is merged.
 - **PR #24:** handover refresh is merged.
 - **PR #25:** Phase 0 memory profile, regression checklist and module-boundary documentation is merged.
-- **PR #27:** TouchSample value-type extraction is merged after successful compile, upload and physical input regression on the Waveshare board.
-- **PR #23:** temporary hardware diagnostics is closed without merging; its remote branch is no longer present. Its reusable measurements are recorded in the Phase 0 docs.
+- **PR #23:** temporary hardware diagnostics is closed without merging; its reusable measurements are recorded in the Phase 0 docs.
 - **PR #26:** temporary Arduino `src/` compile spike is closed without merging; its compile/link result is retained in `docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md`.
-- **Phase 0:** complete. The extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups and are not being represented as completed.
-- **Phase 1:** in progress. [PR #28 — Extract display ownership](https://github.com/mdrmx/esp32-gadget/pull/28) is open as a draft on branch `phase1/02-display-manager`.
-- **PR #28 scope:** `DisplayManager` owns ST7789 setup, logical dimensions, the forecast/metrics/transition canvases and the active render-target selection. Weather drawing and interaction policies remain in the sketch. The original implementation and subsequent resource-lifecycle review fixes have all passed the user's compile, upload and physical regression. The numeric post-change memory comparison is not yet recorded.
-- **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the local ignored `secrets.h`.
-- **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. All three current canvases were in PSRAM before this extraction. See [the memory profile](docs/PHASE0_MEMORY_PROFILE.md).
+- **Phase 0:** complete. Extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups.
+- **Phase 1:** in progress. [PR #29 — Extract CST816 raw touch reader](https://github.com/mdrmx/esp32-gadget/pull/29) has passed the user's compile, upload and physical regression after review fixes and is ready to merge from branch `phase1/03-cst816-reader`.
+- **PR #29 scope:** move I2C initialisation, CST816 presence detection and six-byte sample acquisition/decoding to `src/hardware/Cst816Reader.h`. Keep `TouchSample`, coordinate mapping, gesture codes, drag ownership, suppression and Weather view actions unchanged. The user confirmed the updated branch compiles, uploads and passes the physical input regression.
+- **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the ignored local `secrets.h`.
+- **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. All three display canvases remain in PSRAM by the pre-extraction baseline.
 
-### Next action — merge PR #28 after review
+### Next action — close PR #29
 
-PR #28's display ownership extraction and resource-lifecycle review fixes have passed the user's latest compile, upload and physical regression checks.
+The latest branch head has passed the user's compile, upload and physical input regression after the two code-review fixes. Merge PR #29, then remove the feature branch. Do not start gesture/interaction extraction in this session; that is the next Phase 1 task for the next development session.
 
-1. Review and merge [PR #28 — Extract display ownership](https://github.com/mdrmx/esp32-gadget/pull/28).
-2. Record the post-change canvas memory-region and internal-heap figures against the Phase 0 profile when available.
-
-After merge, continue with the CST816 raw touch reader extraction as the next isolated Phase 1 step. Do not combine it with gesture recognition or scroll-controller work.
+Do not combine this raw-reader extraction with gesture recognition, interaction arbitration or scroll-controller changes.
 
 ### Standing handover procedure
 
@@ -610,7 +607,7 @@ When resuming work after a context reset:
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
-| 1 | Project structure and shared foundations | In progress — PR #27 merged; PR #28 extraction and lifecycle fixes hardware-verified, ready to merge |
+| 1 | Project structure and shared foundations | In progress — PRs #27 and #28 merged; PR #29 hardware-verified and ready to merge |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
@@ -641,3 +638,11 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-01 — Version 2.4:** Recorded the PR #28 review follow-up: `DisplayManager` now owns and releases its resources, cleans up failed initialisation and replaces canvases without retaining the previous framebuffer. Concrete Arduino_GFX display and SPI bus pointer types are retained for safe deletion because the installed library's abstract base types do not declare virtual destructors. The initial extraction had passed board tests; the lifecycle follow-up awaits fresh Verify and hardware revalidation.
 
 - **2026-11-01 — Version 2.5:** Recorded successful revalidation of PR #28 after the resource-lifecycle review fixes. The updated firmware compiled, uploaded and passed the reported physical display/input regression; PR #28 is ready to merge. Exact post-change memory diagnostic figures remain unrecorded.
+
+- **2026-11-01 — Version 2.6:** Recorded PR #28 merge at `31029cc4f3b9902bdc038ad1aab721b397ef4bc6` and started PR #29, extracting CST816 I2C setup, device detection and raw sample decoding into `src/hardware/Cst816Reader.h` while leaving gesture and view interaction logic in the sketch.
+
+- **2026-11-01 — Version 2.7:** Confirmed PR #28 is merged and `main` is at merge commit `31029cc4f3b9902bdc038ad1aab721b397ef4bc6`. Opened draft PR #29 for the isolated CST816 raw-reader extraction; compilation and physical input regression are pending.
+
+- **2026-11-01 — Version 2.8:** Addressed PR #29 review comments in commit `d787bef1c8a112f9c59a1c9c7bfefd35faa5575d`: added optional bus initialisation with `begin(bool initBus = true)` and changed the `requestFrom()` result variable to `size_t`. Both inline review comments received replies. Fresh compile/upload/physical regression after these changes remains pending.
+
+- **2026-11-01 — Version 2.9:** Recorded the user's successful Verify, upload and full physical input regression for PR #29 after review fixes. PR #29 is ready to merge; the next Phase 1 task remains gesture/interaction separation and is intentionally deferred to the next session.
