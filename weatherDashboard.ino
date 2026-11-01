@@ -577,7 +577,10 @@ void refreshHeaderClock() {
   }
 }
 
-bool fetchTimeFromAPI() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("fetchTimeFromAPI");\n#endif
+bool fetchTimeFromAPI() {
+#if ENABLE_PHASE0_DIAGNOSTICS
+  Phase0DiagScope phase0Scope("fetchTimeFromAPI");
+#endif
 #if USE_DEMO_WEATHER_DATA
   DEBUG_PRINTLN("Demo mode: skipping TimeAPI.io request.");
   return false;
@@ -815,7 +818,10 @@ int drawWeatherPngLine(PNGDRAW* pDraw) {
   return 1;
 }
 
-bool loadOpenWeatherIconPNG() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("loadOpenWeatherIconPNG (cache check/download)");\n#endif
+bool loadOpenWeatherIconPNG() {
+#if ENABLE_PHASE0_DIAGNOSTICS
+  Phase0DiagScope phase0Scope("loadOpenWeatherIconPNG (cache check/download)");
+#endif
 #if USE_DEMO_WEATHER_DATA
   return false;  // Keep demo mode completely offline.
 #endif
@@ -2736,7 +2742,10 @@ void pollTouch() {
 // WI-FI
 // =====================================================
 
-bool connectWiFi() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("connectWiFi (includes due time sync)");\n#endif
+bool connectWiFi() {
+#if ENABLE_PHASE0_DIAGNOSTICS
+  Phase0DiagScope phase0Scope("connectWiFi (includes due time sync)");
+#endif
   if (WiFi.status() == WL_CONNECTED) {
     maybeSyncTimeFromAPI();
     return true;
@@ -2770,7 +2779,10 @@ bool connectWiFi() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Sco
 // Resolve the nearest named place for resolved coordinates through
 // OpenWeather's reverse-geocoding endpoint. Keep any existing location name
 // as a fallback if reverse geocoding fails.
-bool resolveLocationNameFromCoordinates() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("resolveLocationNameFromCoordinates");\n#endif
+bool resolveLocationNameFromCoordinates() {
+#if ENABLE_PHASE0_DIAGNOSTICS
+  Phase0DiagScope phase0Scope("resolveLocationNameFromCoordinates");
+#endif
 #if USE_DEMO_WEATHER_DATA
   Serial.println("[LOCATION] Demo mode: skipping OpenWeather reverse geocoding.");
   return false;
@@ -2830,7 +2842,10 @@ bool resolveLocationNameFromCoordinates() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Ph
 // Resolve the device from nearby stationary Wi-Fi access points using Google's
 // Geolocation API. No connection to the scanned networks is required: only
 // broadcast BSSIDs and signal measurements are sent with the API request.
-bool resolveLocationFromWiFi() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("resolveLocationFromWiFi (includes scan + request)");\n#endif
+bool resolveLocationFromWiFi() {
+#if ENABLE_PHASE0_DIAGNOSTICS
+  Phase0DiagScope phase0Scope("resolveLocationFromWiFi (includes scan + request)");
+#endif
 #if USE_DEMO_WEATHER_DATA
   Serial.println("[LOCATION] Demo mode: skipping Google Wi-Fi positioning.");
   return false;
@@ -3066,7 +3081,10 @@ bool resolveLocationFromWiFi() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagSco
 
 // Resolve a coarse location from the public IP address until GPS is added.
 // IP geolocation can reflect an ISP/VPN exit point rather than the device.
-bool resolveLocationFromIP() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("resolveLocationFromIP");\n#endif
+bool resolveLocationFromIP() {
+#if ENABLE_PHASE0_DIAGNOSTICS
+  Phase0DiagScope phase0Scope("resolveLocationFromIP");
+#endif
 #if USE_DEMO_WEATHER_DATA
   Serial.println("[LOCATION] Demo mode: skipping IP geolocation.");
   return false;
@@ -3129,7 +3147,10 @@ bool resolveLocationFromIP() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope
   return true;
 }
 
-bool fetchWeather() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("fetchWeather (includes Wi-Fi/time sync)");\n#endif
+bool fetchWeather() {
+#if ENABLE_PHASE0_DIAGNOSTICS
+  Phase0DiagScope phase0Scope("fetchWeather (includes Wi-Fi/time sync)");
+#endif
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();
 #endif
@@ -3294,7 +3315,10 @@ bool loadDemoWeatherData() {
   return true;
 }
 
-bool fetchOneCallForecastPage(const String& url, String& nextUrl) {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("fetchOneCallForecastPage (single HTTP page)");\n#endif
+bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
+#if ENABLE_PHASE0_DIAGNOSTICS
+  Phase0DiagScope phase0Scope("fetchOneCallForecastPage (single HTTP page)");
+#endif
   WiFiClientSecure client;
   client.setInsecure();
 
@@ -3400,7 +3424,10 @@ bool fetchOneCallForecastPage(const String& url, String& nextUrl) {\n#if ENABLE_
   return true;
 }
 
-bool fetchForecast() {\n#if ENABLE_PHASE0_DIAGNOSTICS\n  Phase0DiagScope phase0Scope("fetchForecast (includes Wi-Fi + all pages)");\n#endif
+bool fetchForecast() {
+#if ENABLE_PHASE0_DIAGNOSTICS
+  Phase0DiagScope phase0Scope("fetchForecast (includes Wi-Fi + all pages)");
+#endif
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();
 #endif
