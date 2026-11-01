@@ -5,7 +5,7 @@
 **Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete; PRs #27 and #28 merged and hardware-verified; PR #29 extracts CST816 raw I2C sampling
+**Current roadmap status:** Phase 0 baseline complete; PRs #27 and #28 merged and hardware-verified; PR #29 CST816 raw reader open as draft pending validation
 
 ---
 
@@ -576,7 +576,7 @@ Recheck GitHub before acting; this is the latest checkpoint covered by this road
 - **PR #23:** temporary hardware diagnostics is closed without merging; its reusable measurements are recorded in the Phase 0 docs.
 - **PR #26:** temporary Arduino `src/` compile spike is closed without merging; its compile/link result is retained in `docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md`.
 - **Phase 0:** complete. Extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups.
-- **Phase 1:** in progress. [PR #29 — Extract CST816 raw touch reader](https://github.com/mdrmx/esp32-gadget/pull/29) is being prepared on branch `phase1/03-cst816-reader`.
+- **Phase 1:** in progress. [PR #29 — Extract CST816 raw touch reader](https://github.com/mdrmx/esp32-gadget/pull/29) is open as a draft on branch `phase1/03-cst816-reader`.
 - **PR #29 scope:** move I2C initialisation, CST816 presence detection and six-byte sample acquisition/decoding to `src/hardware/Cst816Reader.h`. Keep `TouchSample`, coordinate mapping, gesture codes, drag ownership, suppression and Weather view actions unchanged. Compile/upload/input regression are pending.
 - **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the ignored local `secrets.h`.
 - **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. All three display canvases remain in PSRAM by the pre-extraction baseline.
@@ -645,3 +645,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-01 — Version 2.5:** Recorded successful revalidation of PR #28 after the resource-lifecycle review fixes. The updated firmware compiled, uploaded and passed the reported physical display/input regression; PR #28 is ready to merge. Exact post-change memory diagnostic figures remain unrecorded.
 
 - **2026-11-01 — Version 2.6:** Recorded PR #28 merge at `31029cc4f3b9902bdc038ad1aab721b397ef4bc6` and started PR #29, extracting CST816 I2C setup, device detection and raw sample decoding into `src/hardware/Cst816Reader.h` while leaving gesture and view interaction logic in the sketch.
+
+- **2026-11-01 — Version 2.7:** Confirmed PR #28 is merged and `main` is at merge commit `31029cc4f3b9902bdc038ad1aab721b397ef4bc6`. Opened draft PR #29 for the isolated CST816 raw-reader extraction; compilation and physical input regression are pending.
