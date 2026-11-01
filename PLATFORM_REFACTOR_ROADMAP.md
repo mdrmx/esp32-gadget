@@ -577,13 +577,13 @@ Recheck GitHub before acting; this is the latest checkpoint covered by this road
 - **PR #26:** temporary Arduino `src/` compile spike is closed without merging; its compile/link result is retained in `docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md`.
 - **Phase 0:** complete. Extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups.
 - **Phase 1:** in progress. [PR #29 — Extract CST816 raw touch reader](https://github.com/mdrmx/esp32-gadget/pull/29) has passed the user's compile, upload and physical regression after review fixes and is ready to merge from branch `phase1/03-cst816-reader`.
-- **PR #29 scope:** move I2C initialisation, CST816 presence detection and six-byte sample acquisition/decoding to `src/hardware/Cst816Reader.h`. Keep `TouchSample`, coordinate mapping, gesture codes, drag ownership, suppression and Weather view actions unchanged. The user confirmed the updated branch compiles, uploads and passes the physical input regression.
+- **PR #29 scope:** move I2C initialisation, CST816 presence detection and six-byte sample acquisition/decoding to `src/hardware/Cst816Reader.h`. Keep `TouchSample`, coordinate mapping, gesture codes, drag ownership, suppression and Weather view actions unchanged. The user confirmed the updated branch compiles, uploads and passes the physical input regression. The PR is merged at `5ee7ce7d1a42e31d275cc7fa2e2899544d6d9a42`.
 - **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the ignored local `secrets.h`.
 - **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. All three display canvases remain in PSRAM by the pre-extraction baseline.
 
-### Next action — close PR #29
+### Next session — gesture/interaction separation
 
-The latest branch head has passed the user's compile, upload and physical input regression after the two code-review fixes. Merge PR #29, then remove the feature branch. Do not start gesture/interaction extraction in this session; that is the next Phase 1 task for the next development session.
+PR #29 is merged and its feature branch is ready to delete. The next isolated Phase 1 task is gesture/interaction separation. Retain distinct metric, forecast-list and graph ownership; preserve all current touch behaviour and extract only the agreed interaction responsibilities. Do not combine this with scroll-controller work.
 
 Do not combine this raw-reader extraction with gesture recognition, interaction arbitration or scroll-controller changes.
 
@@ -646,3 +646,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-01 — Version 2.8:** Addressed PR #29 review comments in commit `d787bef1c8a112f9c59a1c9c7bfefd35faa5575d`: added optional bus initialisation with `begin(bool initBus = true)` and changed the `requestFrom()` result variable to `size_t`. Both inline review comments received replies. Fresh compile/upload/physical regression after these changes remains pending.
 
 - **2026-11-01 — Version 2.9:** Recorded the user's successful Verify, upload and full physical input regression for PR #29 after review fixes. PR #29 is ready to merge; the next Phase 1 task remains gesture/interaction separation and is intentionally deferred to the next session.
+
+- **2026-11-01 — Version 3.0:** Recorded PR #29 merge at `5ee7ce7d1a42e31d275cc7fa2e2899544d6d9a42` after the user's successful compile, upload and physical regression of the final review-fixed branch. The next task is gesture/interaction separation, deferred to the next session.
