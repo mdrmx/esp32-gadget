@@ -13,6 +13,8 @@ The repository audit and local verification are complete. The IDE, board package
 
 A clean working-tree checkout at `audit/phase0-step3-build-toolchain` was compiled successfully using the recorded configuration. The firmware was then uploaded to the physical Waveshare board, which booted and was confirmed by the developer to be working correctly. No firmware source or runtime behaviour was changed in this step.
 
+**Post-audit documentation note (2026-11-01):** the previously identified `DEVELOPMENT_MODE.md` default-mode discrepancy has been reconciled; the guide now matches the current live-mode firmware default.
+
 ## 2. Repository evidence
 
 ### 2.1 Sketch layout
@@ -218,7 +220,7 @@ All Step 3 acceptance checks have now been completed against the working checkou
 2. **Unpinned dependencies:** updates to the ESP32 core or external libraries could change compilation, memory use or runtime behaviour. Pin only after identifying the known-good versions.
 3. **Board configuration:** the generic ESP32-S3 board selection is not a complete record of PSRAM, flash, USB and partition settings.
 4. **Secrets:** a fresh checkout needs a local `secrets.h`; the example template makes the required macro names discoverable without publishing credentials.
-5. **Demo-mode documentation:** the source currently sets `USE_DEMO_WEATHER_DATA` to `0`, while `DEVELOPMENT_MODE.md` describes `1` as the current default. This remains a separate Phase 0 documentation-reconciliation item and is not changed in this step.
+5. **Demo-mode documentation — resolved after this audit:** the firmware source sets `USE_DEMO_WEATHER_DATA` to `0` (live mode), and `DEVELOPMENT_MODE.md` now documents `0` as the current default and `1` as opt-in offline demo mode. The firmware setting was not changed.
 
 ## 7. Step outcome
 
