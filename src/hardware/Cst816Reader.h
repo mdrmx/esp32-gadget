@@ -2,7 +2,7 @@
 
 #include <Wire.h>
 
-#include "src/input/TouchSample.h"
+#include "../input/TouchSample.h"
 
 // Owns CST816 I2C setup, presence detection and raw register sampling.
 // Gesture interpretation and view-specific touch ownership remain in Weather.
