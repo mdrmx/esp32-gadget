@@ -333,7 +333,7 @@ Tasks:
 
 - [x] Inventory all functions, globals, shared state and dependencies in weatherDashboard.ino. See [the Step 1 inventory](docs/PHASE0_STEP1_CODE_INVENTORY.md).
 - [x] Map how setup(), loop(), touch handling, rendering, network requests and periodic updates interact. See [the Step 2 runtime map](docs/PHASE0_STEP2_RUNTIME_DATA_FLOW.md).
-- [x] Identify direct Wi-Fi calls, HTTP/TLS clients, API requests and blocking waits. See the Step 4 blocking/responsiveness audit.
+- [x] Identify direct Wi-Fi calls, HTTP/TLS clients, API requests and blocking waits. See [the Step 4 blocking/responsiveness audit](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md).
 - Identify current data models, location/time ownership and persistence.
 - Map touch/gesture/drag state, metric scrolling, forecast scrolling and graph scrolling.
 - Inventory Arduino_GFX canvases, heap/PSRAM use, buffer lifetimes and allocation fallbacks.
@@ -343,7 +343,7 @@ Tasks:
 - Identify code that is genuinely duplicated versus code that only looks similar.
 - Record a reproducible build and hardware regression checklist.
 - Capture useful baseline memory measurements.
-- [ ] Capture physical responsiveness measurements using the Step 4 test matrix; source-configured timeout values are not substitutes for measurements.
+- [ ] Capture physical responsiveness measurements using the [Step 4 test matrix](docs/PHASE0_STEP4_BLOCKING_RESPONSIVENESS_AUDIT.md#72-test-matrix); source-configured timeout values are not substitutes for measurements.
 - Produce an agreed module-boundary plan and resolve high-risk technical questions before Phase 1.
 
 **Deliverables:**
