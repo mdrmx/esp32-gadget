@@ -580,7 +580,7 @@ void phase0ReportCanvasAllocations() {
   phase0ReportCanvasAllocation(
     "weather-metrics",
     weatherMetricsCanvas,
-    (size_t)weatherMetricsPanelWidth() *
+    (size_t)(screenW - (screenW * 60) / 100 - 10) *
       WEATHER_METRIC_PANEL_HEIGHT * sizeof(uint16_t));
   phase0ReportCanvasAllocation(
     "tab-transition",
