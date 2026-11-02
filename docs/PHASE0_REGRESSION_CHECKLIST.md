@@ -46,7 +46,6 @@ This is a manual physical-device checklist. The repository currently has no chec
 | Forecast return navigation | Swipe from Forecast back to Weather | Weather returns without a stale transition frame |
 | Tab transition | Switch tabs repeatedly | Transition renders correctly; fallback remains usable if transition canvas is unavailable |
 
-
 ## PR #33 — Scroll-controller extraction regression (pending)
 
 Repeat these checks on the PR #33 firmware after Arduino Verify and upload. These checks are not yet reported as passed.
