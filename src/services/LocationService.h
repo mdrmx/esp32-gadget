@@ -353,27 +353,39 @@ private:
     http.setConnectTimeout(10000);
     http.setTimeout(12000);
     const int status = http.POST(requestBody);
-    String responseBody = http.getString();
-    http.end();
-
     if (status != HTTP_CODE_OK) {
-      if (responseBody.length() > 220) {
-        responseBody = responseBody.substring(0, 220);
+      // Only read a short error preview on failure. Do not buffer an
+      // arbitrary captive-portal/server error response on the ESP32 heap.
+      char previewBuffer[221];
+      size_t previewLength = 0;
+      WiFiClient* responseStream = http.getStreamPtr();
+      while (responseStream != nullptr &&
+             previewLength < sizeof(previewBuffer) - 1 &&
+             responseStream->available()) {
+        const int nextByte = responseStream->read();
+        if (nextByte < 0) break;
+        previewBuffer[previewLength++] = (char)nextByte;
       }
+      previewBuffer[previewLength] = '\0';
+
       Serial.printf(
         "[LOCATION] Google Geolocation HTTP status %d; trying IP geolocation.\n",
         status);
-      if (responseBody.length() > 0) {
+      if (previewLength > 0) {
         Serial.printf(
-          "[LOCATION] Google response: %s\n",
-          responseBody.c_str());
+          "[LOCATION] Google response (first %u bytes): %s\n",
+          (unsigned)previewLength,
+          previewBuffer);
       }
+      http.end();
       return false;
     }
 
     JsonDocument responseDoc;
     const DeserializationError error =
-      deserializeJson(responseDoc, responseBody);
+      deserializeJson(responseDoc, http.getStream());
+    http.end();
+
     if (error ||
         responseDoc["location"]["lat"].isNull() ||
         responseDoc["location"]["lng"].isNull()) {
