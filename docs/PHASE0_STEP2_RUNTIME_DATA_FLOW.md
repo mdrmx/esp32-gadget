@@ -424,10 +424,10 @@ There are two distinct time concepts in the current sketch.
 
 ### Device clock / header time
 
-- `initialiseTimeZone()` configures the device for Europe/London time, including UK daylight-saving rules.
-- `fetchTimeFromAPI()` requests the current local date/time from TimeAPI.io when synchronisation is due. It validates the returned fields, converts the London wall-clock time to an epoch using `mktime()` and sets the ESP32 system clock using `settimeofday()`.
-- `maybeSyncTimeFromAPI()` checks once per loop whether a sync is due. Before the first valid sync, it retries no more often than every five minutes. After a successful sync, the normal resynchronisation interval is six hours; a failed due sync is retried no more often than every five minutes.
-- `getHeaderClockText()` reads the system epoch and converts it with `localtime_r()`. It returns `--:--` if the system time is not valid.
+- `timeService.begin()` configures the device for Europe/London time, including UK daylight-saving rules.
+- `maybeSyncTimeFromAPI()` supplies the current Wi-Fi-connected state and scheduler time to `TimeService::syncIfDue()`. The service owns the TimeAPI request, response validation, London wall-clock-to-epoch conversion and ESP32 system-clock update.
+- Before the first valid sync, TimeService retries no more often than every five minutes. After a successful sync, the normal resynchronisation interval is six hours; a failed due sync is retried no more often than every five minutes.
+- `timeService.headerClockText()` reads the system epoch and converts it with `localtime_r()`. It returns `--:--` if the system time is not valid.
 - `refreshHeaderClock()` runs on the one-second loop check, but redraws the clock region only when the displayed text changes.
 
 ### Forecast time labels
