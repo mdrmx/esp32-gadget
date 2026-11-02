@@ -6,8 +6,8 @@
 **Repository:** `mdrmx/esp32-gadget`  
 **Primary runtime entry point:** `weatherDashboard.ino`  
 **Service modules:** `src/services/TimeService.h`, `src/services/LocationService.h`  
-**Merge-base inspected:** `main` at PR #34 merge `b11416b62ff91b7f917f16c8a484d0d2e6b7f02d`  
-**Current extraction branch:** `phase1/09-location-service`  
+**Source checkpoint:** `main` at PR #35 merge `fbd87e9b73b4a21e4b2579a7e2d0c15708e410cb`  
+**Extraction status:** PR #35 merged; `LocationService` is part of `main`  
 **Review date:** 2026-11-02
 
 ---
@@ -16,7 +16,7 @@
 
 This document completes Phase 0, Step 2: trace how the existing firmware behaves at runtime and how input, application state, network responses and rendering connect.
 
-The trace follows the Weather sketch and the extracted platform services at the PR #34 merge-base, with the PR #35 LocationService changes called out explicitly. It covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
+The trace follows the Weather sketch and the extracted TimeService and LocationService modules at the PR #35 merge checkpoint. It covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
 
 This is a **static source-level runtime map**. It does not claim that the firmware was compiled, profiled, or tested on the physical Waveshare board during this step. Timing values below are configured timeout / scheduling values in the source, not measured network latency or observed responsiveness.
 
@@ -24,8 +24,8 @@ This is a **static source-level runtime map**. It does not claim that the firmwa
 
 | Item | Observed |
 |---|---:|
-| Sketch size | 3,594 lines |
-| Current source blob | `02ba63e385a36eb64d542df644126e7efea0b8b4` |
+| Sketch size | 47 lines |
+| Current source blob | `1cd98bd7575854bb2f796b70b9ed5cb451da578e` |
 | Main entry points | `setup()` and `loop()` |
 | Main display tabs | Current Weather and Hourly Forecast |
 | Weather refresh interval | 600,000 ms (10 minutes) |
