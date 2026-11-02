@@ -19,8 +19,7 @@ public:
     ConfiguredTrustAnchor
   };
 
-  HttpRequestClient()
-    : beginAttempted_(false), active_(false), trustAnchorConfigured_(false) {}
+  HttpRequestClient() = default;
 
   ~HttpRequestClient() {
     end();
@@ -33,7 +32,7 @@ public:
 
   // Configure certificate validation before begin() when the caller has
   // a trusted root CA. This is intentionally separate from the legacy
-  // allowInsecureTls compatibility switch below.
+  // insecure-TLS compatibility policy below.
   bool setCACert(const char* rootCaCertificate) {
     if (beginAttempted_ || rootCaCertificate == nullptr ||
         rootCaCertificate[0] == '\0') {
@@ -93,11 +92,11 @@ public:
 
   // The response stream is owned by HTTPClient and remains valid only until
   // end() or destruction of this request session.
-  auto& getStream() {
+  NetworkClient& getStream() {
     return http_.getStream();
   }
 
-  auto* getStreamPtr() {
+  NetworkClient* getStreamPtr() {
     return http_.getStreamPtr();
   }
 
@@ -118,7 +117,7 @@ private:
   // Declare the socket before HTTPClient so it outlives HTTPClient destruction.
   WiFiClientSecure secureClient_;
   HTTPClient http_;
-  bool beginAttempted_;
-  bool active_;
-  bool trustAnchorConfigured_;
+  bool beginAttempted_ = false;
+  bool active_ = false;
+  bool trustAnchorConfigured_ = false;
 };
