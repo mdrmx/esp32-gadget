@@ -2511,7 +2511,6 @@ void pollTouch() {
   TouchSample sample;
   if (!touchReader.readSample(sample)) return;
   const GestureObservation observation = gestureRecognizer.update(sample);
-  const uint8_t rawGesture = observation.rawGesture;
   const GestureCode gesture = observation.gesture;
 
   // Always log raw transitions in demo mode, including the return to zero.
@@ -2519,7 +2518,7 @@ void pollTouch() {
     DEBUG_PRINTF(
       "Touch register transition: 0x%02X -> 0x%02X\n",
       observation.previousRawGesture,
-      rawGesture);
+      observation.rawGesture);
   }
 
   updateTouchDrag(sample, observation);
