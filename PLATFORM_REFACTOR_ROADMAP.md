@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.4  
+**Version:** 4.5  
 **Last reviewed:** 2026-11-02  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete; PRs #27–#33 merged. PR #33 scroll-math extraction was validated on the Waveshare board and merged to `main` at `4f3aeae4713b8c6252266112e476a9e50cb86c52`.
+**Current roadmap status:** Phase 0 baseline complete; PRs #27–#33 merged. PR #34 is extracting the device Time Service in `phase1/08-time-service`; Location Service/provider orchestration remains a separate follow-up.
 
 ---
 
@@ -342,9 +342,9 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PRs #27–#33 are merged. The gesture-recognition, interaction-ownership and scroll-calculation extractions are verified while the remaining Phase 1 module work continues.**
+**Status: IN PROGRESS — PRs #27–#33 are merged; PR #34 is extracting the Time Service as the first slice of the time/location boundary. The gesture-recognition, interaction-ownership and scroll-calculation extractions are verified while remaining Phase 1 module work continues.**
 
-The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample`, display ownership, CST816 reader, typed gesture-code, controller-level gesture-recognition and interaction-ownership extractions are merged. PR #31 and PR #32 were verified, uploaded and physically regression-tested successfully. PR #32 adds a small `InteractionArbiter` for the active contact owner and the decision to suppress a duplicate controller gesture. Weather continues to choose the owner through its existing hit-tests and retains all view-specific drag, timing, graph and navigation policies. PR #33 adds a stateless `ScrollController` math helper; the user confirmed Arduino IDE Verify, upload/boot and physical metric-card, forecast-list and graph scroll regression on 2026-11-02. The view offsets, drag lifecycles and rendering policies remain in the sketch.
+The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample`, display ownership, CST816 reader, typed gesture-code, controller-level gesture-recognition and interaction-ownership extractions are merged. PR #31 and PR #32 were verified, uploaded and physically regression-tested successfully. PR #32 adds a small `InteractionArbiter` for the active contact owner and the decision to suppress a duplicate controller gesture. Weather continues to choose the owner through its existing hit-tests and retains all view-specific drag, timing, graph and navigation policies. PR #33 adds a stateless `ScrollController` math helper; the user confirmed Arduino IDE Verify, upload/boot and physical metric-card, forecast-list and graph scroll regression on 2026-11-02. The view offsets, drag lifecycles and rendering policies remain in the sketch. PR #34 begins the next domain-service boundary by moving system clock validity, UK timezone setup, TimeAPI synchronisation and retry policy into `src/services/TimeService.h`; Weather retains the header redraw cache and forecast timezone offset.
 
 **Current task:**
 
@@ -363,6 +363,7 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
   - [x] Uploaded and booted on the Waveshare ESP32-S3 Touch LCD 2; confirmed by the user.
   - [x] User confirmed the physical interaction regression passed, including metric/list candidate and axis-intent handling, drag ownership and duplicate-gesture suppression, graph ownership/quick swipe/hold drag, selector tap/cancellation and release/fresh-contact behaviour.
 - [x] **PR #33 — Shared scroll calculations:** adds `src/ui/ScrollController.h` for drag delta, elastic resistance, bounded elastic position and nearest-step snapping. Metric, forecast-list and graph offsets, drag lifecycles, rendering, animations and graph-specific gesture policy remain in Weather. Standalone C++14 compilation, compile-time arithmetic checks, Arduino IDE Verify, upload/boot and physical scroll regression passed; the user confirmed the firmware and metric-card, forecast-list and graph behaviour on 2026-11-02.
+- [ ] **PR #34 — Time Service boundary (in progress on `phase1/08-time-service`):** adds `src/services/TimeService.h` for Europe/London timezone configuration, clock validity/formatting, TimeAPI response validation and system-clock application, plus the existing retry/resynchronisation policy. Weather retains header redraw cadence/cache and `locationTimezoneOffset`; Wi-Fi lifecycle and the Google Wi-Fi → IP location chain remain unchanged. Arduino Verify, upload and physical clock regression are pending.
 
 **Phase 1 tasks:**
 
@@ -608,6 +609,15 @@ Recheck GitHub before acting; this handover is the latest checkpoint covered by 
 
 PR #33 merged at the commit recorded above. Its scope remains limited to shared scroll arithmetic; all per-view interaction and rendering policy stays in Weather.
 
+### Current task — PR #34: TimeService boundary (in progress)
+
+- **Branch:** `phase1/08-time-service`, based on current `main` after PR #33 and its handover update.
+- **New module:** `src/services/TimeService.h` owns the Europe/London TZ/DST rule, minimum valid system epoch, header clock value, TimeAPI fetch/JSON validation/epoch conversion/system-clock update, and five-minute retry / six-hour resynchronisation schedule.
+- **Composition boundary:** Weather supplies the current Wi-Fi-connected state and current `millis()` value. TimeService never starts/stops Wi-Fi. Header redraw timing and last-drawn string remain Weather presentation state.
+- **Timezone separation:** `locationTimezoneOffset` remains owned by Weather forecast data and is not read or written by TimeService. Google Wi-Fi location → IP fallback and reverse-geocoding remain untouched for the next Location Service slice.
+- **Request transport:** TimeService still uses the existing synchronous `WiFiClientSecure` / `HTTPClient` path and current `setInsecure()` behaviour. A common request executor and TLS policy remain a later, separate boundary; do not silently expand this PR.
+- **Pending:** Arduino IDE Verify with IDE 2.3.10 / ESP32 core 3.3.12 / recorded Waveshare FQBN; upload/boot; header clock and offline demo clock regression. No firmware or hardware validation is claimed yet.
+
 ### Standing handover procedure
 
 When resuming work after a context reset:
@@ -628,7 +638,7 @@ When resuming work after a context reset:
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
-| 1 | Project structure and shared foundations | In progress — PRs #27–#33 merged; the next remaining work is the subsequent Phase 1 module extraction sequence |
+| 1 | Project structure and shared foundations | In progress — PRs #27–#33 merged; PR #34 TimeService extraction is in progress, with LocationService and subsequent module work remaining |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
@@ -686,3 +696,4 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-02 — Version 4.2:** Started PR #33 on `phase1/07-scroll-controller`. Added a stateless `src/ui/ScrollController.h` for shared drag-delta, elastic-overscroll, bounded-position and nearest-step snap calculations, with compile-time arithmetic checks. Metric/list/graph offsets, drag lifecycles, animations, rendering and graph-specific policies remain in Weather. Standalone C++14 header compilation passed.
 - **2026-11-02 — Version 4.3:** Recorded the user's confirmation that PR #33 passed Arduino IDE Verify with the recorded toolchain/FQBN, upload/boot on the Waveshare ESP32-S3 Touch LCD 2 and physical metric-card, forecast-list and graph scroll regression. No unreported build-size figures were inferred.
 - **2026-11-02 — Version 4.4:** Recorded PR #33 merge at `4f3aeae4713b8c6252266112e476a9e50cb86c52`. Phase 1 now has PRs #27–#33 merged; the next work remains the subsequent module extraction sequence.
+- **2026-11-02 — Version 4.5:** Started PR #34 on `phase1/08-time-service`. Extracted system clock validity, Europe/London TZ/DST configuration, TimeAPI sync/validation and retry scheduling into `src/services/TimeService.h`. Weather retains header redraw state and the separate forecast timezone offset; the existing Wi-Fi location provider chain remains unchanged.
