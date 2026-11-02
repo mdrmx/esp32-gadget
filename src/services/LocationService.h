@@ -137,7 +137,7 @@ private:
       "&limit=1&appid=" +
       String(openWeatherApiKey != nullptr ? openWeatherApiKey : "");
 
-    if (!http.begin(url, 8000, 8000, true)) {
+    if (!http.begin(url, 8000, 8000, HttpRequestClient::TlsPolicy::InsecureCompatibility)) {
       Serial.println(
         "[LOCATION] Could not initialise OpenWeather reverse geocoding; "
         "keeping existing location name.");
@@ -335,7 +335,7 @@ private:
       "https://www.googleapis.com/geolocation/v1/geolocate?key=" +
       String(googleGeolocationApiKey);
 
-    if (!http.begin(url, 10000, 12000, true)) {
+    if (!http.begin(url, 10000, 12000, HttpRequestClient::TlsPolicy::InsecureCompatibility)) {
       Serial.println(
         "[LOCATION] Could not initialise Google Geolocation request; "
         "trying IP geolocation.");
@@ -449,7 +449,7 @@ private:
     }
 
     HttpRequestClient http;
-    if (!http.begin("https://ipwho.is/", 8000, 8000, true)) {
+    if (!http.begin("https://ipwho.is/", 8000, 8000, HttpRequestClient::TlsPolicy::InsecureCompatibility)) {
       Serial.println(
         "[LOCATION] Could not initialise ipwho.is; using configured fallback.");
       return false;
