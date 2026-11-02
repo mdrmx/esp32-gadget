@@ -46,17 +46,17 @@ This is a manual physical-device checklist. The repository currently has no chec
 | Forecast return navigation | Swipe from Forecast back to Weather | Weather returns without a stale transition frame |
 | Tab transition | Switch tabs repeatedly | Transition renders correctly; fallback remains usable if transition canvas is unavailable |
 
-## PR #33 — Scroll-controller extraction regression (pending)
+## PR #33 — Scroll-controller extraction regression (passed)
 
-Repeat these checks on the PR #33 firmware after Arduino Verify and upload. These checks are not yet reported as passed.
+The user confirmed on 2026-11-02 that Arduino IDE Verify, upload/boot and the following physical checks passed on the Waveshare ESP32-S3 Touch LCD 2.
 
-- [ ] Metric cards: drag within the panel in both directions; verify 1:1 movement inside bounds, resisted/capped overscroll at both ends, and return to the nearest valid row on release.
-- [ ] Forecast list: drag within the list viewport in both directions; verify the same edge resistance and nearest-row snap without changing list offset ownership or redraw throttling.
-- [ ] Forecast graph: drag horizontally after the existing hold threshold; verify resisted/capped overscroll at both ends and snap to the nearest forecast point spacing.
-- [ ] Graph-specific behaviour: confirm quick rightward tab return, hold-to-drag distinction, point selection and horizontal paging are unchanged.
-- [ ] Cross-view behaviour: repeat after switching between Weather and Forecast, and immediately start a fresh touch after release; check that no stale scroll position or ownership leaks between views.
+- [x] Metric cards: drag within the panel in both directions; 1:1 movement inside bounds, resisted/capped overscroll at both ends, and return to the nearest valid row on release passed.
+- [x] Forecast list: drag within the list viewport in both directions; edge resistance and nearest-row snap remained correct without changing list offset ownership or redraw throttling.
+- [x] Forecast graph: horizontal drag after the existing hold threshold retained resisted/capped overscroll at both ends and snapped to the nearest forecast point spacing.
+- [x] Graph-specific behaviour: quick rightward tab return, hold-to-drag distinction, point selection and horizontal paging remained unchanged.
+- [x] Cross-view behaviour: switching between Weather and Forecast and immediately starting a fresh touch after release produced no stale scroll position or ownership leakage.
 
-The PR #33 helper is stateless and does not own offsets, drag state, release timing, rendering or animation. Passing its compile-time arithmetic assertions is not a substitute for these physical-device checks.
+The PR #33 helper is stateless and does not own offsets, drag state, release timing, rendering or animation. The user confirmed that the physical-device checks above passed on the PR #33 firmware.
 
 ## 4. Input and interaction
 
