@@ -342,7 +342,7 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PRs #27–#31 merged; PR #32 interaction ownership/arbitration is implemented and awaiting Verify and physical regression**
+**Status: IN PROGRESS — PRs #27–#31 merged; PR #32 interaction ownership/arbitration passes Arduino Verify; upload and physical regression are pending**
 
 The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample`, display ownership, CST816 reader, typed gesture-code and controller-level gesture-recognition extractions are merged. PR #31 was verified, uploaded and physically regression-tested successfully. PR #32 adds a small `InteractionArbiter` for the active contact owner and the decision to suppress a duplicate controller gesture. Weather continues to choose the owner through its existing hit-tests and retains all view-specific drag, timing, graph and navigation policies.
 
@@ -358,7 +358,10 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
   - [x] Upload and physical regression passed, as confirmed by the user.
   - [x] Review follow-up removed the production-only unused `rawGesture` local; debug output now reads `observation.rawGesture` directly.
   - [x] PR #31 merged at `3568e34cc397b5ad42827d9bdce2ee2c8908b6b9` after the user's successful Verify, upload and physical regression.
-- [ ] **PR #32 — Interaction ownership/arbitration:** adds `src/input/InteractionArbiter.h` to track one active touch owner (metric panel, forecast list, graph or forecast control) and expose the controller-gesture suppression decision. Weather retains hit-testing and all view-specific policies. Metric/list candidates claim ownership only after vertical drag intent is established; graph/control ownership follows existing immediate-claim behaviour. Verify, upload and physical regression are pending.
+- [ ] **PR #32 — Interaction ownership/arbitration:** adds `src/input/InteractionArbiter.h` to track one active touch owner (metric panel, forecast list, graph or forecast control) and expose the controller-gesture suppression decision. Weather retains hit-testing and all view-specific policies. Metric/list candidates claim ownership only after vertical drag intent is established; graph/control ownership follows existing immediate-claim behaviour.
+  - [x] Arduino Verify passed with the recorded FQBN and ESP32 core 3.3.12. Build output: 1,149,179 bytes program storage (36% of 3 MiB app partition); 97,212 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,468 bytes. ESP32-S3 image generation completed successfully.
+  - [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
+  - [ ] Complete the documented physical interaction regression.
 
 **Phase 1 tasks:**
 
@@ -587,7 +590,7 @@ Recheck GitHub before acting; this handover is the latest checkpoint covered by 
 - **PR #32:** [draft pull request](https://github.com/mdrmx/esp32-gadget/pull/32), branch `phase1/06-interaction-arbiter`; Verify and hardware regression are pending.
 - **PR #31 validation/result:** merged at `3568e34cc397b5ad42827d9bdce2ee2c8908b6b9`. Arduino IDE Verify passed on 2026-11-02 with the recorded ESP32 core 3.3.12 and 16 MB / OPI PSRAM configuration. Build result: 1,149,427 bytes program storage (36%) and 97,212 bytes global dynamic memory (29%). The user confirmed upload and full physical regression passed. The debug-only unused-local cleanup was committed as `e556e13ae38c42224946a5a67b3b320303644cfd`; it does not alter gesture handling.
 - **PR #32 scope:** `src/input/InteractionArbiter.h` tracks a single active contact owner: `MetricPanel`, `ForecastList`, `ForecastGraph` or `ForecastControl`. The sketch retains region hit-testing, candidate thresholds, horizontal-intent release, graph hold/quick-swipe policy, release grace periods, graph quiet-period suppression and Weather actions. Metric/list owners are claimed only after vertical drag intent activates, preserving the existing controller-gesture pass-through while a contact is still only a candidate. Owner state is cleared on contact release.
-- **PR #32 validation:** code review only so far. Arduino Verify, upload and physical regression have not yet been reported. Do not describe the branch as tested.
+- **PR #32 validation:** Arduino Verify passed with ESP32 core 3.3.12 and the recorded FQBN: 1,149,179 bytes program storage and 97,212 bytes global dynamic memory; the build generated the ESP32-S3 image successfully. Upload and physical regression have not yet been reported. Do not describe the branch as hardware-tested.
 - **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the ignored local `secrets.h`.
 - **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. The three display canvases were in PSRAM in the pre-extraction baseline.
 
@@ -602,9 +605,9 @@ Recheck GitHub before acting; this handover is the latest checkpoint covered by 
 6. Re-test graph ownership from touch-down to release, including coordinate dropout, held horizontal drag, quick rightward return to Weather, and post-release controller-gesture quiet suppression.
 7. Re-test the forecast selector: a stationary tap changes List/Graph on release; movement beyond tap slop cancels control ownership and leaves a horizontal swipe available.
 8. Confirm a fresh touch after release is not blocked by stale ownership, and that a candidate tap still permits the controller event behaviour present before this extraction.
-9. Record Verify output and user-reported upload/physical regression. Expected static memory impact is one small enum-backed owner field and no dynamic allocation; confirm actual compiled figures rather than assuming no impact.
+9. Arduino Verify has passed: 1,149,179 bytes program storage (36% of 3 MiB) and 97,212 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,468 bytes. Record upload and physical regression when performed. The class adds one small enum-backed owner field and no dynamic allocation; use the actual compiled figures above rather than an assumed impact.
 
-PR #32 is not verified or hardware-tested yet. Keep scroll mathematics, drag/snap state, hit-testing, graph policy, and release-suppression timing in Weather; the next independent extraction remains the ScrollController. Do not merge until review is complete and the user explicitly requests merge.
+PR #32 passes Arduino Verify but has not yet been uploaded or physically tested. Keep scroll mathematics, drag/snap state, hit-testing, graph policy, and release-suppression timing in Weather; the next independent extraction remains the ScrollController. Do not merge until upload and regression are complete, review is resolved and the user explicitly requests merge.
 
 ### Standing handover procedure
 
