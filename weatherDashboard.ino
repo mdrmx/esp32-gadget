@@ -5,7 +5,6 @@
 #include <Arduino_GFX_Library.h>
 #include <PNGdec.h>
 #include <time.h>
-#include <sys/time.h>
 #include <esp_heap_caps.h>
 #include <esp_memory_utils.h>
 #include <stdlib.h>
@@ -17,6 +16,7 @@
 #include "src/ui/ScrollController.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
+#include "src/services/TimeService.h"
 
 // =====================================================
 // CONFIGURATION
@@ -50,24 +50,14 @@ bool locationCoordinatesResolved = false;
 const unsigned long UPDATE_INTERVAL = 600000UL;
 
 // =====================================================
-// CLOCK API CONFIGURATION
+// TIME SERVICE
 // =====================================================
 
-// Fetch Europe/London local date/time from the HTTP API, convert it using
-// the same UK timezone/DST rules, then set the ESP32 system clock.
-const char* TIME_ZONE_INFO = "GMT0BST,M3.5.0/1,M10.5.0/2";
-const char* TIME_API_URL =
-  "https://timeapi.io/api/Time/current/zone?timeZone=Europe%2FLondon";
-const time_t MIN_VALID_EPOCH = 1704067200; // 2024-01-01
+TimeService timeService;
 
-bool timeApiValid = false;
-unsigned long lastTimeApiAttemptMs = 0;
-unsigned long lastTimeApiSyncMs = 0;
+// Header refresh cadence and last-drawn text are Weather presentation state.
 unsigned long lastClockCheckMs = 0;
 String lastHeaderClock = "";
-
-const unsigned long TIME_API_RETRY_INTERVAL = 5UL * 60UL * 1000UL;
-const unsigned long TIME_API_SYNC_INTERVAL = 6UL * 60UL * 60UL * 1000UL;
 
 // =====================================================
 // DISPLAY
@@ -384,38 +374,6 @@ int drawCenteredWeatherLine(
   return height > 0 ? (int)height : 8 * size;
 }
 
-// =====================================================
-// CLOCK HELPERS
-// =====================================================
-
-bool getCurrentUtcEpoch(time_t& epoch) {
-  // After the first successful API sync, the ESP32 system clock advances
-  // locally. No repeated time API requests are needed to draw the header.
-  time_t systemEpoch = time(nullptr);
-  if (systemEpoch >= MIN_VALID_EPOCH) {
-    epoch = systemEpoch;
-    return true;
-  }
-  return false;
-}
-
-String getHeaderClockText() {
-  time_t epoch = 0;
-  if (!getCurrentUtcEpoch(epoch)) {
-    return "--:--";
-  }
-
-  struct tm localTime;
-  if (localtime_r(&epoch, &localTime) == nullptr) {
-    return "--:--";
-  }
-
-  char clockText[6];
-  snprintf(clockText, sizeof(clockText), "%02d:%02d",
-           localTime.tm_hour, localTime.tm_min);
-  return String(clockText);
-}
-
 // Report the actual heap region of an Arduino_Canvas framebuffer.
 // Arduino_GFX currently allocates its ESP32 canvas buffer with aligned_alloc(),
 // which does not explicitly request PSRAM; inspect the returned pointer instead.
@@ -496,156 +454,25 @@ void drawHeaderClockOnly(const String& clockText) {
 }
 
 void refreshHeaderClock() {
-  String clockText = getHeaderClockText();
+  String clockText = timeService.headerClockText();
   if (clockText != lastHeaderClock) {
     drawHeaderClockOnly(clockText);
   }
 }
 
-bool fetchTimeFromAPI() {
-#if USE_DEMO_WEATHER_DATA
-  DEBUG_PRINTLN("Demo mode: skipping TimeAPI.io request.");
-  return false;
-#endif
-  lastTimeApiAttemptMs = millis();
-
-  if (WiFi.status() != WL_CONNECTED) {
-    DEBUG_PRINTLN("Time API skipped: Wi-Fi is not connected.");
-    return false;
-  }
-
-  DEBUG_PRINTLN("Requesting current date/time from TimeAPI.io...");
-
-  WiFiClientSecure client;
-  client.setInsecure();
-  HTTPClient http;
-
-  if (!http.begin(client, TIME_API_URL)) {
-    DEBUG_PRINTLN("Could not initialise time API request.");
-    return false;
-  }
-
-  http.setConnectTimeout(5000);
-  http.setTimeout(5000);
-  int status = http.GET();
-
-  if (status != HTTP_CODE_OK) {
-    DEBUG_PRINTF("Time API HTTP status: %d\n", status);
-    String errorBody = http.getString();
-    if (errorBody.length() > 0) {
-      if (errorBody.length() > 180) {
-        errorBody = errorBody.substring(0, 180);
-      }
-      DEBUG_PRINTF("Time API response: %s\n", errorBody.c_str());
-    }
-    http.end();
-    return false;
-  }
-
-  // Read the complete response first. Some HTTP responses arrive chunked;
-  // parsing the raw stream directly can fail before the JSON body is consumed.
-  String responseBody = http.getString();
-  http.end();
-
-  DEBUG_PRINTF("Time API response length: %u bytes\n", (unsigned)responseBody.length());
-
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, responseBody);
-
-  if (error) {
-    DEBUG_PRINTF("Time API JSON error: %s\n", error.c_str());
-    String preview = responseBody;
-    if (preview.length() > 240) {
-      preview = preview.substring(0, 240);
-    }
-    DEBUG_PRINTF("Time API body preview: [%s]\n", preview.c_str());
-    return false;
-  }
-
-  int year = doc["year"] | 0;
-  int month = doc["month"] | 0;
-  int day = doc["day"] | 0;
-  int hour = doc["hour"] | -1;
-  int minute = doc["minute"] | -1;
-  int second = doc["seconds"] | (doc["second"] | 0);
-
-  if (year < 2024 || year > 2099 ||
-      month < 1 || month > 12 ||
-      day < 1 || day > 31 ||
-      hour < 0 || hour > 23 ||
-      minute < 0 || minute > 59 ||
-      second < 0 || second > 60) {
-    DEBUG_PRINTLN("Time API response contained invalid date/time fields.");
-    serializeJson(doc, Serial);
-    DEBUG_PRINTLN();
-    return false;
-  }
-
-  // The API returns Europe/London wall-clock fields. mktime() converts
-  // them to Unix UTC epoch using the UK timezone and DST rules configured
-  // during setup. This avoids assuming the UK is always UTC+0 or UTC+1.
-  struct tm localTime = {};
-  localTime.tm_year = year - 1900;
-  localTime.tm_mon = month - 1;
-  localTime.tm_mday = day;
-  localTime.tm_hour = hour;
-  localTime.tm_min = minute;
-  localTime.tm_sec = second;
-  localTime.tm_isdst = -1;
-
-  time_t epoch = mktime(&localTime);
-  if (epoch < MIN_VALID_EPOCH) {
-    DEBUG_PRINTLN("Time API date could not be converted to a valid epoch.");
-    return false;
-  }
-
-  struct timeval newSystemTime;
-  newSystemTime.tv_sec = epoch;
-  newSystemTime.tv_usec = 0;
-
-  if (settimeofday(&newSystemTime, nullptr) != 0) {
-    DEBUG_PRINTLN("Failed to set ESP32 system time from TimeAPI.io.");
-    return false;
-  }
-
-  timeApiValid = true;
-  lastTimeApiSyncMs = millis();
-  lastHeaderClock = "";
-
-  DEBUG_PRINTF("System clock set from API: %04d-%02d-%02d %02d:%02d:%02d Europe/London\n",
-                year, month, day, hour, minute, second);
-  return true;
-}
-
 void maybeSyncTimeFromAPI() {
 #if USE_DEMO_WEATHER_DATA
   return;
+#else
+  const TimeService::SyncResult result =
+    timeService.syncIfDue(WiFi.status() == WL_CONNECTED, millis());
+
+  // The header redraw cache is presentation state. Invalidate it only after
+  // the service has successfully changed the device clock.
+  if (result == TimeService::SyncResult::Synced) {
+    lastHeaderClock = "";
+  }
 #endif
-  if (WiFi.status() != WL_CONNECTED) {
-    return;
-  }
-
-  unsigned long nowMs = millis();
-  bool syncDue = false;
-
-  if (timeApiValid) {
-    syncDue = nowMs - lastTimeApiSyncMs >= TIME_API_SYNC_INTERVAL;
-  } else {
-    syncDue = lastTimeApiAttemptMs == 0 ||
-              nowMs - lastTimeApiAttemptMs >= TIME_API_RETRY_INTERVAL;
-  }
-
-  // If a periodic refresh has failed, retry no more than once per five minutes.
-  if (syncDue &&
-      (lastTimeApiAttemptMs == 0 ||
-       nowMs - lastTimeApiAttemptMs >= TIME_API_RETRY_INTERVAL)) {
-    fetchTimeFromAPI();
-  }
-}
-
-void initialiseTimeZone() {
-  setenv("TZ", TIME_ZONE_INFO, 1);
-  tzset();
 }
 
 // =====================================================
@@ -660,7 +487,7 @@ void drawHeader() {
   String locationLabel = getHeaderLocationText();
   drawText(locationLabel, 10, 10, 2, UI_WHITE);
 
-  String clockText = getHeaderClockText();
+  String clockText = timeService.headerClockText();
   displayManager.target()->setTextSize(2);
   int16_t x1, y1;
   uint16_t w, h;
@@ -3440,23 +3267,12 @@ void setup() {
       ? "CST816 detected at 0x15"
       : "Touch controller not detected");
 
-  initialiseTimeZone();
+  timeService.begin();
 
 #if USE_DEMO_WEATHER_DATA
   // Set a repeatable local clock so the header and forecast time labels render
   // during offline UI development. The clock advances normally after setup.
-  struct tm demoClock = {};
-  demoClock.tm_year = 2026 - 1900;
-  demoClock.tm_mon = 9;
-  demoClock.tm_mday = 28;
-  demoClock.tm_hour = 18;
-  demoClock.tm_min = 0;
-  demoClock.tm_isdst = -1;
-  time_t demoEpoch = mktime(&demoClock);
-  struct timeval demoSystemTime;
-  demoSystemTime.tv_sec = demoEpoch;
-  demoSystemTime.tv_usec = 0;
-  settimeofday(&demoSystemTime, nullptr);
+  timeService.setDemoTime(2026, 10, 28, 18, 0, 0);
   DEBUG_PRINTLN("DEMO MODE ENABLED: network and API calls are disabled.");
 #else
   drawLoading("Starting up...");
