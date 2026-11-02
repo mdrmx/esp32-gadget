@@ -16,7 +16,7 @@ enum class GestureCode : uint8_t {
 
 // Pure conversion from the raw CST816 gesture register to a known code.
 // Values outside the supported range are rejected as Unknown.
-inline GestureCode decodeGestureCode(uint8_t rawCode) {
+constexpr GestureCode decodeGestureCode(uint8_t rawCode) {
   switch (rawCode) {
     case 0x00: return GestureCode::None;
     case 0x01: return GestureCode::ScreenLeft;
