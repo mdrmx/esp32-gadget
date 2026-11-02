@@ -80,7 +80,7 @@ DisplayManager displayManager;
 // =====================================================
 
 // The raw reader owns I2C access and the recognizer interprets controller
-// samples. Weather retains app-specific ownership, suppression and actions.
+// samples. Weather chooses view owners and retains view-specific suppression/actions.
 Cst816Reader touchReader;
 GestureRecognizer gestureRecognizer;
 InteractionArbiter interactionArbiter;
@@ -2061,7 +2061,6 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
 
     if (insideMetricsPanel) {
       metricsTouchCandidate = true;
-      interactionArbiter.claim(InteractionOwner::MetricPanel);
       metricsTouchDragMoved = false;
       metricsDragStartX = touchX;
       metricsDragStartY = touchY;
@@ -2101,7 +2100,6 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
       touchY >= FORECAST_VIEWPORT_TOP &&
       touchY < FORECAST_VIEWPORT_BOTTOM) {
     forecastTouchCandidate = true;
-    interactionArbiter.claim(InteractionOwner::ForecastList);
     forecastTouchDragMoved = false;
     forecastDragHasRendered = false;
     lastForecastDragRenderMs = 0;
@@ -2137,6 +2135,7 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
       // Vertical intent: take ownership of the touch and track the finger.
       metricsTouchCandidate = false;
       metricsTouchDragActive = true;
+      interactionArbiter.claim(InteractionOwner::MetricPanel);
       DEBUG_PRINTF(
         "Metric vertical drag started (dx=%d, dy=%d)\n",
         deltaX,
@@ -2196,6 +2195,7 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
     } else if (absY >= intentThresholdPx && absY >= absX) {
       forecastTouchCandidate = false;
       forecastTouchDragActive = true;
+      interactionArbiter.claim(InteractionOwner::ForecastList);
       DEBUG_PRINTF(
         "Forecast vertical drag started (dx=%d, dy=%d)\n",
         deltaX,
