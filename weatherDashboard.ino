@@ -12,6 +12,7 @@
 #include "secrets.h"
 #include "src/input/TouchSample.h"
 #include "src/input/GestureCode.h"
+#include "src/input/GestureRecognizer.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
 
@@ -77,13 +78,13 @@ DisplayManager displayManager;
 // TOUCH
 // =====================================================
 
-// The raw reader owns I2C access; gesture codes and state remain in Weather.
+// The raw reader owns I2C access and the recognizer interprets controller
+// samples. Weather retains app-specific ownership, suppression and actions.
 Cst816Reader touchReader;
+GestureRecognizer gestureRecognizer;
 
-// Preserve raw bytes for transition diagnostics; use the typed code for
-// accepted and last-handled gesture state.
+// Duplicate-event suppression and navigation debounce remain Weather policy.
 GestureCode lastHandledGesture = GestureCode::None;
-uint8_t previousRawGesture = 0;
 unsigned long lastGestureTime = 0;
 
 bool metricsTouchDragActive = false;
@@ -92,7 +93,6 @@ bool metricsTouchDragMoved = false;
 // Origin gate for the controller's legacy swipe fallback: metric scrolling is
 // allowed only when the current touch sequence began over the metrics panel.
 bool metricsGestureStartedInsidePanel = false;
-bool touchSampleWasDown = false;
 int metricsDragStartX = 0;
 int metricsDragStartY = 0;
 int metricsDragStartScroll = 0;
@@ -1934,9 +1934,8 @@ void touchCoordinatesToScreen(
   screenY = constrain(screenY, 0, displayManager.height() - 1);
 }
 
-void updateTouchDrag(const TouchSample& sample) {
-  const bool touchPresent =
-    sample.fingerCount > 0 && sample.event != 1; // ignore touch-up coordinates
+void updateTouchDrag(const TouchSample& sample, const GestureObservation& observation) {
+  const bool touchPresent = observation.touchPresent;
   int touchX = 0;
   int touchY = 0;
   if (touchPresent) {
@@ -1945,7 +1944,7 @@ void updateTouchDrag(const TouchSample& sample) {
 
   // One diagnostic per touch lets us validate the landscape coordinate mapping
   // without flooding the Serial Monitor with every movement sample.
-  if (touchPresent && !touchSampleWasDown) {
+  if (observation.touchStarted) {
     DEBUG_PRINTF(
       "Touch coordinates raw=(%u,%u), screen=(%d,%d), tab=%d\n",
       (unsigned)sample.rawX,
@@ -1958,8 +1957,7 @@ void updateTouchDrag(const TouchSample& sample) {
   // Don't claim a touch on the metric cards until its intent is clear. This
   // keeps a horizontal tab swipe starting over the cards from being consumed
   // as a vertical drag.
-  const bool touchJustStarted = touchPresent && !touchSampleWasDown;
-  touchSampleWasDown = touchPresent;
+  const bool touchJustStarted = observation.touchStarted;
 
   // A new contact starts a new gesture sequence. Clear suppression left by a
   // previous drag so a legitimate horizontal swipe can reach tab navigation.
@@ -1994,7 +1992,7 @@ void updateTouchDrag(const TouchSample& sample) {
       graphGestureQuietPeriodActive = false;
       graphGestureSuppressionStartedMs = 0;
       graphGestureQuietStartedMs = 0;
-      lastHandledGesture = decodeGestureCode(sample.gesture);
+      lastHandledGesture = observation.gesture;
       DEBUG_PRINTLN("Graph gesture suppression cleared at new touch-down");
     } else {
       lastHandledGesture = GestureCode::None;
@@ -2512,19 +2510,18 @@ void pollTouch() {
 
   TouchSample sample;
   if (!touchReader.readSample(sample)) return;
-  const uint8_t rawGesture = sample.gesture;
-  const GestureCode gesture = decodeGestureCode(rawGesture);
+  const GestureObservation observation = gestureRecognizer.update(sample);
+  const GestureCode gesture = observation.gesture;
 
   // Always log raw transitions in demo mode, including the return to zero.
-  if (rawGesture != previousRawGesture) {
+  if (observation.rawGestureChanged) {
     DEBUG_PRINTF(
       "Touch register transition: 0x%02X -> 0x%02X\n",
-      previousRawGesture,
-      rawGesture);
-    previousRawGesture = rawGesture;
+      observation.previousRawGesture,
+      observation.rawGesture);
   }
 
-  updateTouchDrag(sample);
+  updateTouchDrag(sample, observation);
 
   // A drag on the metric cards is driven by coordinates. Suppress the
   // controller's completed swipe code so the same motion is not applied twice.
