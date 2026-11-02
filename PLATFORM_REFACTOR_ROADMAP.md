@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 3.0  
+**Version:** 3.1  
 **Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -648,3 +648,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-01 — Version 2.9:** Recorded the user's successful Verify, upload and full physical input regression for PR #29 after review fixes. PR #29 is ready to merge; the next Phase 1 task remains gesture/interaction separation and is intentionally deferred to the next session.
 
 - **2026-11-01 — Version 3.0:** Recorded PR #29 merge at `5ee7ce7d1a42e31d275cc7fa2e2899544d6d9a42` after the user's successful compile, upload and physical regression of the final review-fixed branch. The next task is gesture/interaction separation, deferred to the next session.
+
+- **2026-11-02 — Version 3.1:** Corrected the handover after PR #29 merge and remote branch deletion. Set the next Phase 1 task to gesture/interaction separation; the first proposed slice is a typed `GestureCode` and pure raw-byte decoder, leaving polling arbitration, drag/suppression state and Weather actions in the sketch.
