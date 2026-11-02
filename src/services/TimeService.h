@@ -2,8 +2,7 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
+#include "HttpRequestClient.h"
 #include <sys/time.h>
 #include <time.h>
 #include <stdlib.h>
@@ -154,17 +153,12 @@ private:
   }
 
   SyncResult fetchAndApplyTime() {
-    WiFiClientSecure client;
-    client.setInsecure();
-
-    HTTPClient http;
-    if (!http.begin(client, timeApiUrl())) {
+    HttpRequestClient http;
+    if (!http.begin(timeApiUrl(), 5000, 5000, true)) {
       return SyncResult::RequestInitializationFailed;
     }
 
-    http.setConnectTimeout(5000);
-    http.setTimeout(5000);
-    const int status = http.GET();
+    const int status = http.get();
 
     if (status != HTTP_CODE_OK) {
       // Do not allocate/read an error body that the caller will discard.
