@@ -76,9 +76,9 @@ The PR #33 helper is stateless and does not own offsets, drag state, release tim
 
 The PR #32 interaction-ownership checks above were physically regression-tested on the Waveshare ESP32-S3 Touch LCD 2 and confirmed passed by the user on 2026-11-02. The exact coordinate/gesture arbitration is documented in [Step 2 — Runtime data-flow map](PHASE0_STEP2_RUNTIME_DATA_FLOW.md). Treat it as regression-sensitive; do not simplify the separate metric, forecast-list and graph state just because some values look similar.
 
-## PR #34 — TimeService extraction regression (pending)
+## PR #34 — TimeService extraction regression (physical test passed)
 
-Repeat these checks on the PR #34 firmware after Arduino Verify and upload. The TimeService extraction has not yet been verified on the board.
+The user confirmed the PR #34 physical test passed on 2026-11-02. Individual checklist detail was not included in the confirmation, so the specific scenarios below remain unmarked rather than inferred.
 
 - [ ] Build with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
 - [ ] Upload and boot; confirm the header renders without a crash while the system clock is initially invalid or waiting for its first successful sync.
