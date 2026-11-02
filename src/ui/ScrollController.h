@@ -85,6 +85,9 @@ static_assert(
   ScrollController::applyDragDelta(120, 80, 95) == 105,
   "Scroll drag delta must preserve finger movement");
 static_assert(
+  ScrollController::applyDragDelta(80, 40, 40) == 80,
+  "An unchanged finger coordinate must produce zero scroll movement");
+static_assert(
   ScrollController::elasticPosition(-60, 100, 20, 3) == -20,
   "Negative overscroll must retain the existing resistance and cap");
 static_assert(
