@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.3  
+**Version:** 4.4  
 **Last reviewed:** 2026-11-02  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete; PRs #27–#32 merged. PR #33 scroll-math extraction on `phase1/07-scroll-controller` has passed Arduino IDE Verify, upload/boot and physical metric-card, forecast-list and graph regression, as confirmed by the user on 2026-11-02.
+**Current roadmap status:** Phase 0 baseline complete; PRs #27–#33 merged. PR #33 scroll-math extraction was validated on the Waveshare board and merged to `main` at `4f3aeae4713b8c6252266112e476a9e50cb86c52`.
 
 ---
 
@@ -342,7 +342,7 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PRs #27–#32 are merged and PR #33's shared scroll calculations have passed firmware verification, upload/boot and physical regression. The gesture-recognition, interaction-ownership and scroll-calculation extractions are verified while the remaining Phase 1 module work continues.**
+**Status: IN PROGRESS — PRs #27–#33 are merged. The gesture-recognition, interaction-ownership and scroll-calculation extractions are verified while the remaining Phase 1 module work continues.**
 
 The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample`, display ownership, CST816 reader, typed gesture-code, controller-level gesture-recognition and interaction-ownership extractions are merged. PR #31 and PR #32 were verified, uploaded and physically regression-tested successfully. PR #32 adds a small `InteractionArbiter` for the active contact owner and the decision to suppress a duplicate controller gesture. Weather continues to choose the owner through its existing hit-tests and retains all view-specific drag, timing, graph and navigation policies. PR #33 adds a stateless `ScrollController` math helper; the user confirmed Arduino IDE Verify, upload/boot and physical metric-card, forecast-list and graph scroll regression on 2026-11-02. The view offsets, drag lifecycles and rendering policies remain in the sketch.
 
@@ -578,14 +578,14 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 Recheck GitHub before acting; this handover is the latest checkpoint covered by this roadmap.
 
 - **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
-- **Latest firmware merge checkpoint validated on the Waveshare board:** `343eb7ed0120d947990cab48cec0c688177f4ec5`, the PR #32 merge commit. Subsequent `main` commits in this handover are documentation updates.
+- **Latest firmware merge checkpoint validated on the Waveshare board:** `4f3aeae4713b8c6252266112e476a9e50cb86c52`, the PR #33 merge commit. The user confirmed Arduino Verify, upload/boot and physical scroll regression before merge.
 - **PR #27:** `TouchSample` value-type extraction is merged after successful compile, upload and physical input regression.
 - **PR #28:** `DisplayManager` extraction and resource-lifecycle fixes are merged after successful compile, upload and physical display/input regression. Exact post-change heap comparison remains unrecorded.
 - **PR #29:** `Cst816Reader` extraction and review fixes are merged at `5ee7ce7d1a42e31d275cc7fa2e2899544d6d9a42`. The user confirmed successful compile, upload and full physical input regression. The feature branch was deleted.
 - **PR #22 / #24 / #25:** permanent Step 4 audit, handover refresh and Phase 0 memory/profile documentation are merged.
 - **PR #23 / #26:** temporary diagnostics and Arduino source-layout spike were closed without merging; reusable results are recorded in Phase 0 docs.
 - **Phase 0:** complete. Extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups.
-- **Phase 1:** in progress. PRs #27–#32 are merged. PR #30 was run and tested by the user, who confirmed all gestures remain intact. PR #31 and PR #32 passed Verify, upload and physical regression. PR #33's separate scroll-calculation extraction has also passed standalone C++14 checks, Arduino IDE Verify, upload/boot and the physical metric-card, forecast-list and graph regression, as confirmed by the user on 2026-11-02.
+- **Phase 1:** in progress. PRs #27–#33 are merged. PR #30 was run and tested by the user, who confirmed all gestures remain intact. PR #31 and PR #32 passed Verify, upload and physical regression. PR #33 passed standalone C++14 checks, Arduino IDE Verify, upload/boot and the physical metric-card, forecast-list and graph regression before merge; the user confirmed the hardware validation on 2026-11-02.
 - **PR #30 scope/result:** `src/input/GestureCode.h` defines the typed CST816 values and a `constexpr` decoder. The existing `0x00`–`0x04` mapping and `Unknown` fallback are unchanged. The user reports running and testing the latest code with all gestures intact.
 - **PR #31 scope (at merge):** `src/input/GestureRecognizer.h` converts a raw `TouchSample` into `GestureObservation`: raw gesture value, typed `GestureCode`, raw-register transition flag/previous value, and touch-present/start/release flags. At that stage, Weather still owned contact arbitration and metric/list/graph drag behaviour. PR #32 now extracts only the active-owner latch; hit-testing and view-specific interaction policy remain in the sketch.
 - **PR #32 result:** [merged pull request](https://github.com/mdrmx/esp32-gadget/pull/32), merge commit `343eb7ed0120d947990cab48cec0c688177f4ec5`. Arduino Verify passed (1,149,179 bytes program storage; 97,212 bytes global dynamic memory); upload/boot and physical interaction regression were confirmed passed by the user.
@@ -595,7 +595,7 @@ Recheck GitHub before acting; this handover is the latest checkpoint covered by 
 - **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the ignored local `secrets.h`.
 - **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. The three display canvases were in PSRAM in the pre-extraction baseline.
 
-### Latest Phase 1 extraction — PR #33: shared scroll calculations (validated)
+### Latest merged Phase 1 extraction — PR #33: shared scroll calculations
 
 - **Base:** live `main` at `05da9c718702f5c94838e09f7b44a75060835a20` when the branch was created.
 - **Branch:** `phase1/07-scroll-controller`.
@@ -606,7 +606,7 @@ Recheck GitHub before acting; this handover is the latest checkpoint covered by 
 - **Validation result:** the user confirmed on 2026-11-02 that Arduino IDE Verify passed with IDE 2.3.10, ESP32 core 3.3.12 and the recorded Waveshare FQBN; upload/boot passed on the Waveshare ESP32-S3 Touch LCD 2; and physical metric-card, forecast-list and graph scrolling regression passed, including edge resistance, snapping and graph-specific hold/quick-swipe behaviour. Exact PR #33 build-size figures were not supplied and are not recorded here.
 - Keep this extraction isolated; do not combine it with view lifecycle, rendering, navigation, networking or service extraction.
 
-PR #33's firmware changes have now also been verified on the Waveshare board, as recorded above. The PR remains limited to shared scroll arithmetic; all per-view interaction and rendering policy stays in Weather.
+PR #33 merged at the commit recorded above. Its scope remains limited to shared scroll arithmetic; all per-view interaction and rendering policy stays in Weather.
 
 ### Standing handover procedure
 
@@ -628,7 +628,7 @@ When resuming work after a context reset:
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
-| 1 | Project structure and shared foundations | In progress — PRs #27–#32 merged; PR #33 shared scroll-calculation extraction validated on firmware and hardware; remaining module work continues |
+| 1 | Project structure and shared foundations | In progress — PRs #27–#33 merged; the next remaining work is the subsequent Phase 1 module extraction sequence |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
@@ -685,3 +685,4 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-02 — Version 4.1:** Recorded PR #32 merge at `343eb7ed0120d947990cab48cec0c688177f4ec5`. Arduino Verify passed at 1,149,179 bytes program storage and 97,212 bytes global dynamic memory; the user confirmed upload/boot and physical interaction regression passed. Updated the next Phase 1 task to the isolated shared scroll-mechanics extraction; metric/list/graph state and policies remain separate.
 - **2026-11-02 — Version 4.2:** Started PR #33 on `phase1/07-scroll-controller`. Added a stateless `src/ui/ScrollController.h` for shared drag-delta, elastic-overscroll, bounded-position and nearest-step snap calculations, with compile-time arithmetic checks. Metric/list/graph offsets, drag lifecycles, animations, rendering and graph-specific policies remain in Weather. Standalone C++14 header compilation passed.
 - **2026-11-02 — Version 4.3:** Recorded the user's confirmation that PR #33 passed Arduino IDE Verify with the recorded toolchain/FQBN, upload/boot on the Waveshare ESP32-S3 Touch LCD 2 and physical metric-card, forecast-list and graph scroll regression. No unreported build-size figures were inferred.
+- **2026-11-02 — Version 4.4:** Recorded PR #33 merge at `4f3aeae4713b8c6252266112e476a9e50cb86c52`. Phase 1 now has PRs #27–#33 merged; the next work remains the subsequent module extraction sequence.
