@@ -2,8 +2,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
-#include <HTTPClient.h>
+#include "HttpRequestClient.h"
 #include <ArduinoJson.h>
 #include <math.h>
 #include <stdio.h>
@@ -130,9 +129,7 @@ private:
       (double)fix.latitude,
       (double)fix.longitude);
 
-    WiFiClientSecure client;
-    client.setInsecure();
-    HTTPClient http;
+    HttpRequestClient http;
 
     String url =
       "https://api.openweathermap.org/geo/1.0/reverse?lat=" +
@@ -140,16 +137,14 @@ private:
       "&limit=1&appid=" +
       String(openWeatherApiKey != nullptr ? openWeatherApiKey : "");
 
-    if (!http.begin(client, url)) {
+    if (!http.begin(url, 8000, 8000, true)) {
       Serial.println(
         "[LOCATION] Could not initialise OpenWeather reverse geocoding; "
         "keeping existing location name.");
       return false;
     }
 
-    http.setConnectTimeout(8000);
-    http.setTimeout(8000);
-    const int status = http.GET();
+    const int status = http.get();
     if (status != HTTP_CODE_OK) {
       Serial.printf(
         "[LOCATION] Reverse geocoding HTTP status: %d; "
@@ -335,14 +330,12 @@ private:
     String requestBody;
     serializeJson(requestDoc, requestBody);
 
-    WiFiClientSecure client;
-    client.setInsecure();
-    HTTPClient http;
+    HttpRequestClient http;
     String url =
       "https://www.googleapis.com/geolocation/v1/geolocate?key=" +
       String(googleGeolocationApiKey);
 
-    if (!http.begin(client, url)) {
+    if (!http.begin(url, 10000, 12000, true)) {
       Serial.println(
         "[LOCATION] Could not initialise Google Geolocation request; "
         "trying IP geolocation.");
@@ -350,15 +343,13 @@ private:
     }
 
     http.addHeader("Content-Type", "application/json");
-    http.setConnectTimeout(10000);
-    http.setTimeout(12000);
-    const int status = http.POST(requestBody);
+    const int status = http.post(requestBody);
     if (status != HTTP_CODE_OK) {
       // Only read a short error preview on failure. Do not buffer an
       // arbitrary captive-portal/server error response on the ESP32 heap.
       char previewBuffer[221];
       size_t previewLength = 0;
-      WiFiClient* responseStream = http.getStreamPtr();
+      Stream* responseStream = http.getStreamPtr();
       while (responseStream != nullptr &&
              previewLength < sizeof(previewBuffer) - 1 &&
              responseStream->available()) {
@@ -457,18 +448,14 @@ private:
       return false;
     }
 
-    WiFiClientSecure client;
-    client.setInsecure();
-    HTTPClient http;
-    if (!http.begin(client, "https://ipwho.is/")) {
+    HttpRequestClient http;
+    if (!http.begin("https://ipwho.is/", 8000, 8000, true)) {
       Serial.println(
         "[LOCATION] Could not initialise ipwho.is; using configured fallback.");
       return false;
     }
 
-    http.setConnectTimeout(8000);
-    http.setTimeout(8000);
-    const int status = http.GET();
+    const int status = http.get();
     if (status != HTTP_CODE_OK) {
       Serial.printf(
         "[LOCATION] IP geolocation HTTP status: %d; "
