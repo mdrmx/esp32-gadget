@@ -14,6 +14,7 @@
 #include "src/input/GestureCode.h"
 #include "src/input/GestureRecognizer.h"
 #include "src/input/InteractionArbiter.h"
+#include "src/ui/ScrollController.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
 
@@ -1080,33 +1081,12 @@ int maxWeatherMetricScrollPixels() {
   return maxOffset * WEATHER_METRIC_ROW_STEP;
 }
 
-// Convert finger-driven scroll into a resisted position beyond the limits.
-// Normal scrolling remains 1:1; only the excess beyond either boundary is
-// damped and capped so the cards move a little without disappearing off-screen.
-int elasticScrollPixels(int pixels, int maxScroll) {
-  if (pixels < 0) {
-    const int excess = -pixels;
-    const int resisted = excess / SCROLL_OVERSCROLL_RESISTANCE_DIVISOR;
-    return -min(SCROLL_OVERSCROLL_MAX_PX, resisted);
-  }
-
-  if (pixels > maxScroll) {
-    const int excess = pixels - maxScroll;
-    const int resisted = excess / SCROLL_OVERSCROLL_RESISTANCE_DIVISOR;
-    return maxScroll + min(SCROLL_OVERSCROLL_MAX_PX, resisted);
-  }
-
-  return pixels;
-}
-
 void drawWeatherMetricsAtScrollPosition(int pixels) {
   // Snap animation also starts from the elastic position, so allow a small
   // bounded overrun here and rely on the off-screen panel to clip the cards.
   const int maxScroll = maxWeatherMetricScrollPixels();
-  pixels = constrain(
-    pixels,
-    -SCROLL_OVERSCROLL_MAX_PX,
-    maxScroll + SCROLL_OVERSCROLL_MAX_PX);
+  pixels = ScrollController::clampElasticPosition(
+    pixels, maxScroll, SCROLL_OVERSCROLL_MAX_PX);
 
   int baseOffset = pixels / WEATHER_METRIC_ROW_STEP;
   int scrollPixels = pixels % WEATHER_METRIC_ROW_STEP;
@@ -1435,10 +1415,10 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
   const int plotWidth = right - left;
   const int pointSpacing = FORECAST_GRAPH_POINT_SPACING;
   const int maxScroll = maxForecastGraphScrollPixels();
-  const int scroll = constrain(
+  const int scroll = ScrollController::clampElasticPosition(
     forecastGraphScrollPixels,
-    -SCROLL_OVERSCROLL_MAX_PX,
-    maxScroll + SCROLL_OVERSCROLL_MAX_PX);
+    maxScroll,
+    SCROLL_OVERSCROLL_MAX_PX);
   const int visibleScroll = max(0, scroll);
 
   // Use the visible hours plus their neighbours to keep a consistent vertical
@@ -1614,10 +1594,8 @@ void redrawForecastGraphAtCurrentScroll() {
 
 void drawForecastGraphAtScrollPosition(int pixels) {
   const int maxScroll = maxForecastGraphScrollPixels();
-  forecastGraphScrollPixels = constrain(
-    pixels,
-    -SCROLL_OVERSCROLL_MAX_PX,
-    maxScroll + SCROLL_OVERSCROLL_MAX_PX);
+  forecastGraphScrollPixels = ScrollController::clampElasticPosition(
+    pixels, maxScroll, SCROLL_OVERSCROLL_MAX_PX);
   syncForecastGraphOffsetFromScroll();
   redrawForecastGraphAtCurrentScroll();
 }
@@ -1871,10 +1849,8 @@ int maxForecastScrollPixels() {
 void drawForecastAtScrollPosition(int pixels) {
   const int maxScroll = maxForecastScrollPixels();
   const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
-  pixels = constrain(
-    pixels,
-    -SCROLL_OVERSCROLL_MAX_PX,
-    maxScroll + SCROLL_OVERSCROLL_MAX_PX);
+  pixels = ScrollController::clampElasticPosition(
+    pixels, maxScroll, SCROLL_OVERSCROLL_MAX_PX);
 
   // The overscroll cap is below one row, so negative positions remain in row
   // zero and positions beyond the bottom remain in the last valid row.
@@ -2143,9 +2119,14 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
   }
 
   if (metricsTouchDragActive && touchPresent) {
-    int nextScroll = elasticScrollPixels(
-      metricsDragStartScroll + metricsDragStartY - touchY,
-      maxWeatherMetricScrollPixels());
+    int nextScroll = ScrollController::elasticPosition(
+      ScrollController::applyDragDelta(
+        metricsDragStartScroll,
+        metricsDragStartY,
+        touchY),
+      maxWeatherMetricScrollPixels(),
+      SCROLL_OVERSCROLL_MAX_PX,
+      SCROLL_OVERSCROLL_RESISTANCE_DIVISOR);
 
     if (nextScroll != metricsDragCurrentScroll) {
       if (abs(nextScroll - metricsDragStartScroll) >= 3) {
@@ -2159,7 +2140,10 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
   if (metricsTouchDragActive &&
       (!touchPresent || sample.event == 1)) {
     const int targetOffset =
-      (metricsDragCurrentScroll + WEATHER_METRIC_ROW_STEP / 2) /
+      ScrollController::snapToStep(
+        metricsDragCurrentScroll,
+        WEATHER_METRIC_ROW_STEP,
+        maxWeatherMetricScrollPixels()) /
       WEATHER_METRIC_ROW_STEP;
     DEBUG_PRINTF(
       "Metric drag released at scroll=%d; snapping to offset=%d; moved=%d\n",
@@ -2266,9 +2250,14 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
   }
 
   if (forecastGraphDragActive && touchPresent) {
-    const int nextScroll = elasticScrollPixels(
-      forecastGraphDragStartScroll + forecastGraphDragStartX - touchX,
-      maxForecastGraphScrollPixels());
+    const int nextScroll = ScrollController::elasticPosition(
+      ScrollController::applyDragDelta(
+        forecastGraphDragStartScroll,
+        forecastGraphDragStartX,
+        touchX),
+      maxForecastGraphScrollPixels(),
+      SCROLL_OVERSCROLL_MAX_PX,
+      SCROLL_OVERSCROLL_RESISTANCE_DIVISOR);
 
     if (nextScroll != forecastGraphDragCurrentScroll) {
       forecastGraphDragMoved =
@@ -2292,9 +2281,14 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
   }
 
   if (forecastTouchDragActive && touchPresent) {
-    const int nextScroll = elasticScrollPixels(
-      forecastDragStartScroll + forecastDragStartY - touchY,
-      maxForecastScrollPixels());
+    const int nextScroll = ScrollController::elasticPosition(
+      ScrollController::applyDragDelta(
+        forecastDragStartScroll,
+        forecastDragStartY,
+        touchY),
+      maxForecastScrollPixels(),
+      SCROLL_OVERSCROLL_MAX_PX,
+      SCROLL_OVERSCROLL_RESISTANCE_DIVISOR);
 
     // Track every changed position, but check the redraw deadline on every
     // touch sample—even when the finger has stopped moving. This ensures a
@@ -2322,12 +2316,12 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
 
   if (forecastTouchDragActive &&
       (!touchPresent || sample.event == 1)) {
-    const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
-    const int targetOffset = constrain(
-      (forecastDragCurrentScroll + FORECAST_ROW_STEP / 2) /
+    const int targetOffset =
+      ScrollController::snapToStep(
+        forecastDragCurrentScroll,
         FORECAST_ROW_STEP,
-      0,
-      maxOffset);
+        maxForecastScrollPixels()) /
+      FORECAST_ROW_STEP;
     DEBUG_PRINTF(
       "Forecast drag released at scroll=%d; snapping to offset=%d; moved=%d\n",
       forecastDragCurrentScroll,
@@ -2344,10 +2338,10 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
   if (forecastGraphDragActive &&
       (!touchPresent || sample.event == 1)) {
     const int maxScroll = maxForecastGraphScrollPixels();
-    int targetScroll =
-      ((forecastGraphDragCurrentScroll + FORECAST_GRAPH_POINT_SPACING / 2) /
-       FORECAST_GRAPH_POINT_SPACING) * FORECAST_GRAPH_POINT_SPACING;
-    targetScroll = constrain(targetScroll, 0, maxScroll);
+    const int targetScroll = ScrollController::snapToStep(
+      forecastGraphDragCurrentScroll,
+      FORECAST_GRAPH_POINT_SPACING,
+      maxScroll);
 
     DEBUG_PRINTF(
       "Graph drag released at scroll=%d; snapping to %d; moved=%d\n",
