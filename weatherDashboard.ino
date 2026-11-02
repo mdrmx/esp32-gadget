@@ -13,6 +13,7 @@
 #include "src/input/TouchSample.h"
 #include "src/input/GestureCode.h"
 #include "src/input/GestureRecognizer.h"
+#include "src/input/InteractionArbiter.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
 
@@ -79,9 +80,10 @@ DisplayManager displayManager;
 // =====================================================
 
 // The raw reader owns I2C access and the recognizer interprets controller
-// samples. Weather retains app-specific ownership, suppression and actions.
+// samples. Weather chooses view owners and retains view-specific suppression/actions.
 Cst816Reader touchReader;
 GestureRecognizer gestureRecognizer;
+InteractionArbiter interactionArbiter;
 
 // Duplicate-event suppression and navigation debounce remain Weather policy.
 GestureCode lastHandledGesture = GestureCode::None;
@@ -1963,6 +1965,8 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
   // previous drag so a legitimate horizontal swipe can reach tab navigation.
   // The stale completed gesture is not carried forward via lastHandledGesture.
   if (touchJustStarted) {
+    interactionArbiter.beginContact();
+
     // The CST816 can emit a completed vertical gesture even when coordinate-
     // tracked dragging never activated. Remember where this contact began so
     // the legacy gesture fallback cannot scroll cards from other screen areas.
@@ -2011,6 +2015,7 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
       if (forecastControlTouch != 0) {
         forecastControlStartX = touchX;
         forecastControlStartY = touchY;
+        interactionArbiter.claim(InteractionOwner::ForecastControl);
       }
     }
 
@@ -2023,6 +2028,9 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
       touchX < displayManager.width() &&
       touchY >= FORECAST_CONTROL_BOTTOM + 2 &&
       touchY < FORECAST_VIEWPORT_BOTTOM;
+    if (forecastGraphTouchOwned) {
+      interactionArbiter.claim(InteractionOwner::ForecastGraph);
+    }
     forecastGraphTouchCandidate = forecastGraphTouchOwned;
     forecastGraphQuickSwipeCandidate = false;
     forecastGraphQuickSwipeReady = false;
@@ -2073,6 +2081,7 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
       (abs(touchX - forecastControlStartX) > FORECAST_CONTROL_TAP_SLOP_PX ||
        abs(touchY - forecastControlStartY) > FORECAST_CONTROL_TAP_SLOP_PX)) {
     forecastControlTouch = 0;
+    interactionArbiter.release(InteractionOwner::ForecastControl);
   }
 
   // Forecast list dragging starts only in List mode and inside the list
@@ -2125,6 +2134,7 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
       // Vertical intent: take ownership of the touch and track the finger.
       metricsTouchCandidate = false;
       metricsTouchDragActive = true;
+      interactionArbiter.claim(InteractionOwner::MetricPanel);
       DEBUG_PRINTF(
         "Metric vertical drag started (dx=%d, dy=%d)\n",
         deltaX,
@@ -2183,6 +2193,7 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
     } else if (absY >= intentThresholdPx && absY >= absX) {
       forecastTouchCandidate = false;
       forecastTouchDragActive = true;
+      interactionArbiter.claim(InteractionOwner::ForecastList);
       DEBUG_PRINTF(
         "Forecast vertical drag started (dx=%d, dy=%d)\n",
         deltaX,
@@ -2405,6 +2416,10 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
     forecastControlTouch = 0;
     handleForecastControlTap(control);
   }
+
+  if (!touchPresent) {
+    interactionArbiter.releaseContact();
+  }
 }
 
 // =====================================================
@@ -2566,11 +2581,7 @@ void pollTouch() {
     suppressForecastGesture = false;
   }
 
-  if (metricsTouchDragActive ||
-      forecastTouchDragActive ||
-      forecastGraphTouchOwned ||
-      forecastGraphDragActive ||
-      forecastControlTouch != 0 ||
+  if (interactionArbiter.suppressesControllerGesture() ||
       graphControllerGestureSuppressed ||
       releaseGestureSuppressed) {
     if (gesture != GestureCode::None) lastHandledGesture = gesture;

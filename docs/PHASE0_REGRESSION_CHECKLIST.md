@@ -56,6 +56,11 @@ This is a manual physical-device checklist. The repository currently has no chec
 - [ ] Repeat the same gesture after a neutral/no-gesture sample to check that a latched gesture does not block the next attempt.
 - [ ] Test tap targets in the forecast selector and any visible controls.
 - [ ] Test interaction during metric snap animation and tab transition.
+- [ ] Confirm metric-panel and forecast-list contacts remain unclaimed candidates until vertical intent is established; horizontal intent must still reach tab navigation.
+- [ ] Confirm vertical drag activation claims the correct view owner and suppresses the controller's duplicate gesture until the release grace period expires.
+- [ ] Confirm graph contacts remain owned from touch-down to release, including coordinate dropout; held horizontal drag and quick rightward tab return retain their existing distinction.
+- [ ] Confirm the forecast selector owns a stationary tap until release, while movement beyond tap slop cancels the control and leaves horizontal navigation available.
+- [ ] Start a new touch immediately after release and confirm no stale owner suppresses its gesture.
 
 The exact coordinate/gesture arbitration is documented in [Step 2 — Runtime data-flow map](PHASE0_STEP2_RUNTIME_DATA_FLOW.md). Treat it as regression-sensitive; do not simplify the separate metric, forecast-list and graph state just because some values look similar.
 
