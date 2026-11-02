@@ -2946,13 +2946,13 @@ void setup() {
         LocationService::Source::ConfiguredFallback;
 
     Serial.printf(
-      "[LOCATION] Selected source: %s (valid=%d, observed=%lu ms)\\n",
+      "[LOCATION] Selected source: %s (valid=%d, observed=%lu ms)\n",
       LocationService::sourceName(currentLocationFix.source),
       currentLocationFix.valid,
       (unsigned long)currentLocationFix.observedAtMs);
     if (currentLocationFix.hasAccuracyRadius) {
       Serial.printf(
-        "[LOCATION] Selected accuracy radius: about %.0f m\\n",
+        "[LOCATION] Selected accuracy radius: about %.0f m\n",
         (double)currentLocationFix.accuracyRadiusMeters);
     }
   }
