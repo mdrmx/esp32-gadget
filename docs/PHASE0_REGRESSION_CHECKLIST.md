@@ -1,7 +1,7 @@
 # Phase 0 — Weather firmware regression checklist
 
 **Purpose:** preserve the existing Weather dashboard while platform responsibilities are extracted.  
-**Reference implementation:** `main` at PR #34 merge commit `b11416b62ff91b7f917f16c8a484d0d2e6b7f02d`.  
+**Reference implementation:** `main` at PR #35 merge commit `fbd87e9b73b4a21e4b2579a7e2d0c15708e410cb`.  
 **Hardware:** Waveshare ESP32-S3 Touch LCD 2, 320 × 240 landscape.  
 **Build environment:** see [Step 3 — Build and toolchain baseline](PHASE0_STEP3_BUILD_TOOLCHAIN.md).  
 **Memory comparison:** see [Phase 0 memory profile](PHASE0_MEMORY_PROFILE.md).
