@@ -349,7 +349,7 @@ private:
       // arbitrary captive-portal/server error response on the ESP32 heap.
       char previewBuffer[221];
       size_t previewLength = 0;
-      Stream* responseStream = http.getStreamPtr();
+      auto* responseStream = http.getStreamPtr();
       while (responseStream != nullptr &&
              previewLength < sizeof(previewBuffer) - 1 &&
              responseStream->available()) {
