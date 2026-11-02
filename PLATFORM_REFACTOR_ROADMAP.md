@@ -353,7 +353,9 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
 - [ ] Record exact post-change canvas memory-region and internal-heap figures against the Phase 0 baseline when those diagnostic readings are available.
 - [x] **PR #29 — Extract CST816 raw reader:** `src/hardware/Cst816Reader.h` owns I2C setup, device detection and raw sample decoding. The user confirmed successful compile, upload and physical input regression after review fixes. `Cst816Reader::begin(bool initBus = true)` supports already-initialised shared buses; `requestFrom()` uses `size_t`.
 - [x] **PR #30 — Typed gesture codes:** `src/input/GestureCode.h` provides the typed `GestureCode` values and `constexpr` raw-byte decoder. The user reports the latest code was run and tested and all gestures remain intact.
-- [ ] **PR #31 — Gesture recogniser:** add `src/input/GestureRecognizer.h` to convert each `TouchSample` into a `GestureObservation` containing the typed controller gesture, raw-register transition details and touch-present/start/release edges. Keep Weather hit testing, metric/list/graph ownership, drag policy, suppression, debounce and navigation actions in the sketch. Compile, upload and physical input regression are pending.
+- [ ] **PR #31 — Gesture recogniser:** add `src/input/GestureRecognizer.h` to convert each `TouchSample` into a `GestureObservation` containing the typed controller gesture, raw-register transition details and touch-present/start/release edges. Keep Weather hit testing, metric/list/graph ownership, drag policy, suppression, debounce and navigation actions in the sketch.
+  - [x] Arduino IDE Verify passed on 2026-11-02 using ESP32 core 3.3.12 and the recorded 16 MB / OPI PSRAM FQBN. Build output: 1,149,427 bytes program storage (36% of 3 MiB app partition); 97,212 bytes global dynamic memory (29% of 327,680 bytes).
+  - [ ] Upload and physical touch regression remain pending.
 
 **Phase 1 tasks:**
 
@@ -579,6 +581,7 @@ Recheck GitHub before acting; this handover is the latest checkpoint covered by 
 - **Phase 1:** in progress. PRs #27–#30 are merged. PR #30 was run and tested by the user, who confirmed all gestures remain intact. PR #31 is in progress on `phase1/05-gesture-recognizer`.
 - **PR #30 scope/result:** `src/input/GestureCode.h` defines the typed CST816 values and a `constexpr` decoder. The existing `0x00`–`0x04` mapping and `Unknown` fallback are unchanged. The user reports running and testing the latest code with all gestures intact.
 - **PR #31 scope:** `src/input/GestureRecognizer.h` converts a raw `TouchSample` into `GestureObservation`: raw gesture value, typed `GestureCode`, raw-register transition flag/previous value, and touch-present/start/release flags. It does not arbitrate which Weather view owns a contact or interpret metric/list/graph drag behaviour. Those remain in the sketch.
+- **PR #31 validation:** Arduino IDE Verify passed on 2026-11-02 with the recorded ESP32 core 3.3.12 and 16 MB / OPI PSRAM configuration. Build result: 1,149,427 bytes program storage (36%) and 97,212 bytes global dynamic memory (29%). Upload and physical interaction regression are still pending.
 - **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the ignored local `secrets.h`.
 - **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. The three display canvases were in PSRAM in the pre-extraction baseline.
 
@@ -662,3 +665,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 
 - **2026-11-02 — Version 3.2:** Started PR #30 on `phase1/04-gesture-code`, adding typed `GestureCode` values and a pure raw-byte decoder while retaining raw transition diagnostics, polling arbitration, drag/suppression ownership and Weather actions in the sketch. Build and hardware validation are pending.
 - **2026-11-02 — Version 3.3:** Recorded PR #30 merge at `630ab67bc37528f0c46159b118b019e6760f7c73`. The user reports that the latest code was run and tested and all gestures remain intact. Started PR #31 on `phase1/05-gesture-recognizer`, extracting controller-level gesture observation and touch contact edges while preserving Weather interaction arbitration.
+
+- **2026-11-02 — Version 3.4:** Recorded a successful Arduino IDE Verify for PR #31 using the specified ESP32-S3 FQBN and ESP32 core 3.3.12. The reported build uses 1,149,427 bytes program storage and 97,212 bytes global dynamic memory. Upload and physical input regression remain pending.
