@@ -76,6 +76,20 @@ The PR #33 helper is stateless and does not own offsets, drag state, release tim
 
 The PR #32 interaction-ownership checks above were physically regression-tested on the Waveshare ESP32-S3 Touch LCD 2 and confirmed passed by the user on 2026-11-02. The exact coordinate/gesture arbitration is documented in [Step 2 — Runtime data-flow map](PHASE0_STEP2_RUNTIME_DATA_FLOW.md). Treat it as regression-sensitive; do not simplify the separate metric, forecast-list and graph state just because some values look similar.
 
+## PR #34 — TimeService extraction regression (pending)
+
+Repeat these checks on the PR #34 firmware after Arduino Verify and upload. The TimeService extraction has not yet been verified on the board.
+
+- [ ] Build with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
+- [ ] Upload and boot; confirm the header renders without a crash while the system clock is initially invalid or waiting for its first successful sync.
+- [ ] With Wi-Fi and TimeAPI available, confirm the header changes from `--:--` to the correct Europe/London local time after a successful response.
+- [ ] Confirm the clock advances and the header redraws only when its displayed minute changes; it must not trigger a TimeAPI request every loop or every header redraw.
+- [ ] Confirm the retry policy remains five minutes after a failed initial/periodic attempt and the successful-sync interval remains six hours (verify by source/scheduler inspection rather than waiting six hours during a manual session).
+- [ ] In demo mode, confirm the fixed 2026-10-28 18:00 Europe/London clock is set and advances normally without network access.
+- [ ] Confirm forecast list/graph labels still use the weather provider's `locationTimezoneOffset`, not the device's Europe/London timezone or TimeService state.
+
+TimeService deliberately does not own Wi-Fi association, header drawing/redraw cadence, or forecast timezone conversion. The Google Wi-Fi → IP location fallback is unchanged and is not part of this PR.
+
 ## 5. Clock and location
 
 | Check | Procedure | Pass condition | Status |
