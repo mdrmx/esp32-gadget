@@ -2126,7 +2126,6 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
       // Horizontal intent: release the candidate so normal gesture handling
       // can change tabs when the CST816 reports its completed swipe.
       metricsTouchCandidate = false;
-      interactionArbiter.release(InteractionOwner::MetricPanel);
       DEBUG_PRINTF(
         "Metric touch resolved as horizontal swipe (dx=%d, dy=%d)\n",
         deltaX,
@@ -2187,7 +2186,6 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
     if (absX >= intentThresholdPx && absX > absY) {
       // Leave horizontal intent to the existing tab-switch gesture handler.
       forecastTouchCandidate = false;
-      interactionArbiter.release(InteractionOwner::ForecastList);
       DEBUG_PRINTF(
         "Forecast touch resolved as horizontal swipe (dx=%d, dy=%d)\n",
         deltaX,
