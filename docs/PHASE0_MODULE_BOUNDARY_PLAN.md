@@ -241,7 +241,8 @@ Phase 1 has started. The agreed ownership plan and regression checklist are the 
 - [x] PR #29 — CST816 reader extraction compiled, uploaded and passed the user's full physical input regression after the review fixes. Gesture mapping, raw-to-screen conversion, drag behaviour and suppression remain unchanged.
 - [x] PR #30 — typed `GestureCode` decoder merged; the user reports the latest code was run and tested and all gestures remain intact.
 - [x] PR #31 — Arduino IDE Verify passed on 2026-11-02 with the recorded ESP32-S3 FQBN and ESP32 core 3.3.12. Build uses 1,149,427 bytes program storage (36% of 3 MiB) and 97,212 bytes global dynamic memory (29% of 327,680 bytes).
-- [ ] PR #31 — upload and test `GestureRecognizer`. Confirm raw register transition values, touch-start/release edges, all five gesture register values plus unknown handling, and unchanged metric/list/graph interactions and suppression.
+- [x] PR #31 — upload and physical regression passed, as confirmed by the user. Raw register transitions, touch-start/release edges, gesture values and existing metric/list/graph interactions and suppression were included in the reported regression.
+- [x] PR #31 review follow-up — removed the unused `rawGesture` local in the production configuration; debug logging uses `observation.rawGesture` directly. Review comment replied to and resolved.
 - [ ] Each subsequent extraction PR documents its scope, behaviour-preservation checks, expected memory impact and rollback point.
 
 Phase 1 acceptance remains: firmware compiles and runs on the existing board, Weather behaviour is unchanged, regression checks pass, credentials stay untracked and memory use is compared against the Phase 0 profile.
