@@ -167,7 +167,7 @@ private:
     const int status = http.GET();
 
     if (status != HTTP_CODE_OK) {
-      http.getString();
+      // Do not allocate/read an error body that the caller will discard.
       http.end();
       return SyncResult::HttpError;
     }
