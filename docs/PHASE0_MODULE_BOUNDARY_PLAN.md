@@ -1,7 +1,7 @@
 # Phase 0 — Data ownership and Phase 1 module-boundary plan
 
 **Status:** Proposed boundaries based on the Phase 0 source audit and hardware baseline  
-**Source inspected:** `main` at PR #34 merge commit `b11416b62ff91b7f917f16c8a484d0d2e6b7f02d`; PR #35 is based on this checkpoint on `phase1/09-location-service`  
+**Source inspected:** `main` at PR #35 merge commit `fbd87e9b73b4a21e4b2579a7e2d0c15708e410cb`  
 **Primary source file:** `weatherDashboard.ino` (3,594 lines; 155 file-scope declarations in the Step 1 inventory)  
 **Intent:** define ownership and a behaviour-preserving extraction sequence. This document does not claim that the proposed modules already exist.
 
