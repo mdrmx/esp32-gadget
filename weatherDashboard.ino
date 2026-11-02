@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include "secrets.h"
 #include "src/input/TouchSample.h"
+#include "src/input/GestureCode.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
 
@@ -79,14 +80,9 @@ DisplayManager displayManager;
 // The raw reader owns I2C access; gesture codes and state remain in Weather.
 Cst816Reader touchReader;
 
-// Values are kept as configurable raw codes. The diagnostic logs below
-// report each transition so physical swipe directions can be verified.
-#define GESTURE_SCREEN_LEFT 0x01
-#define GESTURE_SCREEN_RIGHT 0x02
-#define GESTURE_SCREEN_DOWN 0x03
-#define GESTURE_SCREEN_UP 0x04
-
-uint8_t lastHandledGesture = 0;
+// Preserve raw bytes for transition diagnostics; use the typed code for
+// accepted and last-handled gesture state.
+GestureCode lastHandledGesture = GestureCode::None;
 uint8_t previousRawGesture = 0;
 unsigned long lastGestureTime = 0;
 
@@ -1998,10 +1994,10 @@ void updateTouchDrag(const TouchSample& sample) {
       graphGestureQuietPeriodActive = false;
       graphGestureSuppressionStartedMs = 0;
       graphGestureQuietStartedMs = 0;
-      lastHandledGesture = sample.gesture;
+      lastHandledGesture = decodeGestureCode(sample.gesture);
       DEBUG_PRINTLN("Graph gesture suppression cleared at new touch-down");
     } else {
-      lastHandledGesture = 0;
+      lastHandledGesture = GestureCode::None;
     }
 
     // Only the List/Graph selector remains in the control strip.
@@ -2417,18 +2413,18 @@ void updateTouchDrag(const TouchSample& sample) {
 // NAVIGATION
 // =====================================================
 
-void handleGesture(uint8_t gesture) {
+void handleGesture(GestureCode gesture) {
   unsigned long now = millis();
   if (now - lastGestureTime < 250UL) return;
   lastGestureTime = now;
 
   DEBUG_PRINTF(
     "Navigation gesture accepted: raw=0x%02X; tab=%d; offset=%d\n",
-    gesture, currentTab, forecastOffset);
+    static_cast<uint8_t>(gesture), currentTab, forecastOffset);
 
   // These are provisional mappings. Use the raw transition logs to verify
   // physical directions on this particular panel before changing the codes.
-  if (gesture == GESTURE_SCREEN_RIGHT) {
+  if (gesture == GestureCode::ScreenRight) {
     if (currentTab == 0) {
       forecastOffset = 0;
       animateTabTransition(1, 1);
@@ -2445,7 +2441,7 @@ void handleGesture(uint8_t gesture) {
     return;
   }
 
-  if (gesture == GESTURE_SCREEN_LEFT) {
+  if (gesture == GestureCode::ScreenLeft) {
     if (currentTab == 1) {
       animateTabTransition(0, -1);
       DEBUG_PRINTLN("Action: mapped horizontal-right gesture returned to weather");
@@ -2456,7 +2452,7 @@ void handleGesture(uint8_t gesture) {
   }
 
   if (currentTab == 0) {
-    if (gesture == GESTURE_SCREEN_UP) {
+    if (gesture == GestureCode::ScreenUp) {
       int maxOffset = max(
         0,
         WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
@@ -2468,7 +2464,7 @@ void handleGesture(uint8_t gesture) {
       } else {
         DEBUG_PRINTLN("Action: already at last current-weather metric");
       }
-    } else if (gesture == GESTURE_SCREEN_DOWN) {
+    } else if (gesture == GestureCode::ScreenDown) {
       if (weatherMetricOffset > 0) {
         animateWeatherMetricsScroll(-1);
         DEBUG_PRINTF(
@@ -2490,7 +2486,7 @@ void handleGesture(uint8_t gesture) {
     return;
   }
 
-  if (gesture == GESTURE_SCREEN_UP) {
+  if (gesture == GestureCode::ScreenUp) {
     int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
     if (forecastOffset < maxOffset) {
       animateForecastScroll(1);
@@ -2501,7 +2497,7 @@ void handleGesture(uint8_t gesture) {
     return;
   }
 
-  if (gesture == GESTURE_SCREEN_DOWN) {
+  if (gesture == GestureCode::ScreenDown) {
     if (forecastOffset > 0) {
       animateForecastScroll(-1);
       DEBUG_PRINTF("Action: mapped vertical-down gesture moved back one entry; offset=%d\n", forecastOffset);
@@ -2516,12 +2512,16 @@ void pollTouch() {
 
   TouchSample sample;
   if (!touchReader.readSample(sample)) return;
-  uint8_t gesture = sample.gesture;
+  const uint8_t rawGesture = sample.gesture;
+  const GestureCode gesture = decodeGestureCode(rawGesture);
 
-  // Always log transitions in demo mode, including the return to zero.
-  if (gesture != previousRawGesture) {
-    DEBUG_PRINTF("Touch register transition: 0x%02X -> 0x%02X\n", previousRawGesture, gesture);
-    previousRawGesture = gesture;
+  // Always log raw transitions in demo mode, including the return to zero.
+  if (rawGesture != previousRawGesture) {
+    DEBUG_PRINTF(
+      "Touch register transition: 0x%02X -> 0x%02X\n",
+      previousRawGesture,
+      rawGesture);
+    previousRawGesture = rawGesture;
   }
 
   updateTouchDrag(sample);
@@ -2542,7 +2542,7 @@ void pollTouch() {
   // tracking briefly disappears. Clear this latch only after a sustained zero.
   bool graphControllerGestureSuppressed = false;
   if (suppressGraphControllerGestureAfterTouch) {
-    if (gesture == 0) {
+    if (gesture == GestureCode::None) {
       if (!graphGestureQuietPeriodActive) {
         graphGestureQuietPeriodActive = true;
         graphGestureQuietStartedMs = nowMs;
@@ -2576,27 +2576,29 @@ void pollTouch() {
       forecastControlTouch != 0 ||
       graphControllerGestureSuppressed ||
       releaseGestureSuppressed) {
-    if (gesture != 0) lastHandledGesture = gesture;
-    else lastHandledGesture = 0;
+    if (gesture != GestureCode::None) lastHandledGesture = gesture;
+    else lastHandledGesture = GestureCode::None;
     return;
   }
 
-  if (gesture == 0) {
-    lastHandledGesture = 0;
+  if (gesture == GestureCode::None) {
+    lastHandledGesture = GestureCode::None;
     return;
   }
 
-  if (gesture < GESTURE_SCREEN_LEFT || gesture > GESTURE_SCREEN_UP) return;
+  if (gesture == GestureCode::Unknown) return;
   if (gesture == lastHandledGesture) return;
 
   lastHandledGesture = gesture;
-  DEBUG_PRINTF("Touch raw gesture: 0x%02X\n", gesture);
+  DEBUG_PRINTF(
+    "Touch raw gesture: 0x%02X\n",
+    static_cast<uint8_t>(gesture));
 
   // On the current-weather screen, vertical scrolling must originate inside
   // the metric-card panel. This also gates the old gesture-only fallback used
   // when the buffered canvas is unavailable. Horizontal tab swipes are intact.
   if (currentTab == 0 &&
-      (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN) &&
+      (gesture == GestureCode::ScreenUp || gesture == GestureCode::ScreenDown) &&
       !metricsGestureStartedInsidePanel) {
     DEBUG_PRINTLN(
       "Ignoring vertical gesture: touch started outside the metrics panel");
@@ -2605,7 +2607,7 @@ void pollTouch() {
   }
 
   if (currentTab == 1 &&
-      (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN) &&
+      (gesture == GestureCode::ScreenUp || gesture == GestureCode::ScreenDown) &&
       forecastGraphView) {
     DEBUG_PRINTLN(
       "Ignoring vertical gesture in graph mode; use a held horizontal drag");
@@ -2615,7 +2617,7 @@ void pollTouch() {
   }
 
   if (currentTab == 1 &&
-      (gesture == GESTURE_SCREEN_UP || gesture == GESTURE_SCREEN_DOWN) &&
+      (gesture == GestureCode::ScreenUp || gesture == GestureCode::ScreenDown) &&
       !forecastGestureStartedInsideViewport) {
     DEBUG_PRINTLN(
       "Ignoring vertical forecast gesture started outside the list viewport");
