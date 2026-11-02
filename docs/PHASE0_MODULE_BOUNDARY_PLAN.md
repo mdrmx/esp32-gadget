@@ -1,7 +1,7 @@
 # Phase 0 — Data ownership and Phase 1 module-boundary plan
 
 **Status:** Proposed boundaries based on the Phase 0 source audit and hardware baseline  
-**Source inspected:** `main` at `05da9c718702f5c94838e09f7b44a75060835a20`; PR #33 was developed on `phase1/07-scroll-controller` from this baseline and merged to `main`  
+**Source inspected:** `main` at PR #34 merge commit `b11416b62ff91b7f917f16c8a484d0d2e6b7f02d`; PR #35 is based on this checkpoint on `phase1/09-location-service`  
 **Primary source file:** `weatherDashboard.ino` (3,594 lines; 155 file-scope declarations in the Step 1 inventory)  
 **Intent:** define ownership and a behaviour-preserving extraction sequence. This document does not claim that the proposed modules already exist.
 
@@ -105,6 +105,10 @@ A future location-fix value should contain at least:
 
 IP geolocation must remain marked as coarse; it must not be represented as equivalent to a Wi-Fi or future GNSS fix. Weather and Maps consume the same location value and do not call provider endpoints directly.
 
+**PR #35 — LocationService first slice (merged after physical regression):** `src/services/LocationService.h` owns the existing Google Wi-Fi request, public-IP fallback and OpenWeather reverse-geocoding coordination. It returns a `LocationFix` containing latitude, longitude, source (`GoogleWifi`, `IpGeolocation`, `ConfiguredFallback`; `Gnss` is reserved), optional accuracy radius, monotonic observation time in milliseconds since boot and a coordinate-validity flag. Only Google's supplied radius is reported as accuracy; IP geolocation remains coarse and has no claimed radius. The existing provider order remains Google Wi-Fi → IP → configured coordinates.
+
+Weather supplies the current Wi-Fi-connected state, API keys and configured fallback coordinates. The service reuses the existing Wi-Fi connection and does not manage association. Weather copies the returned fix into the existing coordinate/display state so weather requests, header naming, the OpenWeather reporting-station fallback and forecast timezone handling retain their existing behaviour.
+
 ### 3.6 Time service
 
 **Owns:** system clock validity, TimeAPI request/sync policy, retry/backoff scheduling and UK timezone configuration.
@@ -115,7 +119,7 @@ Keep two concepts distinct:
 
 The current implementation stores both concepts in related global state. The extraction must not merge them into one offset or change the displayed forecast times.
 
-**PR #34 — TimeService first slice:** `src/services/TimeService.h` now owns the Europe/London timezone/DST configuration, minimum valid system epoch, device-clock validity check, header clock value, TimeAPI request/JSON validation/epoch conversion/system-clock update, and the existing five-minute retry / six-hour resynchronisation policy. Weather supplies the current network-connected state and scheduler time; TimeService does not start or stop Wi-Fi. Header redraw cadence/cache remain Weather presentation state. `locationTimezoneOffset` remains separate in Weather forecast data. The current synchronous HTTP/TLS transport is intentionally retained inside TimeService for this first slice; a shared request executor remains a later boundary. On non-200 HTTP status the service ends the request directly without buffering the discarded error body. The user confirmed the physical test passed on 2026-11-02; Arduino Verify status is not separately confirmed in this update.
+**PR #34 — TimeService (merged):** `src/services/TimeService.h` owns the Europe/London timezone/DST configuration, minimum valid system epoch, device-clock validity check, header clock value, TimeAPI request/JSON validation/epoch conversion/system-clock update, and the existing five-minute retry / six-hour resynchronisation policy. Weather supplies the current network-connected state and scheduler time; TimeService does not start or stop Wi-Fi. Header redraw cadence/cache remain Weather presentation state. `locationTimezoneOffset` remains separate in Weather forecast data. The current synchronous HTTP/TLS transport is intentionally retained inside TimeService; a shared request executor remains a later boundary. On non-200 HTTP status the service ends the request directly without buffering the discarded error body. PR #34 merged at `b11416b62ff91b7f917f16c8a484d0d2e6b7f02d`; the user confirmed the physical test passed on 2026-11-02, while Arduino IDE Verify remains unconfirmed.
 
 ### 3.7 Weather data service and model
 
@@ -207,7 +211,7 @@ Each item should be its own reviewable PR and keep runtime behaviour unchanged u
 
    **PR #32 — interaction ownership/arbitration (merged):** adds `src/input/InteractionArbiter.h` with one enum-backed active owner: metric panel, forecast list, graph or forecast control. The sketch chooses the owner using its existing hit regions and intent thresholds. Metric/list candidates remain unclaimed until vertical drag intent activates; horizontal candidates remain available to tab navigation. Graph/control contacts claim immediately, matching the previous suppression conditions. The arbiter replaces the active-interaction OR list in `pollTouch()`; Weather retains release grace timing and the graph quiet-period suppression latch. No dynamic allocation is introduced. Arduino Verify passed with 1,149,179 bytes program storage and 97,212 bytes global dynamic memory; the user confirmed upload/boot and physical regression. Merged at `343eb7ed0120d947990cab48cec0c688177f4ec5`.
 5. **Scroll mechanics (PR #33 merged):** `src/ui/ScrollController.h` extracts only stateless drag-delta, elastic-resistance, elastic-bound and nearest-step snap calculations. Weather supplies its existing 20 px overscroll cap, resistance divisor 3, maximum positions and per-view step sizes. Per-view offsets, drag lifecycles, release timers, animation and rendering remain separate. Graph hold timing, quick-swipe classification, point selection and horizontal paging remain graph-specific Weather policy. Compile-time assertions, a standalone C++14 header compile, Arduino IDE Verify, upload/boot and physical metric-card, forecast-list and graph scroll regression passed; the user confirmed the firmware and interactions on 2026-11-02. Merged at `4f3aeae4713b8c6252266112e476a9e50cb86c52`. Do not turn this into a generic UI scrolling framework.
-6. **Time and location boundaries (in progress):** PR #34 extracts `TimeService` first, with explicit sync results and device time kept separate from the forecast/provider offset. Extract `LocationService` and a source/accuracy/timestamp-bearing location result as a separate follow-up, preserving Google Wi-Fi → IP fallback and configured-coordinate fallback.
+6. **Time and location boundaries:** PR #34 extracts `TimeService` and is merged. PR #35 extracts `LocationService` and is merged, preserving Google Wi-Fi → IP → configured-coordinate priority and returning a source/accuracy/observation-time/validity-bearing fix. The user confirmed the physical regression passed on 2026-11-02.
 7. **Network request support and Weather data.** Separate request transport from Weather/forecast parsing and presentation. Initially keep requests sequential and retain existing timeout/error behaviour.
 8. **Weather application/views and asset cache.** Move screen state and rendering behind the Weather app boundary; remove network side effects from drawing as a separate, testable change.
 9. **Application Manager.** Defer until Phase 4. Phase 1 should leave Weather as the only application.

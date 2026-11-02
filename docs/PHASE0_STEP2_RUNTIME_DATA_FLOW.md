@@ -4,11 +4,11 @@
 **Roadmap:** [Platform Refactor Roadmap](../PLATFORM_REFACTOR_ROADMAP.md)  
 **Related inventory:** [Phase 0, Step 1 — Code inventory](PHASE0_STEP1_CODE_INVENTORY.md)  
 **Repository:** `mdrmx/esp32-gadget`  
-**Source file:** `weatherDashboard.ino`  
-**Source branch:** `main`  
-**Source commit inspected:** `9721eb688c7b96ecb55e7ee00c61096e08c8fd5f`  
-**Source blob:** `02ba63e385a36eb64d542df644126e7efea0b8b4`  
-**Review date:** 2026-10-31
+**Primary runtime entry point:** `weatherDashboard.ino`  
+**Service modules:** `src/services/TimeService.h`, `src/services/LocationService.h`  
+**Merge-base inspected:** `main` at PR #34 merge `b11416b62ff91b7f917f16c8a484d0d2e6b7f02d`  
+**Current extraction branch:** `phase1/09-location-service`  
+**Review date:** 2026-11-02
 
 ---
 
@@ -16,7 +16,7 @@
 
 This document completes Phase 0, Step 2: trace how the existing firmware behaves at runtime and how input, application state, network responses and rendering connect.
 
-The trace follows the complete current `weatherDashboard.ino` from `main`, including the startup sequence, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
+The trace follows the Weather sketch and the extracted platform services at the PR #34 merge-base, with the PR #35 LocationService changes called out explicitly. It covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
 
 This is a **static source-level runtime map**. It does not claim that the firmware was compiled, profiled, or tested on the physical Waveshare board during this step. Timing values below are configured timeout / scheduling values in the source, not measured network latency or observed responsiveness.
 
@@ -47,30 +47,32 @@ There is no application manager or platform service layer in the current sketch.
 ```mermaid
 flowchart TD
     A["ESP32 starts"] --> B["setup()"]
-    B --> C["Initialise display, buffers, touch and timezone"]
+    B --> C["Initialise display, buffers, touch and TimeService"]
     C --> D{"USE_DEMO_WEATHER_DATA?"}
     D -->|Yes| E["Set fixed demo clock"]
     D -->|No| F["connectWiFi()"]
-    F --> G["Google Wi-Fi geolocation"]
-    G -->|Unavailable / fails| H["IP geolocation"]
-    G -->|Success| I["Reverse geocode place name"]
-    H -->|Success| I
-    H -->|Fails| J["Keep configured coordinates"]
-    I --> K["fetchWeather()"]
-    J --> K
-    E --> K
-    K --> L["fetchForecast()"]
-    L --> M["Draw Weather or error screen"]
-    M --> N["loop()"]
-    N --> O["pollTouch()"]
-    O --> P["maybeSyncTimeFromAPI()"]
-    P --> Q["Refresh clock label when due"]
-    Q --> R{"10-minute refresh due?"}
-    R -->|Yes| S["fetchWeather() then fetchForecast()"]
-    S --> T["Redraw active tab"]
-    T --> U["delay(30)"]
-    R -->|No| U
-    U --> N
+    F --> G["LocationService.resolve()"]
+    G --> H["Google Wi-Fi positioning"]
+    H -->|Unavailable / fails| I["IP geolocation"]
+    H -->|Success| J["Reverse geocode place name"]
+    I -->|Success| J
+    I -->|Fails| K["Keep configured coordinates"]
+    J --> L["Return LocationFix + display name"]
+    K --> L
+    L --> M["fetchWeather()"]
+    M --> N["fetchForecast()"]
+    E --> N
+    N --> O["Draw Weather or error screen"]
+    O --> P["loop()"]
+    P --> Q["pollTouch()"]
+    Q --> R["maybeSyncTimeFromAPI()"]
+    R --> S["Refresh clock label when due"]
+    S --> T{"10-minute refresh due?"}
+    T -->|Yes| U["fetchWeather() then fetchForecast()"]
+    U --> V["Redraw active tab"]
+    V --> W["delay(30)"]
+    T -->|No| W
+    W --> P
 ```
 
 The main global state groups and their current responsibilities are:
@@ -78,8 +80,8 @@ The main global state groups and their current responsibilities are:
 | State group | Representative globals | Current role |
 |---|---|---|
 | Connectivity / credentials | `wifiSsid`, `wifiPassword`, `apiKey` | Compile-time credentials and OpenWeather API key |
-| Location | `locationLat`, `locationLon`, `locationDisplayName`, `locationCoordinatesResolved` | Coordinates and preferred display name used by Weather |
-| Time | `timeApiValid`, `lastTimeApiAttemptMs`, `lastTimeApiSyncMs`, `locationTimezoneOffset` | System clock sync scheduling and provider-local forecast time |
+| Location | `LocationService::LocationFix`, `currentLocationFix`, plus Weather's `locationLat`, `locationLon`, `locationDisplayName`, `locationCoordinatesResolved` | Provider/source/accuracy/observation/validity result, plus existing Weather-facing coordinates and preferred display name |
+| Time | `TimeService`, Weather's header redraw cache, `locationTimezoneOffset` | Device clock validity/synchronisation and UK civil time; provider-local forecast offset remains separate |
 | Current weather | `temperature`, `feelsLike`, `humidity`, `weatherDescription`, `weatherIcon`, `weatherAvailable` | Current Weather screen and metric-card content |
 | Forecast | `forecast[]`, `forecastCount`, `forecastAvailable`, `forecastError` | Fixed-capacity hourly data store and availability state |
 | Navigation / presentation | `currentTab`, `forecastGraphView`, `weatherMetricOffset`, `forecastOffset`, `forecastGraphScrollPixels` | Active view and scroll positions |
@@ -92,16 +94,13 @@ These groups are all held in file-scope variables. Their current ownership is th
 
 The live startup path is ordered and synchronous.
 
-1. **Serial and display startup (lines 3424–3442).** Serial starts at 115200 baud. The sketch calls `gfx->begin()`. A failed display initialisation enters an infinite one-second delay loop. On success, the backlight is enabled and logical display dimensions are read from `gfx`.
-2. **Canvas allocation (lines 3443–3505).** The forecast viewport canvas, weather-metrics canvas and full-screen tab-transition canvas are allocated in that order. Each allocation is checked; a failed canvas is deleted and its pointer set to `nullptr`. The corresponding renderer has a direct-render or instant-transition fallback.
-3. **Memory diagnostics (lines 3508–3521).** The sketch inspects each framebuffer pointer to report whether it is in external RAM, then logs PSRAM and internal heap summaries. The code does not assume that Arduino_GFX placed these buffers in PSRAM.
-4. **Touch-controller detection (lines 3524–3529).** I²C starts on the configured touch pins at 100 kHz. A transmission to the CST816 address determines `touchAvailable`. If the controller is not detected, display and network startup continue, but `pollTouch()` returns immediately on every loop.
-5. **Timezone configuration (line 3531).** `initialiseTimeZone()` installs the UK timezone / daylight-saving rule string and calls `tzset()`. This configures local-time conversion; it does not itself obtain a valid system time.
-6. **Demo or live startup (lines 3533–3559).**
-   - In demo mode, the system clock is set to the fixed development timestamp in the sketch. No initial Wi-Fi or location requests are made.
-   - In live mode, the screen displays a startup loading message and calls `connectWiFi()`. If it connects, the sketch tries Google Wi-Fi positioning first. If that returns false, it tries IP geolocation. The configured Manchester coordinates remain the initial fallback if both location providers fail.
-7. **Weather data retrieval (lines 3561–3562).** `fetchWeather()` runs, followed by `fetchForecast()`. Both return data availability through shared globals and return values. The forecast request is still attempted if current-weather retrieval fails.
-8. **Initial screen and refresh timer (lines 3564–3567).** If `weatherAvailable` is true, `drawWeather()` displays the current conditions. Otherwise `drawError()` displays the Weather unavailable state. `lastUpdate` is then set to the current `millis()` value.
+1. **Serial, display and canvas startup.** Serial starts, the display is initialised, logical dimensions are read and the forecast, weather-metrics and tab-transition canvases are allocated with their existing fallback behaviour.
+2. **Memory diagnostics.** The sketch reports framebuffer memory regions plus PSRAM and internal-heap summaries.
+3. **Touch-controller detection.** The CST816 reader initialises the touch interface. If the controller is unavailable, display and network startup continue while touch polling returns immediately.
+4. **Time service setup.** `timeService.begin()` configures the Europe/London timezone/DST rule. This does not itself establish a valid clock. The existing `maybeSyncTimeFromAPI()` caller delegates synchronisation and retry policy to `TimeService::syncIfDue()`.
+5. **Demo or live startup.** In demo mode, `TimeService::setDemoTime()` sets the fixed development timestamp and no initial Wi-Fi/location requests are made. In live mode, the sketch displays a startup loading message and calls `connectWiFi()`. If connected, it calls `LocationService::resolve()`, which owns Google Wi-Fi → IP → configured-coordinate fallback and returns a `LocationFix` plus display name.
+6. **Weather data retrieval.** `fetchWeather()` runs, followed by `fetchForecast()`. The forecast request is still attempted if current-weather retrieval fails.
+7. **Initial screen and refresh timer.** The sketch draws Weather or an error state according to `weatherAvailable`, then records `lastUpdate` from `millis()`.
 
 ### Startup flow detail
 
@@ -111,27 +110,28 @@ flowchart TD
     B --> C["Allocate forecast / metrics / transition canvases"]
     C --> D["Report framebuffer regions and heap"]
     D --> E["Initialise I2C and detect CST816"]
-    E --> F["Set Europe/London TZ rules"]
+    E --> F["TimeService.begin(): set Europe/London TZ"]
     F --> G{"Demo mode?"}
-    G -->|Yes| H["Set fixed demo system time"]
+    G -->|Yes| H["TimeService.setDemoTime()"]
     G -->|No| I["drawLoading: Starting up"]
     I --> J["connectWiFi()"]
-    J -->|Connected| K["resolveLocationFromWiFi()"]
-    J -->|Not connected| L["Leave configured coordinates"]
-    K -->|false| M["resolveLocationFromIP()"]
-    K -->|true| N["Keep Wi-Fi-derived coordinates"]
-    M -->|true| O["IP-derived coordinates"]
-    M -->|false| L
-    N --> P["fetchWeather()"]
+    J -->|Connected| K["LocationService.resolve()"]
+    J -->|Not connected| L["Keep configured LocationFix"]
+    K --> M{"Provider result"}
+    M -->|Google Wi-Fi| N["GoogleWifi fix"]
+    M -->|IP fallback| O["IpGeolocation fix"]
+    M -->|Both fail| L
+    N --> P["Copy fix + display name to Weather"]
     O --> P
     L --> P
-    H --> P
-    P --> Q["fetchForecast()"]
-    Q --> R{"weatherAvailable?"}
-    R -->|Yes| S["drawWeather()"]
-    R -->|No| T["drawError()"]
-    S --> U["Set lastUpdate"]
-    T --> U
+    P --> Q["fetchWeather()"]
+    H --> Q
+    Q --> R["fetchForecast()"]
+    R --> S{"weatherAvailable?"}
+    S -->|Yes| T["drawWeather()"]
+    S -->|No| U["drawError()"]
+    T --> V["Set lastUpdate"]
+    U --> V
 ```
 
 ### Important startup nuance
@@ -355,18 +355,18 @@ Credentials are still read from compile-time values supplied by the ignored `sec
 
 ### 7.2 Location resolution
 
-The live startup location chain is:
+The live startup location chain is orchestrated by `LocationService::resolve()` in `src/services/LocationService.h`:
 
-1. Start with the configured default coordinates: latitude 53.4808, longitude -2.2426. `locationCoordinatesResolved` is initially false.
-2. If the Google Geolocation API key is compiled in, `resolveLocationFromWiFi()` passively scans nearby access points. It filters the scan results, deduplicates eligible BSSIDs, sorts by signal strength and retains up to 15. At least two usable access points are required.
-3. The request sends `considerIp: false` and the access-point BSSID, signal strength, channel and age values to Google. No connection to those nearby networks is made.
-4. Valid returned coordinates are range-checked, stored in `locationLat` / `locationLon` and marked resolved. A returned accuracy radius is logged when present. The function then attempts OpenWeather reverse geocoding to obtain a display name.
-5. If the Wi-Fi positioning function returns false (missing key, inadequate scan, request error or invalid response), startup calls `resolveLocationFromIP()`. It requests `https://ipwho.is/`, validates the coordinates, stores them and retains the provider city as an initial display-name fallback. It then attempts OpenWeather reverse geocoding.
-6. If both providers fail, the configured coordinates remain in use. The current-weather response can supply its coordinates only while `locationCoordinatesResolved` is false.
+1. Start with the configured default coordinates: latitude 53.4808, longitude -2.2426. The sketch creates a `ConfiguredFallback` fix before attempting live providers.
+2. If the Google Geolocation API key is available, the service passively scans nearby access points. It filters the scan results, deduplicates eligible BSSIDs, ranks by signal strength and retains up to 15. At least two usable access points are required.
+3. The Google request sends `considerIp: false` and access-point BSSID, signal strength, channel and age values. No connection to those nearby networks is made.
+4. Valid Google coordinates are range-checked and returned with source `GoogleWifi`, an observation time from `millis()`, and an optional accuracy radius when Google's response supplies one. The service then attempts OpenWeather reverse geocoding for a display name; reverse geocoding never replaces the coordinates.
+5. If Google positioning is unavailable or fails, the service requests `https://ipwho.is/`. Valid coordinates are returned with source `IpGeolocation`, no claimed accuracy radius, an observation time and the provider city as an initial display-name fallback. OpenWeather reverse geocoding is then attempted.
+6. If both providers fail, the configured coordinates are returned with source `ConfiguredFallback`. The existing current-weather response can still supply its reporting-station coordinates only while `locationCoordinatesResolved` is false.
 
-OpenWeather reverse geocoding uses the resolved latitude / longitude and `limit=1`. A valid returned place name updates `locationDisplayName`; failure leaves the prior fallback name intact.
+The `LocationFix` validity flag describes whether the returned coordinates are in range. `observedAtMs` is a monotonic observation timestamp relative to the current boot, not a calendar timestamp. IP geolocation remains coarse and is not represented as equivalent to Wi-Fi or future GNSS positioning.
 
-The header prefers `locationDisplayName`, then `weatherCity`, then the configured `CITY` value. The current-weather provider's city name and the location display name are deliberately kept separate because the weather station name may refer to a nearby reporting location.
+The header continues to prefer `locationDisplayName`, then `weatherCity`, then the configured `CITY` value. The current-weather provider's city name and the location display name remain separate because the weather station name may refer to a nearby reporting location.
 
 ### 7.3 Current weather request
 
@@ -401,24 +401,22 @@ The list displays up to three records at once. The graph uses six visible hourly
 ```mermaid
 flowchart TD
     A["Configured fallback coordinates"] --> B["connectWiFi()"]
-    B --> C["Passive Wi-Fi scan"]
-    C --> D["Filter / deduplicate / rank BSSIDs"]
-    D --> E{"At least two and API key available?"}
-    E -->|Yes| F["Google Geolocation POST"]
-    E -->|No| G["IP geolocation GET"]
-    F -->|Valid coordinates| H["Store coordinates + mark resolved"]
-    F -->|Failure| G
-    G -->|Valid coordinates| I["Store IP coordinates + city"]
-    G -->|Failure| J["Keep configured coordinates"]
-    H --> K["OpenWeather reverse geocode"]
-    I --> K
-    J --> L["fetchWeather()"]
-    K --> L
-    L --> M["Populate current-weather globals"]
-    M --> N["fetchForecast()"]
-    N --> O["Populate forecast[] and forecast availability"]
-    O --> P["Render active screen from shared globals"]
+    B -->|Connected| C["LocationService.resolve()"]
+    B -->|Not connected| D["ConfiguredFallback LocationFix"]
+    C --> E["Google Wi-Fi positioning"]
+    E -->|Missing key / insufficient scan / error| F["IP geolocation"]
+    E -->|Valid fix| G["GoogleWifi LocationFix"]
+    F -->|Valid fix| H["IpGeolocation LocationFix"]
+    F -->|Error| D
+    G --> I["Optional reverse geocode display name"]
+    H --> I
+    I --> J["Weather consumes fix + display name"]
+    D --> J
+    J --> K["fetchWeather()"]
+    K --> L["fetchForecast()"]
+    L --> M["Render active screen from shared Weather state"]
 ```
+
 
 ## 8. Time and forecast timezone flow
 
@@ -426,10 +424,10 @@ There are two distinct time concepts in the current sketch.
 
 ### Device clock / header time
 
-- `initialiseTimeZone()` configures the device for Europe/London time, including UK daylight-saving rules.
-- `fetchTimeFromAPI()` requests the current local date/time from TimeAPI.io when synchronisation is due. It validates the returned fields, converts the London wall-clock time to an epoch using `mktime()` and sets the ESP32 system clock using `settimeofday()`.
-- `maybeSyncTimeFromAPI()` checks once per loop whether a sync is due. Before the first valid sync, it retries no more often than every five minutes. After a successful sync, the normal resynchronisation interval is six hours; a failed due sync is retried no more often than every five minutes.
-- `getHeaderClockText()` reads the system epoch and converts it with `localtime_r()`. It returns `--:--` if the system time is not valid.
+- `timeService.begin()` configures the device for Europe/London time, including UK daylight-saving rules.
+- `maybeSyncTimeFromAPI()` supplies the current Wi-Fi-connected state and scheduler time to `TimeService::syncIfDue()`. The service owns the TimeAPI request, response validation, London wall-clock-to-epoch conversion and ESP32 system-clock update.
+- Before the first valid sync, TimeService retries no more often than every five minutes. After a successful sync, the normal resynchronisation interval is six hours; a failed due sync is retried no more often than every five minutes.
+- `timeService.headerClockText()` reads the system epoch and converts it with `localtime_r()`. It returns `--:--` if the system time is not valid.
 - `refreshHeaderClock()` runs on the one-second loop check, but redraws the clock region only when the displayed text changes.
 
 ### Forecast time labels
@@ -478,11 +476,11 @@ These are source-level reasons to investigate a queued / state-driven network se
 
 | Purpose | Function | Provider / endpoint | Method |
 |---|---|---|---|
-| System time | `fetchTimeFromAPI()` | TimeAPI.io, Europe/London current time | GET |
+| System time | `TimeService::syncIfDue()` (request handled internally) | TimeAPI.io, Europe/London current time | GET |
 | Weather condition icon | `loadOpenWeatherIconPNG()` | OpenWeather icon PNG URL | GET |
-| Location place name | `resolveLocationNameFromCoordinates()` | OpenWeather reverse geocoding v1.0 | GET |
-| Wi-Fi positioning | `resolveLocationFromWiFi()` | Google Geolocation API | POST |
-| IP positioning | `resolveLocationFromIP()` | ipwho.is | GET |
+| Location place name | `LocationService::resolveLocationNameFromCoordinates()` | OpenWeather reverse geocoding v1.0 | GET |
+| Wi-Fi positioning | `LocationService::resolveFromWiFi()` | Google Geolocation API | POST |
+| IP positioning | `LocationService::resolveFromIP()` | ipwho.is | GET |
 | Current conditions | `fetchWeather()` | OpenWeather current weather 2.5 | GET |
 | Hourly forecast | `fetchOneCallForecastPage()` via `fetchForecast()` | OpenWeather One Call 4.0 timeline | GET |
 
@@ -509,7 +507,7 @@ The runtime trace makes the following dependencies explicit:
 
 ### Candidate boundaries exposed by this trace
 
-These are responsibilities visible in the existing code, not a final class or filename decision:
+These are responsibilities and module boundaries as implemented or planned after the Phase 1 extractions:
 
 1. **Display / graphics owner:** display initialisation, logical size, framebuffer allocation, canvas lifetime and a stable render target.
 2. **Touch input reader:** CST816 register access and raw sample decoding.
@@ -517,12 +515,12 @@ These are responsibilities visible in the existing code, not a final class or fi
 4. **Scroll controller:** scroll position, bounds, overscroll, snap and render scheduling, while keeping screen-specific content rendering outside the controller.
 5. **Connectivity manager:** network interface state and reconnect policy, without drawing loading screens.
 6. **HTTP / request support:** transport, timeout, TLS validation and request completion / error representation.
-7. **Location service:** provider selection and a location result that can retain source, accuracy and freshness.
-8. **Time service:** system-clock initialisation, synchronisation policy, timezone handling and clock validity.
+7. **Location service (PR #35):** `LocationService` owns Google Wi-Fi/IP provider selection, reverse-geocoding coordination and the structured `LocationFix` result.
+8. **Time service (PR #34):** `TimeService` owns system-clock initialisation, synchronisation policy, Europe/London timezone handling and clock validity.
 9. **Weather data service / model:** current and hourly data retrieval and storage separate from screen rendering.
 10. **Application / view layer:** active-screen lifecycle and screen-specific rendering, without owning device connectivity.
 
-The exact interfaces remain subject to the remaining Phase 0 audit and the Arduino build/toolchain constraints.
+The service implementations remain synchronous and use the existing HTTPS client policy. Shared request transport, certificate validation and GNSS integration remain separate follow-up decisions.
 
 ## 12. Audit notes and unresolved items
 

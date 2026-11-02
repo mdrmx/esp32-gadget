@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.5  
+**Version:** 4.7  
 **Last reviewed:** 2026-11-02  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete; PRs #27–#33 merged. PR #34 is extracting the device Time Service in `phase1/08-time-service`; Location Service/provider orchestration remains a separate follow-up.
+**Current roadmap status:** Phase 0 baseline complete; PRs #27–#34 merged. PR #35 is extracting LocationService in `phase1/09-location-service`; subsequent Phase 1 service and application boundaries remain.
 
 ---
 
@@ -342,9 +342,9 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PRs #27–#33 are merged; PR #34 is extracting the Time Service as the first slice of the time/location boundary. The gesture-recognition, interaction-ownership and scroll-calculation extractions are verified while remaining Phase 1 module work continues.**
+**Status: IN PROGRESS — PRs #27–#34 are merged; PR #35 extracts the Location Service as the second slice of the time/location boundary. The TimeService physical test was confirmed by the user; Arduino IDE Verify was not separately confirmed. The gesture-recognition, interaction-ownership and scroll-calculation extractions are verified while remaining Phase 1 module work continues.**
 
-The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample`, display ownership, CST816 reader, typed gesture-code, controller-level gesture-recognition and interaction-ownership extractions are merged. PR #31 and PR #32 were verified, uploaded and physically regression-tested successfully. PR #32 adds a small `InteractionArbiter` for the active contact owner and the decision to suppress a duplicate controller gesture. Weather continues to choose the owner through its existing hit-tests and retains all view-specific drag, timing, graph and navigation policies. PR #33 adds a stateless `ScrollController` math helper; the user confirmed Arduino IDE Verify, upload/boot and physical metric-card, forecast-list and graph scroll regression on 2026-11-02. The view offsets, drag lifecycles and rendering policies remain in the sketch. PR #34 begins the next domain-service boundary by moving system clock validity, UK timezone setup, TimeAPI synchronisation and retry policy into `src/services/TimeService.h`; Weather retains the header redraw cache and forecast timezone offset.
+The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample`, display ownership, CST816 reader, typed gesture-code, controller-level gesture-recognition, interaction-ownership, scroll-calculation and TimeService extractions are merged. PR #31 and PR #32 were verified, uploaded and physically regression-tested successfully. PR #32 adds a small `InteractionArbiter` for the active contact owner and the decision to suppress a duplicate controller gesture. Weather continues to choose the owner through its existing hit-tests and retains all view-specific drag, timing, graph and navigation policies. PR #33 adds a stateless `ScrollController` math helper; the user confirmed Arduino IDE Verify, upload/boot and physical metric-card, forecast-list and graph scroll regression on 2026-11-02. PR #34 moves system clock validity, UK timezone setup, TimeAPI synchronisation and retry policy into `src/services/TimeService.h`; the user confirmed its physical test, while IDE Verify remains unconfirmed. Weather retains the header redraw cache and forecast timezone offset. PR #35 moves Google Wi-Fi positioning, IP fallback and reverse-geocoding into `src/services/LocationService.h`, returning an explicit source/accuracy/timestamp-bearing fix while retaining Weather-facing coordinates and display behaviour.
 
 **Current task:**
 
@@ -363,7 +363,7 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
   - [x] Uploaded and booted on the Waveshare ESP32-S3 Touch LCD 2; confirmed by the user.
   - [x] User confirmed the physical interaction regression passed, including metric/list candidate and axis-intent handling, drag ownership and duplicate-gesture suppression, graph ownership/quick swipe/hold drag, selector tap/cancellation and release/fresh-contact behaviour.
 - [x] **PR #33 — Shared scroll calculations:** adds `src/ui/ScrollController.h` for drag delta, elastic resistance, bounded elastic position and nearest-step snapping. Metric, forecast-list and graph offsets, drag lifecycles, rendering, animations and graph-specific gesture policy remain in Weather. Standalone C++14 compilation, compile-time arithmetic checks, Arduino IDE Verify, upload/boot and physical scroll regression passed; the user confirmed the firmware and metric-card, forecast-list and graph behaviour on 2026-11-02.
-- [x] **PR #34 — Time Service boundary (validated; draft PR open):** adds `src/services/TimeService.h` for Europe/London timezone configuration, clock validity/formatting, TimeAPI response validation and system-clock application, plus the existing retry/resynchronisation policy. Weather retains header redraw cadence/cache and `locationTimezoneOffset`; Wi-Fi lifecycle and the Google Wi-Fi → IP location chain remain unchanged. The user confirmed the physical test passed on 2026-11-02. Review follow-up removes allocation of discarded non-200 HTTP response bodies. Arduino Verify status is not separately confirmed in this update.
+- [x] **PR #34 — Time Service boundary (merged at `b11416b62ff91b7f917f16c8a484d0d2e6b7f02d`):** adds `src/services/TimeService.h` for Europe/London timezone configuration, clock validity/formatting, TimeAPI response validation and system-clock application, plus the existing retry/resynchronisation policy. Weather retains header redraw cadence/cache and `locationTimezoneOffset`; Wi-Fi lifecycle and the Google Wi-Fi → IP location chain remain unchanged. The user confirmed the physical test passed on 2026-11-02. Review follow-up removes allocation of discarded non-200 HTTP response bodies. Arduino Verify status was not separately confirmed.
 
 **Phase 1 tasks:**
 
@@ -574,19 +574,19 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ## 10. Handover instructions for future development sessions
 
-### Current handover — 2026-11-02 (Phase 1 PR #33 scroll extraction validated)
+### Current handover — 2026-11-02 (Phase 1 PR #35 LocationService extraction in progress)
 
-Recheck GitHub before acting; this handover is the latest checkpoint covered by this roadmap.
+Recheck GitHub before acting; this handover is current through the PR #35 branch creation and implementation snapshot.
 
 - **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
-- **Latest firmware merge checkpoint validated on the Waveshare board:** `4f3aeae4713b8c6252266112e476a9e50cb86c52`, the PR #33 merge commit. The user confirmed Arduino Verify, upload/boot and physical scroll regression before merge.
+- **Latest firmware merge checkpoint:** `b11416b62ff91b7f917f16c8a484d0d2e6b7f02d`, PR #34 merge commit. The user confirmed the PR #34 physical test passed; Arduino IDE Verify was not separately confirmed. PR #33 remains the latest extraction with explicitly confirmed Verify, upload/boot and physical regression.
 - **PR #27:** `TouchSample` value-type extraction is merged after successful compile, upload and physical input regression.
 - **PR #28:** `DisplayManager` extraction and resource-lifecycle fixes are merged after successful compile, upload and physical display/input regression. Exact post-change heap comparison remains unrecorded.
 - **PR #29:** `Cst816Reader` extraction and review fixes are merged at `5ee7ce7d1a42e31d275cc7fa2e2899544d6d9a42`. The user confirmed successful compile, upload and full physical input regression. The feature branch was deleted.
 - **PR #22 / #24 / #25:** permanent Step 4 audit, handover refresh and Phase 0 memory/profile documentation are merged.
 - **PR #23 / #26:** temporary diagnostics and Arduino source-layout spike were closed without merging; reusable results are recorded in Phase 0 docs.
 - **Phase 0:** complete. Extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups.
-- **Phase 1:** in progress. PRs #27–#33 are merged. PR #30 was run and tested by the user, who confirmed all gestures remain intact. PR #31 and PR #32 passed Verify, upload and physical regression. PR #33 passed standalone C++14 checks, Arduino IDE Verify, upload/boot and the physical metric-card, forecast-list and graph regression before merge; the user confirmed the hardware validation on 2026-11-02.
+- **Phase 1:** in progress. PRs #27–#34 are merged; PR #35 is the current LocationService extraction. PR #30 was run and tested by the user, who confirmed all gestures remain intact. PR #31 and PR #32 passed Verify, upload and physical regression. PR #33 passed standalone C++14 checks, Arduino IDE Verify, upload/boot and the physical metric-card, forecast-list and graph regression before merge. For PR #34, the user confirmed the physical test passed; Verify remains unconfirmed.
 - **PR #30 scope/result:** `src/input/GestureCode.h` defines the typed CST816 values and a `constexpr` decoder. The existing `0x00`–`0x04` mapping and `Unknown` fallback are unchanged. The user reports running and testing the latest code with all gestures intact.
 - **PR #31 scope (at merge):** `src/input/GestureRecognizer.h` converts a raw `TouchSample` into `GestureObservation`: raw gesture value, typed `GestureCode`, raw-register transition flag/previous value, and touch-present/start/release flags. At that stage, Weather still owned contact arbitration and metric/list/graph drag behaviour. PR #32 now extracts only the active-owner latch; hit-testing and view-specific interaction policy remain in the sketch.
 - **PR #32 result:** [merged pull request](https://github.com/mdrmx/esp32-gadget/pull/32), merge commit `343eb7ed0120d947990cab48cec0c688177f4ec5`. Arduino Verify passed (1,149,179 bytes program storage; 97,212 bytes global dynamic memory); upload/boot and physical interaction regression were confirmed passed by the user.
@@ -609,14 +609,24 @@ Recheck GitHub before acting; this handover is the latest checkpoint covered by 
 
 PR #33 merged at the commit recorded above. Its scope remains limited to shared scroll arithmetic; all per-view interaction and rendering policy stays in Weather.
 
-### Current task — PR #34: TimeService boundary (in progress)
+### Latest merged Phase 1 extraction — PR #34: TimeService boundary
 
 - **Branch:** `phase1/08-time-service`, based on current `main` after PR #33 and its handover update.
 - **New module:** `src/services/TimeService.h` owns the Europe/London TZ/DST rule, minimum valid system epoch, header clock value, TimeAPI fetch/JSON validation/epoch conversion/system-clock update, and five-minute retry / six-hour resynchronisation schedule.
 - **Composition boundary:** Weather supplies the current Wi-Fi-connected state and current `millis()` value. TimeService never starts/stops Wi-Fi. Header redraw timing and last-drawn string remain Weather presentation state.
 - **Timezone separation:** `locationTimezoneOffset` remains owned by Weather forecast data and is not read or written by TimeService. Google Wi-Fi location → IP fallback and reverse-geocoding remain untouched for the next Location Service slice.
 - **Request transport:** TimeService still uses the existing synchronous `WiFiClientSecure` / `HTTPClient` path and current `setInsecure()` behaviour. On non-200 status, it now calls `http.end()` directly rather than allocating an unused error-body `String`. A common request executor and TLS policy remain a later, separate boundary; do not silently expand this PR.
-- **Validation:** the user confirmed the physical test passed on 2026-11-02. The PR review follow-up removes `http.getString()` from the non-200 error path to avoid buffering a discarded response body; the inline review thread is replied to and resolved. Arduino IDE Verify status is not separately confirmed in this update.
+- **Merge:** PR #34 merged at `b11416b62ff91b7f917f16c8a484d0d2e6b7f02d` on 2026-11-02.
+- **Validation:** the user confirmed the physical test passed on 2026-11-02. The PR review follow-up removes `http.getString()` from the non-200 error path to avoid buffering a discarded response body; the inline review thread is replied to and resolved. Arduino IDE Verify status is not separately confirmed.
+
+### Current task — PR #35: LocationService boundary (in progress)
+
+- **Branch:** `phase1/09-location-service`, based on PR #34 merge commit `b11416b62ff91b7f917f16c8a484d0d2e6b7f02d`.
+- **New module:** `src/services/LocationService.h` owns the Google Wi-Fi positioning request, IP geolocation fallback and OpenWeather reverse-geocoding coordination.
+- **Result contract:** `LocationFix` carries latitude, longitude, `Source` (`GoogleWifi`, `IpGeolocation`, `ConfiguredFallback`, with `Gnss` reserved for future work), optional accuracy radius, `observedAtMs` from the monotonic `millis()` clock and a coordinate-validity flag. IP geolocation is explicitly coarse and never claims an accuracy radius.
+- **Composition boundary:** Weather supplies the current network-connected state, API keys and configured fallback coordinates. LocationService uses the existing Wi-Fi connection and never starts/stops or reconfigures it. Provider priority remains Google Wi-Fi → IP geolocation → configured coordinates.
+- **Preserved Weather behaviour:** the sketch copies the returned fix into its existing latitude/longitude and resolved-location state, retains the current display-name preference, and continues to allow OpenWeather's reporting-station coordinates to fill in only when a provider location was not resolved. Forecast `locationTimezoneOffset` and TimeService remain separate.
+- **Validation:** implementation is on the feature branch. Arduino Verify, upload/boot and physical provider/fallback regression are pending; no hardware test is claimed.
 
 ### Standing handover procedure
 
@@ -638,7 +648,7 @@ When resuming work after a context reset:
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
-| 1 | Project structure and shared foundations | In progress — PRs #27–#33 merged; PR #34 TimeService extraction is in progress, with LocationService and subsequent module work remaining |
+| 1 | Project structure and shared foundations | In progress — PRs #27–#34 merged; PR #35 LocationService extraction in progress, with subsequent module work remaining |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
@@ -697,4 +707,6 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-02 — Version 4.3:** Recorded the user's confirmation that PR #33 passed Arduino IDE Verify with the recorded toolchain/FQBN, upload/boot on the Waveshare ESP32-S3 Touch LCD 2 and physical metric-card, forecast-list and graph scroll regression. No unreported build-size figures were inferred.
 - **2026-11-02 — Version 4.4:** Recorded PR #33 merge at `4f3aeae4713b8c6252266112e476a9e50cb86c52`. Phase 1 now has PRs #27–#33 merged; the next work remains the subsequent module extraction sequence.
 - **2026-11-02 — Version 4.5:** Started PR #34 on `phase1/08-time-service`. Extracted system clock validity, Europe/London TZ/DST configuration, TimeAPI sync/validation and retry scheduling into `src/services/TimeService.h`. Weather retains header redraw state and the separate forecast timezone offset; the existing Wi-Fi location provider chain remains unchanged.
-- **2026-11-02 — Version 4.6:** Recorded the user's physical-test confirmation for PR #34 and the OOM review fix removing discarded HTTP error-body buffering. Review reply posted and inline thread resolved. Arduino IDE Verify status remains unconfirmed.
+- **2026-11-02 — Version 4.6:** Recorded the user's physical-test confirmation, the OOM review fix removing discarded HTTP error-body buffering, and the PR #34 merge at `b11416b62ff91b7f917f16c8a484d0d2e6b7f02d`. The review reply was posted and the inline thread resolved. Arduino IDE Verify status remains unconfirmed.
+- **2026-11-02 — Version 4.7:** Started PR #35 on `phase1/09-location-service`. Added `src/services/LocationService.h` for Google Wi-Fi positioning, IP fallback and reverse geocoding, returning a source/accuracy/observation-time/validity-bearing fix. Weather-facing coordinates, display naming and forecast timezone behaviour remain unchanged; build and physical validation are pending.
+- **2026-11-02 — PR #35 review follow-up:** Google Geolocation now checks HTTP status before reading the response. Non-200 diagnostics are capped at 220 bytes in a fixed stack buffer; successful JSON is deserialized directly from the response stream. Review reply posted; the inline thread is now outdated. Firmware and hardware checks remain pending.
