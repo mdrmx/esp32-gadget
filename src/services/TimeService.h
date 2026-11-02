@@ -154,7 +154,7 @@ private:
 
   SyncResult fetchAndApplyTime() {
     HttpRequestClient http;
-    if (!http.begin(timeApiUrl(), 5000, 5000, true)) {
+    if (!http.begin(timeApiUrl(), 5000, 5000, HttpRequestClient::TlsPolicy::InsecureCompatibility)) {
       return SyncResult::RequestInitializationFailed;
     }
 
