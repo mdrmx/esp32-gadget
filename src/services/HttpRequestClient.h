@@ -25,6 +25,19 @@ public:
   HttpRequestClient(HttpRequestClient&&) = delete;
   HttpRequestClient& operator=(HttpRequestClient&&) = delete;
 
+  // Configure certificate validation before begin() when the caller has
+  // a trusted root CA. This is intentionally separate from the legacy
+  // allowInsecureTls compatibility switch below.
+  bool setCACert(const char* rootCaCertificate) {
+    if (beginAttempted_ || rootCaCertificate == nullptr ||
+        rootCaCertificate[0] == '\0') {
+      return false;
+    }
+
+    secureClient_.setCACert(rootCaCertificate);
+    return true;
+  }
+
   bool begin(
     const String& url,
     int32_t connectTimeoutMs,
