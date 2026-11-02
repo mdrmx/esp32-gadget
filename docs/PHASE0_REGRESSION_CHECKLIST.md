@@ -80,7 +80,7 @@ The PR #32 interaction-ownership checks above were physically regression-tested 
 
 The user confirmed the PR #34 physical test passed on 2026-11-02. Individual checklist detail was not included in the confirmation, so the specific scenarios below remain unmarked rather than inferred.
 
-- [ ] Build with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
+- [x] Arduino IDE Verify passed on 2026-11-02 with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline. Build output: 1,151,199 bytes program storage (36% of 3 MiB app partition); 97,228 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,452 bytes. ESP32-S3 image and merged 16 MB flash image generation succeeded.
 - [ ] Upload and boot; confirm the header renders without a crash while the system clock is initially invalid or waiting for its first successful sync.
 - [ ] With Wi-Fi and TimeAPI available, confirm the header changes from `--:--` to the correct Europe/London local time after a successful response.
 - [ ] Confirm the clock advances and the header redraws only when its displayed minute changes; it must not trigger a TimeAPI request every loop or every header redraw.
@@ -110,9 +110,9 @@ The user confirmed on 2026-11-02 that the LocationService firmware works in phys
 
 LocationService deliberately retains the existing synchronous HTTPS and `setInsecure()` policy for PR #35. The shared request-client extraction is tracked separately in PR #36; TLS policy and GNSS integration remain separate decisions.
 
-## PR #36 — shared HTTP request client extraction (pending)
+## PR #36 — shared HTTP request client extraction (Verify passed; device regression pending)
 
-`HttpRequestClient` is being introduced as a single-use synchronous request session and is currently used by TimeService and LocationService only. Keep Weather's direct icon/current/forecast request sites separate until the follow-on migration.
+`HttpRequestClient` is a single-use synchronous request session and is currently used by TimeService and LocationService only. Its Arduino Verify passed; upload/boot and physical checks below are still pending. Keep Weather's direct icon/current/forecast request sites separate until the follow-on migration.
 
 - [ ] Build with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
 - [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2; confirm Weather starts normally.
