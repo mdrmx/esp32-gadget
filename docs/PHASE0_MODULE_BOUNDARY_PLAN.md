@@ -2,7 +2,7 @@
 
 **Status:** Proposed boundaries based on the Phase 0 source audit and hardware baseline  
 **Source inspected:** `main` at PR #35 merge commit `fbd87e9b73b4a21e4b2579a7e2d0c15708e410cb`  
-**Primary source file:** `weatherDashboard.ino` (3,594 lines; 155 file-scope declarations in the Step 1 inventory)  
+**Primary source file:** `weatherDashboard.ino` (2,994 lines at the PR #35 merge checkpoint; the Step 1 baseline inventory recorded 155 file-scope declarations)  
 **Intent:** define ownership and a behaviour-preserving extraction sequence. This document does not claim that the proposed modules already exist.
 
 ## 1. Design constraints from the audit
@@ -88,6 +88,8 @@ Keep these as separate responsibilities:
 - **Domain services:** Time, Location and Weather decide which endpoint to call and how to interpret its response; they do not start or stop a network interface.
 
 The initial extraction remains synchronous and sequential. The current evidence demonstrates blocking but does not justify creating FreeRTOS tasks or concurrent requests yet. A later non-blocking design must define bounded request ownership, cancellation, response lifetime, memory limits and how results reach the main UI loop.
+
+**PR #36 — shared HTTP request transport (in progress):** `src/services/HttpRequestClient.h` owns one synchronous HTTP request session, including `WiFiClientSecure` / `HTTPClient` lifetime, per-request connect and response timeouts, GET/POST operations, headers and response access. TimeService and LocationService use it for their existing calls; endpoint construction, status/error interpretation, JSON parsing and domain policy remain with those services. Each legacy caller explicitly passes the existing insecure-TLS compatibility flag. The wrapper also allows a caller to configure a root CA before `begin()`, but this PR does not change certificate policy. Weather icon/current/forecast calls in the sketch remain direct and are not part of this first migration.
 
 Certificate validation is a separate security decision. Do not carry `setInsecure()` forward as an unexamined platform default.
 
@@ -212,7 +214,7 @@ Each item should be its own reviewable PR and keep runtime behaviour unchanged u
    **PR #32 — interaction ownership/arbitration (merged):** adds `src/input/InteractionArbiter.h` with one enum-backed active owner: metric panel, forecast list, graph or forecast control. The sketch chooses the owner using its existing hit regions and intent thresholds. Metric/list candidates remain unclaimed until vertical drag intent activates; horizontal candidates remain available to tab navigation. Graph/control contacts claim immediately, matching the previous suppression conditions. The arbiter replaces the active-interaction OR list in `pollTouch()`; Weather retains release grace timing and the graph quiet-period suppression latch. No dynamic allocation is introduced. Arduino Verify passed with 1,149,179 bytes program storage and 97,212 bytes global dynamic memory; the user confirmed upload/boot and physical regression. Merged at `343eb7ed0120d947990cab48cec0c688177f4ec5`.
 5. **Scroll mechanics (PR #33 merged):** `src/ui/ScrollController.h` extracts only stateless drag-delta, elastic-resistance, elastic-bound and nearest-step snap calculations. Weather supplies its existing 20 px overscroll cap, resistance divisor 3, maximum positions and per-view step sizes. Per-view offsets, drag lifecycles, release timers, animation and rendering remain separate. Graph hold timing, quick-swipe classification, point selection and horizontal paging remain graph-specific Weather policy. Compile-time assertions, a standalone C++14 header compile, Arduino IDE Verify, upload/boot and physical metric-card, forecast-list and graph scroll regression passed; the user confirmed the firmware and interactions on 2026-11-02. Merged at `4f3aeae4713b8c6252266112e476a9e50cb86c52`. Do not turn this into a generic UI scrolling framework.
 6. **Time and location boundaries:** PR #34 extracts `TimeService` and is merged. PR #35 extracts `LocationService` and is merged, preserving Google Wi-Fi → IP → configured-coordinate priority and returning a source/accuracy/observation-time/validity-bearing fix. The user confirmed the physical regression passed on 2026-11-02.
-7. **Network request support and Weather data.** Separate request transport from Weather/forecast parsing and presentation. Initially keep requests sequential and retain existing timeout/error behaviour.
+7. **Network request support and Weather data.** The first slice is **PR #36 — shared HTTP request transport**: use `HttpRequestClient` for TimeService and LocationService while preserving their endpoint, timeout, response-stream and error semantics. The Weather sketch's icon/current/forecast requests remain direct for this PR. A later slice migrates those call sites and separates Weather/forecast data parsing and models from presentation. Keep requests sequential, preserve the existing refresh order and partial-forecast behaviour, and retain the 48-record forecast capacity.
 8. **Weather application/views and asset cache.** Move screen state and rendering behind the Weather app boundary; remove network side effects from drawing as a separate, testable change.
 9. **Application Manager.** Defer until Phase 4. Phase 1 should leave Weather as the only application.
 
