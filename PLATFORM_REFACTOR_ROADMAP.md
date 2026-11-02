@@ -2,7 +2,7 @@
 
 **Document status:** Working roadmap — agreed  
 **Version:** 3.2  
-**Last reviewed:** 2026-11-01  
+**Last reviewed:** 2026-11-02  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
 **Current roadmap status:** Phase 0 baseline complete; PRs #27, #28 and #29 merged and hardware-verified; PR #30 typed gesture-code extraction is awaiting validation
@@ -563,30 +563,33 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ## 10. Handover instructions for future development sessions
 
-### Current handover — 2026-11-02 (Phase 1 typed gesture-code extraction in progress)
+### Current handover — 2026-11-02 (Phase 1 PR #30 typed gesture codes in progress)
 
-Recheck GitHub before acting; this is the latest checkpoint covered by this roadmap.
+Recheck GitHub before acting; this handover is the latest checkpoint covered by this roadmap.
 
 - **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
-- **Latest verified main commit:** `31029cc4f3b9902bdc038ad1aab721b397ef4bc6` (PR #28 merge commit).
-- **PR #27:** TouchSample value-type extraction is merged after successful compile, upload and physical input regression.
-- **PR #28:** DisplayManager extraction and resource-lifecycle fixes are merged after successful compilation, upload and physical display/input regression. The exact post-change heap comparison has not been recorded.
-- **PR #22:** permanent Step 4 blocking/responsiveness audit is merged.
-- **PR #24:** handover refresh is merged.
-- **PR #25:** Phase 0 memory profile, regression checklist and module-boundary documentation is merged.
-- **PR #23:** temporary hardware diagnostics is closed without merging; its reusable measurements are recorded in the Phase 0 docs.
-- **PR #26:** temporary Arduino `src/` compile spike is closed without merging; its compile/link result is retained in `docs/PHASE0_ARDUINO_SRC_LAYOUT_SPIKE.md`.
+- **Latest verified main commit at PR #30 branch creation:** `709281eff6cea41e15bd2200851e1b1571b03490`, including the PR #29 merge and roadmap handover.
+- **PR #27:** `TouchSample` value-type extraction is merged after successful compile, upload and physical input regression.
+- **PR #28:** `DisplayManager` extraction and resource-lifecycle fixes are merged after successful compile, upload and physical display/input regression. Exact post-change heap comparison remains unrecorded.
+- **PR #29:** `Cst816Reader` extraction and review fixes are merged at `5ee7ce7d1a42e31d275cc7fa2e2899544d6d9a42`. The user confirmed successful compile, upload and full physical input regression. The feature branch was deleted.
+- **PR #22 / #24 / #25:** permanent Step 4 audit, handover refresh and Phase 0 memory/profile documentation are merged.
+- **PR #23 / #26:** temporary diagnostics and Arduino source-layout spike were closed without merging; reusable results are recorded in Phase 0 docs.
 - **Phase 0:** complete. Extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups.
-- **Phase 1:** in progress. [PR #29 — Extract CST816 raw touch reader](https://github.com/mdrmx/esp32-gadget/pull/29) has passed the user's compile, upload and physical regression after review fixes and is ready to merge from branch `phase1/03-cst816-reader`.
-- **PR #29 scope:** move I2C initialisation, CST816 presence detection and six-byte sample acquisition/decoding to `src/hardware/Cst816Reader.h`. Keep `TouchSample`, coordinate mapping, gesture codes, drag ownership, suppression and Weather view actions unchanged. The user confirmed the updated branch compiles, uploads and passes the physical input regression. The PR is merged at `5ee7ce7d1a42e31d275cc7fa2e2899544d6d9a42`.
+- **Phase 1:** in progress. PRs #27–#29 are merged. PR #30 typed gesture-code extraction is in progress on `phase1/04-gesture-code`.
+- **PR #30 scope:** add `src/input/GestureCode.h` with `GestureCode` and a pure decoder from raw CST816 byte to the existing semantic code. Preserve `0x00`–`0x04`; map unsupported values to `Unknown`. The sketch retains the raw byte for transition diagnostics; `pollTouch()` arbitration, debounce, drag/suppression ownership, `updateTouchDrag()` and Weather actions remain in place. No physical gesture mapping is intentionally changed. Compile/upload/physical validation are pending.
 - **Toolchain:** Arduino IDE 2.3.10, ESP32 core 3.3.12, GCC 14.2.0 and the recorded ESP32-S3 FQBN with 16 MB flash and OPI PSRAM. Keep the local sketch folder named `weatherDashboard` and preserve the ignored local `secrets.h`.
-- **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. All three display canvases remain in PSRAM by the pre-extraction baseline.
+- **Memory baseline:** settled startup internal 8-bit heap was 213,608 bytes free with a largest block of 118,772 bytes and a since-boot minimum of 110,532 bytes. The three display canvases were in PSRAM in the pre-extraction baseline.
 
-### Next session — gesture/interaction separation
+### Current task — PR #30 typed gesture codes
 
-PR #29 is merged and its feature branch is ready to delete. The next isolated Phase 1 task is gesture/interaction separation. Retain distinct metric, forecast-list and graph ownership; preserve all current touch behaviour and extract only the agreed interaction responsibilities. Do not combine this with scroll-controller work.
+1. Fetch `phase1/04-gesture-code` and open the sketch from the local folder named `weatherDashboard`.
+2. Run Arduino IDE **Verify** using IDE 2.3.10, ESP32 core 3.3.12 and the exact recorded ESP32-S3 FQBN.
+3. Upload to the Waveshare ESP32-S3 Touch LCD 2.
+4. Verify the decoder mapping: `0x00` → `None`; `0x01` → `ScreenLeft`; `0x02` → `ScreenRight`; `0x03` → `ScreenDown`; `0x04` → `ScreenUp`; any other value → `Unknown`.
+5. Test touch-down/release logging, horizontal tab swipes, metric scrolling, forecast-list scrolling, graph hold/drag, and the existing gesture suppression/arbitration.
+6. Report Verify, upload and physical regression results before merging. Do not merge PR #30 until the final branch head passes and the user explicitly says it is ready.
 
-Do not combine this raw-reader extraction with gesture recognition, interaction arbitration or scroll-controller changes.
+Keep this typed-code extraction separate from further gesture/interaction ownership work and from scroll-controller extraction.
 
 ### Standing handover procedure
 
@@ -653,3 +656,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-02 — Version 3.1:** Corrected the handover after PR #29 merge and remote branch deletion. Set the next Phase 1 task to gesture/interaction separation; the first proposed slice is a typed `GestureCode` and pure raw-byte decoder, leaving polling arbitration, drag/suppression state and Weather actions in the sketch.
 
 - **2026-11-02 — Version 3.2:** Started PR #30 on `phase1/04-gesture-code`, adding the typed `GestureCode` enum and pure raw-byte decoder while retaining raw transition diagnostics, polling arbitration, drag/suppression ownership and Weather actions in the sketch.
+
+- **2026-11-02 — Version 3.2:** Started PR #30 on `phase1/04-gesture-code`, adding typed `GestureCode` values and a pure raw-byte decoder while retaining raw transition diagnostics, polling arbitration, drag/suppression ownership and Weather actions in the sketch. Build and hardware validation are pending.
