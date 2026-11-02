@@ -14,7 +14,13 @@
 // visible at each call site rather than becoming an implicit platform default.
 class HttpRequestClient {
 public:
-  HttpRequestClient() : beginAttempted_(false), active_(false) {}
+  enum class TlsPolicy : uint8_t {
+    InsecureCompatibility,
+    ConfiguredTrustAnchor
+  };
+
+  HttpRequestClient()
+    : beginAttempted_(false), active_(false), trustAnchorConfigured_(false) {}
 
   ~HttpRequestClient() {
     end();
@@ -35,6 +41,7 @@ public:
     }
 
     secureClient_.setCACert(rootCaCertificate);
+    trustAnchorConfigured_ = true;
     return true;
   }
 
@@ -42,14 +49,16 @@ public:
     const String& url,
     int32_t connectTimeoutMs,
     uint16_t responseTimeoutMs,
-    bool allowInsecureTls
+    TlsPolicy tlsPolicy
   ) {
-    if (beginAttempted_ || url.length() == 0) {
+    if (beginAttempted_ || url.length() == 0 ||
+        (tlsPolicy == TlsPolicy::ConfiguredTrustAnchor &&
+         !trustAnchorConfigured_)) {
       return false;
     }
 
     beginAttempted_ = true;
-    if (allowInsecureTls) {
+    if (tlsPolicy == TlsPolicy::InsecureCompatibility) {
       secureClient_.setInsecure();
     }
 
@@ -111,4 +120,5 @@ private:
   HTTPClient http_;
   bool beginAttempted_;
   bool active_;
+  bool trustAnchorConfigured_;
 };
