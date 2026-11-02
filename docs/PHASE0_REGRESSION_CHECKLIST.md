@@ -94,6 +94,8 @@ TimeService deliberately does not own Wi-Fi association, header drawing/redraw c
 
 The user confirmed on 2026-11-02 that the LocationService firmware works in physical testing on the Waveshare ESP32-S3 Touch LCD 2. The full provider, fallback, display, Wi-Fi ownership and forecast-timezone regression matrix below is recorded as passed.
 
+**Arduino IDE Verify:** passed using Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare FQBN above. The uploaded output reports 1,150,279 bytes program storage (36%), 97,228 bytes global dynamic memory (29%) and 230,452 bytes remaining. The output reused cached sketch/library objects, then completed the link and ESP32 image generation; it was not a forced clean rebuild.
+
 - [x] Build with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
 - [x] Upload and boot in live mode; confirm the Weather screen, header and weather requests behave as before.
 - [x] With a valid Google Geolocation key and at least two eligible nearby BSSIDs, confirm Google Wi-Fi positioning succeeds and the returned coordinates are used for current weather and hourly forecast requests.
@@ -106,7 +108,23 @@ The user confirmed on 2026-11-02 that the LocationService firmware works in phys
 - [x] Confirm when the configured fallback is selected, the existing OpenWeather current-weather response may still supply its reporting-station coordinates, while a resolved Google/IP fix is not overwritten.
 - [x] Confirm forecast labels continue to use `locationTimezoneOffset` and are unaffected by LocationFix metadata or the Europe/London device clock.
 
-LocationService deliberately retains the existing synchronous HTTPS clients and `setInsecure()` policy for this isolated extraction. A shared request executor, TLS-policy change and GNSS integration are not part of PR #35.
+LocationService deliberately retains the existing synchronous HTTPS and `setInsecure()` policy for PR #35. The shared request-client extraction is tracked separately in PR #36; TLS policy and GNSS integration remain separate decisions.
+
+## PR #36 — shared HTTP request client extraction (pending)
+
+`HttpRequestClient` is being introduced as a single-use synchronous request session and is currently used by TimeService and LocationService only. Keep Weather's direct icon/current/forecast request sites separate until the follow-on migration.
+
+- [ ] Build with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
+- [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2; confirm Weather starts normally.
+- [ ] Confirm TimeService retains the existing 5,000 ms connection and response timeout and still parses the complete TimeAPI response.
+- [ ] Confirm reverse geocoding and ipwho.is retain their 8,000 ms connection/response timeouts and stream-based JSON parsing.
+- [ ] Confirm Google Geolocation retains the 10,000 ms connection timeout, 12,000 ms response timeout, JSON content-type header, 220-byte failure preview and IP fallback.
+- [ ] Confirm every migrated request ends exactly once on success and failure; early initialisation failure and scope exit release the request session.
+- [ ] Confirm each migrated call explicitly opts into the existing insecure-TLS compatibility mode; no TLS trust-policy change is introduced.
+- [ ] Physical regression: successful/failed TimeAPI sync, Google Wi-Fi location, IP fallback, reverse-geocoded display name and configured-coordinate fallback remain unchanged.
+- [ ] Confirm Weather icon, current conditions and forecast request behaviour remains unchanged; those call sites are not migrated in PR #36.
+
+The wrapper supports root-CA configuration before request initialisation, but PR #36 does not install a certificate or change the existing insecure-TLS behaviour.
 
 ## 5. Clock and location
 
