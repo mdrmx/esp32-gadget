@@ -84,11 +84,11 @@ public:
 
   // The response stream is owned by HTTPClient and remains valid only until
   // end() or destruction of this request session.
-  Stream& getStream() {
+  auto& getStream() {
     return http_.getStream();
   }
 
-  Stream* getStreamPtr() {
+  auto* getStreamPtr() {
     return http_.getStreamPtr();
   }
 
