@@ -577,7 +577,7 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 Recheck GitHub before acting; this handover is the latest checkpoint covered by this roadmap.
 
 - **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
-- **Latest verified main commit:** `343eb7ed0120d947990cab48cec0c688177f4ec5`, the PR #32 merge commit.
+- **Latest firmware merge checkpoint validated on the Waveshare board:** `343eb7ed0120d947990cab48cec0c688177f4ec5`, the PR #32 merge commit. Subsequent `main` commits in this handover are documentation updates.
 - **PR #27:** `TouchSample` value-type extraction is merged after successful compile, upload and physical input regression.
 - **PR #28:** `DisplayManager` extraction and resource-lifecycle fixes are merged after successful compile, upload and physical display/input regression. Exact post-change heap comparison remains unrecorded.
 - **PR #29:** `Cst816Reader` extraction and review fixes are merged at `5ee7ce7d1a42e31d275cc7fa2e2899544d6d9a42`. The user confirmed successful compile, upload and full physical input regression. The feature branch was deleted.
