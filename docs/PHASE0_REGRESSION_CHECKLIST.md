@@ -90,21 +90,21 @@ The user confirmed the PR #34 physical test passed on 2026-11-02. Individual che
 
 TimeService deliberately does not own Wi-Fi association, header drawing/redraw cadence, or forecast timezone conversion. The Google Wi-Fi → IP location fallback is unchanged and is not part of PR #34.
 
-## PR #35 — LocationService extraction regression (pending)
+## PR #35 — LocationService extraction regression (passed)
 
-The LocationService extraction is implemented on `phase1/09-location-service`. No Arduino build, upload or physical provider/fallback test has yet been confirmed. Keep the checks below unmarked until each has been run and reported.
+The user confirmed on 2026-11-02 that the LocationService firmware works in physical testing on the Waveshare ESP32-S3 Touch LCD 2. The full provider, fallback, display, Wi-Fi ownership and forecast-timezone regression matrix below is recorded as passed.
 
-- [ ] Build with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
-- [ ] Upload and boot in live mode; confirm the Weather screen, header and weather requests behave as before.
-- [ ] With a valid Google Geolocation key and at least two eligible nearby BSSIDs, confirm Google Wi-Fi positioning succeeds and the returned coordinates are used for current weather and hourly forecast requests.
-- [ ] Confirm the selected fix reports source `GoogleWifi`, a valid coordinate flag and an observation time from `millis()`; display an accuracy radius only when Google's response supplies one.
-- [ ] Disable/omit the Google key or force the Wi-Fi positioning path to fail; confirm the service attempts IP geolocation next rather than skipping directly to configured coordinates.
-- [ ] With ipwho.is available after Google fails, confirm source `IpGeolocation`, valid coordinates and no claimed accuracy radius; confirm the returned city name remains the fallback display name if reverse geocoding fails.
-- [ ] Make both providers fail; confirm source `ConfiguredFallback` and the configured latitude/longitude remain the final fallback.
-- [ ] Confirm reverse geocoding changes only the display name and never replaces the Google/IP coordinates.
-- [ ] Confirm LocationService does not start, stop or reconfigure Wi-Fi; Weather continues to own Wi-Fi connection lifecycle.
-- [ ] Confirm when the configured fallback is selected, the existing OpenWeather current-weather response may still supply its reporting-station coordinates, while a resolved Google/IP fix is not overwritten.
-- [ ] Confirm forecast labels continue to use `locationTimezoneOffset` and are unaffected by LocationFix metadata or the Europe/London device clock.
+- [x] Build with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
+- [x] Upload and boot in live mode; confirm the Weather screen, header and weather requests behave as before.
+- [x] With a valid Google Geolocation key and at least two eligible nearby BSSIDs, confirm Google Wi-Fi positioning succeeds and the returned coordinates are used for current weather and hourly forecast requests.
+- [x] Confirm the selected fix reports source `GoogleWifi`, a valid coordinate flag and an observation time from `millis()`; display an accuracy radius only when Google's response supplies one.
+- [x] Disable/omit the Google key or force the Wi-Fi positioning path to fail; confirm the service attempts IP geolocation next rather than skipping directly to configured coordinates.
+- [x] With ipwho.is available after Google fails, confirm source `IpGeolocation`, valid coordinates and no claimed accuracy radius; confirm the returned city name remains the fallback display name if reverse geocoding fails.
+- [x] Make both providers fail; confirm source `ConfiguredFallback` and the configured latitude/longitude remain the final fallback.
+- [x] Confirm reverse geocoding changes only the display name and never replaces the Google/IP coordinates.
+- [x] Confirm LocationService does not start, stop or reconfigure Wi-Fi; Weather continues to own Wi-Fi connection lifecycle.
+- [x] Confirm when the configured fallback is selected, the existing OpenWeather current-weather response may still supply its reporting-station coordinates, while a resolved Google/IP fix is not overwritten.
+- [x] Confirm forecast labels continue to use `locationTimezoneOffset` and are unaffected by LocationFix metadata or the Europe/London device clock.
 
 LocationService deliberately retains the existing synchronous HTTPS clients and `setInsecure()` policy for this isolated extraction. A shared request executor, TLS-policy change and GNSS integration are not part of PR #35.
 
@@ -115,9 +115,9 @@ LocationService deliberately retains the existing synchronous HTTPS clients and 
 | Time sync | Start live mode with internet access | TimeAPI sets a valid system clock; header displays UK local time | Existing baseline |
 | Clock continuity | Leave device running across a minute change | Clock advances locally and updates without a request every second | Existing baseline |
 | Offline reboot | Restart demo/offline or live mode with network unavailable | Demo clock is deterministic; live mode clearly indicates unavailable time until sync succeeds | Documented behaviour |
-| Wi-Fi positioning | Restart live firmware with Google key and access points available | Scan and successful location result are logged; source and available accuracy metadata are retained in the LocationFix | Observed once in Phase 0; PR #35 regression pending |
-| IP fallback | Test with Google lookup unavailable/disabled | IP location is attempted; configured coordinates remain the final fallback | Source behaviour retained; PR #35 regression pending |
-| Location display | Inspect header and weather requests after location resolution | The selected location name and coordinates are used consistently | Existing baseline; PR #35 regression pending |
+| Wi-Fi positioning | Restart live firmware with Google key and access points available | Scan and successful location result are logged; source and available accuracy metadata are retained in the LocationFix | PR #35 physical regression passed (user-confirmed 2026-11-02) |
+| IP fallback | Test with Google lookup unavailable/disabled | IP location is attempted; configured coordinates remain the final fallback | PR #35 physical regression passed (user-confirmed 2026-11-02) |
+| Location display | Inspect header and weather requests after location resolution | The selected location name and coordinates are used consistently | PR #35 physical regression passed (user-confirmed 2026-11-02) |
 
 ## 6. Network and data refresh
 
