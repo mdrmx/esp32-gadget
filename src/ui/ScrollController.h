@@ -3,81 +3,82 @@
 // Stateless, policy-neutral scroll calculations shared by Weather views.
 // Offsets, drag lifecycles, input ownership, rendering and animation remain
 // with the view that uses these calculations.
-class ScrollController {
- public:
-  // Preserve the existing finger-to-content movement convention.
-  static constexpr int applyDragDelta(
-      int startPosition,
-      int startCoordinate,
-      int currentCoordinate) {
-    return startPosition + startCoordinate - currentCoordinate;
+namespace ScrollController {
+
+// Keep the small helper visible before the functions that use it.
+constexpr int minimum(int a, int b) {
+  return a < b ? a : b;
+}
+
+// Bound positions used by renderers and animation frames. This permits the
+// configured elastic margin while preventing unbounded off-screen movement.
+constexpr int clampElasticPosition(
+    int position,
+    int maxPosition,
+    int overscrollLimit) {
+  const int lowerBound = -overscrollLimit;
+  const int upperBound = maxPosition + overscrollLimit;
+
+  return position < lowerBound
+    ? lowerBound
+    : position > upperBound
+      ? upperBound
+      : position;
+}
+
+// Preserve the existing finger-to-content movement convention.
+constexpr int applyDragDelta(
+    int startPosition,
+    int startCoordinate,
+    int currentCoordinate) {
+  return startPosition + startCoordinate - currentCoordinate;
+}
+
+// Apply resistance only beyond either edge. The integer division and cap
+// intentionally match the Weather sketch's previous implementation.
+constexpr int elasticPosition(
+    int position,
+    int maxPosition,
+    int overscrollLimit,
+    int resistanceDivisor) {
+  if (resistanceDivisor <= 0) {
+    return clampElasticPosition(position, maxPosition, overscrollLimit);
   }
 
-  // Apply resistance only beyond either edge. The integer division and cap
-  // intentionally match the Weather sketch's previous implementation.
-  static constexpr int elasticPosition(
-      int position,
-      int maxPosition,
-      int overscrollLimit,
-      int resistanceDivisor) {
-    if (resistanceDivisor <= 0) {
-      return clampElasticPosition(position, maxPosition, overscrollLimit);
-    }
-
-    if (position < 0) {
-      const int excess = -position;
-      const int resisted = excess / resistanceDivisor;
-      return -minimum(overscrollLimit, resisted);
-    }
-
-    if (position > maxPosition) {
-      const int excess = position - maxPosition;
-      const int resisted = excess / resistanceDivisor;
-      return maxPosition + minimum(overscrollLimit, resisted);
-    }
-
-    return position;
+  if (position < 0) {
+    const int excess = -position;
+    const int resisted = excess / resistanceDivisor;
+    return -minimum(overscrollLimit, resisted);
   }
 
-  // Bound positions used by renderers and animation frames. This permits the
-  // configured elastic margin while preventing unbounded off-screen movement.
-  static constexpr int clampElasticPosition(
-      int position,
-      int maxPosition,
-      int overscrollLimit) {
-    const int lowerBound = -overscrollLimit;
-    const int upperBound = maxPosition + overscrollLimit;
-
-    return position < lowerBound
-      ? lowerBound
-      : position > upperBound
-        ? upperBound
-        : position;
+  if (position > maxPosition) {
+    const int excess = position - maxPosition;
+    const int resisted = excess / resistanceDivisor;
+    return maxPosition + minimum(overscrollLimit, resisted);
   }
 
-  // Round to the nearest step and clamp to the first/last valid position.
-  // Keep C++ integer-division semantics identical to the previous sketch code.
-  static constexpr int snapToStep(
-      int position,
-      int stepPixels,
-      int maxPosition) {
-    if (stepPixels <= 0) return 0;
+  return position;
+}
 
-    const int snapped =
-      ((position + stepPixels / 2) / stepPixels) * stepPixels;
+// Round to the nearest step and clamp to the first/last valid position.
+// Keep C++ integer-division semantics identical to the previous sketch code.
+constexpr int snapToStep(
+    int position,
+    int stepPixels,
+    int maxPosition) {
+  if (stepPixels <= 0) return 0;
 
-    return snapped < 0
-      ? 0
-      : snapped > maxPosition
-        ? maxPosition
-        : snapped;
-  }
+  const int snapped =
+    ((position + stepPixels / 2) / stepPixels) * stepPixels;
 
- private:
-  static constexpr int minimum(int a, int b) {
-    return a < b ? a : b;
-  }
-};
+  return snapped < 0
+    ? 0
+    : snapped > maxPosition
+      ? maxPosition
+      : snapped;
+}
+
+}  // namespace ScrollController
 
 // Compile-time checks for the shared arithmetic. These deliberately cover
 // boundary resistance and snap rounding without creating runtime test state.
