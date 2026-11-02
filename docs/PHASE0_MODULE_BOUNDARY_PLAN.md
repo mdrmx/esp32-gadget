@@ -249,6 +249,7 @@ Phase 1 has started. The agreed ownership plan and regression checklist are the 
 - [x] PR #32 — upload to the Waveshare ESP32-S3 Touch LCD 2 and confirm normal boot, as reported by the user.
 - [x] PR #32 — physical metric/list candidate, vertical ownership, horizontal release, graph/quick-swipe, selector tap/cancel, controller-gesture suppression and fresh-contact regression passed, as confirmed by the user.
 - [x] PR #33 — the stateless scroll-math helper compiles independently under C++14 and its compile-time checks cover drag direction/zero movement, overscroll resistance and caps, elastic bounds, nearest-step rounding, final bounds and graph spacing.
+- [x] PR #33 — host-side parity comparison against the previous arithmetic passed 294,063 cases across metric/list/graph step sizes, scroll bounds, overscroll ranges and drag-coordinate deltas.
 - [ ] PR #33 — Arduino IDE Verify using the recorded ESP32-S3 FQBN and ESP32 core 3.3.12.
 - [ ] PR #33 — upload/boot and physical metric, forecast-list and graph scroll regression on the Waveshare board.
 - [ ] Each subsequent extraction PR documents its scope, behaviour-preservation checks, expected memory impact and rollback point.
