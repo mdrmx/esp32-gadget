@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 3.1  
+**Version:** 3.2  
 **Last reviewed:** 2026-11-01  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete; PRs #27, #28 and #29 hardware-verified; PR #29 is ready to merge
+**Current roadmap status:** Phase 0 baseline complete; PRs #27, #28 and #29 merged and hardware-verified; PR #30 typed gesture-code extraction is awaiting validation
 
 ---
 
@@ -342,16 +342,17 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PRs #27, #28 and #29 have passed compile/upload/physical regression; PR #29 is ready to merge**
+**Status: IN PROGRESS — PRs #27, #28 and #29 merged and hardware-verified; PR #30 typed gesture-code extraction is the current task**
 
-The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample` and display ownership extractions have passed hardware validation and are merged. The current step isolates CST816 I2C acquisition without changing Weather gesture or interaction behaviour.
+The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample`, display ownership and CST816 reader extractions are merged and hardware-verified. The current step adds typed gesture values without changing the existing Weather interaction policy.
 
 **Current task:**
 
 - [x] **PR #27 — Extract `TouchSample`:** the five-field data-only type now lives in `src/input/TouchSample.h`. The firmware compiled, uploaded and passed physical input regression on the Waveshare board before merge.
 - [x] **PR #28 — Extract display ownership:** `src/hardware/DisplayManager.h` owns ST7789 initialisation, logical dimensions, the three existing canvases and tab-transition render-target selection. It is merged at `31029cc4f3b9902bdc038ad1aab721b397ef4bc6` after the extraction and resource-lifecycle review fixes passed compile, upload and physical display/input regression.
 - [ ] Record exact post-change canvas memory-region and internal-heap figures against the Phase 0 baseline when those diagnostic readings are available.
-- [x] **PR #29 — Extract CST816 raw reader:** move I2C setup, device detection and raw sample decoding into `src/hardware/Cst816Reader.h`; keep gesture interpretation and view-specific state in Weather. The user confirmed successful compile, upload and physical input regression after review fixes. `Cst816Reader::begin(bool initBus = true)` allows callers to skip bus setup when sharing an already-initialised `TwoWire`, while preserving current default behaviour. The `requestFrom()` result is stored as `size_t`.
+- [x] **PR #29 — Extract CST816 raw reader:** `src/hardware/Cst816Reader.h` owns I2C setup, device detection and raw sample decoding. The user confirmed successful compile, upload and physical input regression after review fixes. `Cst816Reader::begin(bool initBus = true)` supports already-initialised shared buses; `requestFrom()` uses `size_t`.
+- [ ] **PR #30 — Typed gesture codes:** add `src/input/GestureCode.h` and a pure raw-byte decoder, preserving the existing `0x00`–`0x04` mapping. Keep debounce, polling arbitration, drag/suppression and Weather actions in the sketch. Compile, upload and physical input regression are pending.
 
 **Phase 1 tasks:**
 
@@ -562,7 +563,7 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ## 10. Handover instructions for future development sessions
 
-### Current handover — 2026-11-01 (Phase 1 CST816 reader verified; PR #29 ready to merge)
+### Current handover — 2026-11-02 (Phase 1 typed gesture-code extraction in progress)
 
 Recheck GitHub before acting; this is the latest checkpoint covered by this roadmap.
 
@@ -650,3 +651,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-01 — Version 3.0:** Recorded PR #29 merge at `5ee7ce7d1a42e31d275cc7fa2e2899544d6d9a42` after the user's successful compile, upload and physical regression of the final review-fixed branch. The next task is gesture/interaction separation, deferred to the next session.
 
 - **2026-11-02 — Version 3.1:** Corrected the handover after PR #29 merge and remote branch deletion. Set the next Phase 1 task to gesture/interaction separation; the first proposed slice is a typed `GestureCode` and pure raw-byte decoder, leaving polling arbitration, drag/suppression state and Weather actions in the sketch.
+
+- **2026-11-02 — Version 3.2:** Started PR #30 on `phase1/04-gesture-code`, adding the typed `GestureCode` enum and pure raw-byte decoder while retaining raw transition diagnostics, polling arbitration, drag/suppression ownership and Weather actions in the sketch.
