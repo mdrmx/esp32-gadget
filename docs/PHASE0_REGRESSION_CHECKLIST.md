@@ -131,8 +131,9 @@ LocationService deliberately retains the existing synchronous HTTPS and `setInse
 
 This slice migrates only transport ownership for the remaining Weather HTTPS calls. JSON parsing, Weather state, forecast pagination and icon cache ownership remain in `weatherDashboard.ino`.
 
-- [ ] Arduino IDE Verify on the exact Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12.
-- [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
+- [x] Arduino IDE Verify passed using Arduino IDE 2.3.10, ESP32 core 3.3.12, esptool 5.3.1 and FQBN `esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`. Build: 1,151,707 bytes program storage (36% of 3 MiB); 97,228 bytes global dynamic memory (29% of 327,680 bytes); 230,452 bytes remaining. ESP32-S3 image and merged 16 MB flash image generated successfully.
+- [x] User uploaded and booted the PR #37 firmware on the Waveshare ESP32-S3 Touch LCD 2; startup completed and proceeded into location resolution.
+- [x] Location smoke test passed after upload: 14 Wi-Fi networks scanned, 9 eligible BSSIDs, Google Wi-Fi returned 53.528695, -2.267449 with an 18 m accuracy radius, OpenWeather reverse geocoded `Bury`, and `Google Wi-Fi` was selected as a valid fix observed at 6,537 ms.
 - [ ] Confirm OpenWeather icon download still validates content length and PNG signature, caches the image and reuses a matching cached icon.
 - [ ] Confirm icon download retains the 10,000 ms connect/response timeouts, 20,000-byte maximum and 8-second stream-read budget.
 - [ ] Confirm current-weather GET retains its URL parameters, 15,000 ms connect/response timeouts, HTTP status mapping, JSON parse and weather-field updates.
