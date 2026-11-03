@@ -149,6 +149,8 @@ public:
     current_.icon = doc["weather"][0]["icon"] | "03d";
 
     if (!locationCoordinatesResolved) {
+      // Match the previous sketch behaviour: each missing coordinate falls
+      // back independently to the caller's current value.
       result.hasLocationCoordinates =
         !doc["coord"]["lat"].isNull() || !doc["coord"]["lon"].isNull();
       result.suggestedLatitude =
@@ -173,6 +175,11 @@ public:
 
     result.success = true;
     return result;
+  }
+
+  void setForecastUnavailable(const String& message) {
+    forecast_.available = false;
+    forecast_.error = message;
   }
 
   FetchResult fetchHourlyForecast(
