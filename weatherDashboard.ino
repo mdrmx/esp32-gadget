@@ -2579,8 +2579,7 @@ bool fetchForecast() {
   return loadDemoWeatherData();
 #endif
   if (!connectWiFi()) {
-    forecastAvailable = false;
-    forecastError = "Wi-Fi unavailable";
+    weatherDataService.setForecastUnavailable("Wi-Fi unavailable");
     return false;
   }
 
