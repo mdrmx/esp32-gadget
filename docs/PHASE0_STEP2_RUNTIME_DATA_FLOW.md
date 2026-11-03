@@ -5,9 +5,9 @@
 **Related inventory:** [Phase 0, Step 1 — Code inventory](PHASE0_STEP1_CODE_INVENTORY.md)  
 **Repository:** `mdrmx/esp32-gadget`  
 **Primary runtime entry point:** `weatherDashboard.ino`  
-**Service modules:** `src/services/TimeService.h`, `src/services/LocationService.h`  
+**Service modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`  
 **Source checkpoint:** `main` at PR #35 merge `fbd87e9b73b4a21e4b2579a7e2d0c15708e410cb`  
-**Extraction status:** PR #35 merged; `LocationService` is part of `main`  
+**Extraction status:** PR #35 merged; PR #36 adds `HttpRequestClient` for TimeService and LocationService on `phase1/10-http-request-client`; the initial implementation passed Verify, and the parser follow-up has been uploaded and booted with Google Wi-Fi positioning, correct clock display and all tested interactions confirmed. A separate Verify of the follow-up commit and broader weather-data regression remain pending  
 **Review date:** 2026-11-02
 
 ---
@@ -16,7 +16,7 @@
 
 This document completes Phase 0, Step 2: trace how the existing firmware behaves at runtime and how input, application state, network responses and rendering connect.
 
-The trace follows the Weather sketch and the extracted TimeService and LocationService modules at the PR #35 merge checkpoint. It covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
+The trace follows the Weather sketch and the extracted TimeService and LocationService modules at the PR #35 merge checkpoint, plus the PR #36 `HttpRequestClient` calls on the current feature branch. It covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
 
 This is a **static source-level runtime map**. It does not claim that the firmware was compiled, profiled, or tested on the physical Waveshare board during this step. Timing values below are configured timeout / scheduling values in the source, not measured network latency or observed responsiveness.
 
@@ -484,9 +484,11 @@ These are source-level reasons to investigate a queued / state-driven network se
 | Current conditions | `fetchWeather()` | OpenWeather current weather 2.5 | GET |
 | Hourly forecast | `fetchOneCallForecastPage()` via `fetchForecast()` | OpenWeather One Call 4.0 timeline | GET |
 
-All these clients currently use `WiFiClientSecure` and call `setInsecure()`. Certificate validation is therefore not being enforced by these HTTPS call sites. This is a known security concern recorded in the roadmap; this Step 2 document records the current behaviour and does not change it.
+At the PR #35 merge checkpoint, the TimeService and LocationService HTTPS clients used `WiFiClientSecure` and called `setInsecure()`. In PR #36, those four request call sites are routed through `HttpRequestClient`; each caller explicitly opts into that same legacy insecure-TLS mode. The Google Geolocation success response is read through `HTTPClient.getString()` so HTTPClient handles response transfer encoding before JSON deserialisation; its non-200 diagnostic preview remains bounded. Weather's icon, current-conditions and hourly-forecast call sites still create their own `WiFiClientSecure` clients and call `setInsecure()`. Certificate validation is therefore not enforced by these current HTTPS call sites. This remains a known security concern and PR #36 does not change the TLS trust policy.
 
-The APIs are called directly by Weather-sketch functions. There is no shared HTTP request service, connectivity abstraction or location-provider interface in the current implementation.
+Time and Location domain services now use the shared synchronous `HttpRequestClient` transport, but retain their own endpoint construction, status handling and response parsing. Weather's icon/current/forecast requests remain directly implemented in `weatherDashboard.ino`. There is still no shared connectivity manager or transport-selection abstraction.
+
+The original PR #36 implementation passed Arduino IDE Verify on 2026-11-02 using the recorded ESP32-S3 FQBN and ESP32 core 3.3.12 (1,151,199 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining). On 2026-11-03, the user uploaded and booted the parser follow-up; the startup log confirmed 15 Wi-Fi networks scanned, 9 eligible BSSIDs, a successful Google Wi-Fi fix at 53.528682, -2.267461 with an 18 m accuracy radius, reverse-geocoded place `Bury`, and selected source `GoogleWifi` (valid, observed at 5,607 ms). The user also confirms correct local time on the display and that all tested interactions work. This is device evidence for the parser, clock-display and interaction checks. A separate Verify of the follow-up commit and broader weather-data regression remain outstanding.
 
 ## 11. Data ownership and coupling findings
 
