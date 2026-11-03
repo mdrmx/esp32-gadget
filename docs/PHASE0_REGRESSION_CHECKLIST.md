@@ -110,14 +110,16 @@ The user confirmed on 2026-11-02 that the LocationService firmware works in phys
 
 LocationService deliberately retains the existing synchronous HTTPS and `setInsecure()` policy for PR #35. The shared request-client extraction is tracked separately in PR #36; TLS policy and GNSS integration remain separate decisions.
 
-## PR #36 — shared HTTP request client extraction (Verify passed; device regression pending)
+## PR #36 — shared HTTP request client extraction (pre-fix Verify passed; startup observed; parser follow-up pending)
 
-`HttpRequestClient` is a single-use synchronous request session and is currently used by TimeService and LocationService only. Its Arduino Verify passed; upload/boot and physical checks below are still pending. Keep Weather's direct icon/current/forecast request sites separate until the follow-on migration.
+`HttpRequestClient` is a single-use synchronous request session and is currently used by TimeService and LocationService only. The original PR #36 commit passed Arduino IDE Verify and was uploaded. Its first startup completed the location fallback path: 14 nearby networks were found, 8 BSSIDs were eligible, Google response parsing returned ArduinoJson `InvalidInput`, and IP geolocation plus OpenWeather reverse geocoding succeeded for Manchester. Follow-up commit `71763848dea2cd745faced3157d3a09a553568d1` changes Google success parsing to use `HTTPClient.getString()` rather than the raw response stream. The updated commit still requires Verify and upload. Keep Weather's direct icon/current/forecast request sites separate until the follow-on migration.
 
-- [ ] Build with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
-- [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2; confirm Weather starts normally.
-- [ ] Confirm TimeService retains the existing 5,000 ms connection and response timeout and still parses the complete TimeAPI response.
+- [ ] Re-run Arduino IDE Verify on the updated commit with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
+- [x] Upload and boot the pre-fix PR #36 firmware on the Waveshare ESP32-S3 Touch LCD 2; serial startup output confirmed normal boot and network requests.
+- [ ] Confirm TimeService retains the existing 5,000 ms connection and response timeout and that the device clock displays the correct UK time and advances.
 - [ ] Confirm reverse geocoding and ipwho.is retain their 8,000 ms connection/response timeouts and stream-based JSON parsing.
+- [ ] After uploading the follow-up fix, confirm Google Geolocation returns valid coordinates and a Google Wi-Fi source (rather than an ArduinoJson `InvalidInput` parse failure).
+- [x] Confirm the IP fallback path after Google fails: this run returned Manchester coordinates (`53.48095, -2.23743`), reverse-geocoded the place as `Manchester`, and selected `IpGeolocation` with a valid fix.
 - [ ] Confirm Google Geolocation retains the 10,000 ms connection timeout, 12,000 ms response timeout, JSON content-type header, 220-byte failure preview and IP fallback.
 - [ ] Confirm every migrated request ends exactly once on success and failure; early initialisation failure and scope exit release the request session.
 - [ ] Confirm each migrated call explicitly opts into the existing insecure-TLS compatibility mode; no TLS trust-policy change is introduced.
