@@ -127,7 +127,7 @@ LocationService deliberately retains the existing synchronous HTTPS and `setInse
 - [x] Google Geolocation retains the 10,000 ms connection timeout, 12,000 ms response timeout, JSON content-type header and bounded 220-byte error preview.
 - [x] Migrated TimeService and LocationService calls explicitly retain the existing insecure-TLS compatibility policy.
  
-## PR #37 — Weather requests through shared HTTP request client (in progress; device validation pending)
+## PR #37 — Weather requests through shared HTTP request client (merged; all device tests passed)
 
 This slice migrates only transport ownership for the remaining Weather HTTPS calls. JSON parsing, Weather state, forecast pagination and icon cache ownership remain in `weatherDashboard.ino`.
 
