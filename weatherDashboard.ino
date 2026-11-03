@@ -22,7 +22,6 @@
 WeatherDataService weatherDataService;
 WeatherCurrentData& weatherCurrentData = weatherDataService.current();
 WeatherForecastData& weatherForecastData = weatherDataService.forecast();
-long& locationTimezoneOffset = weatherForecastData.timezoneOffsetSeconds;
 
 // =====================================================
 // CONFIGURATION
@@ -164,7 +163,6 @@ const uint16_t ERROR_COLOUR = 0xF986;
 // presentation code. The service owns the actual current/forecast objects.
 String& weatherCity = weatherCurrentData.city;
 String& weatherDescription = weatherCurrentData.description;
-String& weatherMain = weatherCurrentData.main;
 String& weatherIcon = weatherCurrentData.icon;
 bool& weatherAvailable = weatherCurrentData.available;
 
