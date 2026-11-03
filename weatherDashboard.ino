@@ -15,7 +15,6 @@
 #include "src/hardware/Cst816Reader.h"
 #include "src/services/TimeService.h"
 #include "src/services/LocationService.h"
-#include "src/services/HttpRequestClient.h"
 #include "src/services/WeatherDataService.h"
 
 // The service owns these models. Temporary references keep the existing
