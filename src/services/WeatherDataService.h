@@ -415,6 +415,20 @@ private:
       const uint32_t timestamp = item["dt"] | 0UL;
       if (timestamp == 0) continue;
 
+      // Preserve the original rule: derive the current UV/rain metrics from
+      // the first valid API record while the accumulated forecast is empty,
+      // even when that record's timestamp is later discarded as a duplicate.
+      if (forecast_.count == 0) {
+        if (!item["uvi"].isNull()) {
+          forecast_.currentUvIndex = item["uvi"].as<float>();
+          forecast_.uvIndexAvailable = true;
+        }
+        if (!item["pop"].isNull()) {
+          forecast_.currentRainProbability = item["pop"].as<float>();
+          forecast_.rainProbabilityAvailable = true;
+        }
+      }
+
       bool duplicate = false;
       for (int i = 0; i < forecast_.count; i++) {
         if (forecast_.items[i].timestamp == timestamp) {
@@ -429,19 +443,6 @@ private:
       const float feelsLike = item["feels_like"] | temperature;
       float rainProbability = item["pop"] | 0.0f;
       rainProbability = constrain(rainProbability, 0.0f, 1.0f);
-
-      // The first valid hourly record is the nearest available estimate for
-      // current UV index and precipitation probability.
-      if (forecast_.count == 0) {
-        if (!item["uvi"].isNull()) {
-          forecast_.currentUvIndex = item["uvi"].as<float>();
-          forecast_.uvIndexAvailable = true;
-        }
-        if (!item["pop"].isNull()) {
-          forecast_.currentRainProbability = item["pop"].as<float>();
-          forecast_.rainProbabilityAvailable = true;
-        }
-      }
 
       ForecastItem& record = forecast_.items[forecast_.count];
       record.timestamp = timestamp;
