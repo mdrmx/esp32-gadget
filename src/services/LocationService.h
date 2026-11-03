@@ -372,10 +372,15 @@ private:
       return false;
     }
 
+    // HTTPClient::getStream() exposes the raw network stream and bypasses
+    // HTTPClient's transfer-encoding handling. Google may send a chunked
+    // response, so use getString() for this small, fixed-schema JSON payload.
+    const String responseBody = http.getString();
+    http.end();
+
     JsonDocument responseDoc;
     const DeserializationError error =
-      deserializeJson(responseDoc, http.getStream());
-    http.end();
+      deserializeJson(responseDoc, responseBody);
 
     if (error ||
         responseDoc["location"]["lat"].isNull() ||
