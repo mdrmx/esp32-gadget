@@ -7,7 +7,7 @@
 **Primary runtime entry point:** `weatherDashboard.ino`  
 **Service modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`  
 **Source checkpoint:** `main` includes PR #36 merge `2cf68e08ddf7b569ea57777ca12147069f506b26`; PR #37 working branch `phase1/11-weather-http-requests`  
-**Extraction status:** PR #36 merged and final parser-follow-up Verify passed; user-confirmed device checks include Google Wi-Fi location, correct clock, working interactions and current/forecast data loading. PR #37 routes the remaining icon/current/forecast calls through `HttpRequestClient`; Verify and device regression remain pending  
+**Extraction status:** PR #36 merged and verified. PR #37 routes the remaining icon/current/forecast calls through `HttpRequestClient`; Arduino IDE Verify and upload/boot passed, and startup Google Wi-Fi location smoke test passed. Weather icon/current/forecast and full interaction regression remain pending  
 **Review date:** 2026-11-03
 
 ---
@@ -488,7 +488,7 @@ At the PR #35 merge checkpoint, the TimeService and LocationService HTTPS client
 
 Time and Location domain services use the shared synchronous `HttpRequestClient` transport while retaining endpoint construction, status handling and response parsing. PR #37 also routes the Weather icon/current/forecast request sites through the wrapper; it does not move JSON parsing, pagination, Weather state or asset-cache ownership. There is still no shared connectivity manager or transport-selection abstraction.
 
-The final PR #36 parser-follow-up Verify passed using the recorded ESP32-S3 FQBN and ESP32 core 3.3.12 (1,151,215 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining). The user confirmed current-weather and forecast data loading, Google Wi-Fi positioning, correct clock display and all tested interactions. PR #37's new Weather request wrapper integration has not yet been verified or uploaded.
+The final PR #36 parser-follow-up Verify passed using the recorded ESP32-S3 FQBN and ESP32 core 3.3.12 (1,151,215 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining). The user confirmed current-weather and forecast data loading, Google Wi-Fi positioning, correct clock display and all tested interactions. PR #37 Arduino IDE Verify has now passed (1,151,707 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining), and the firmware has been uploaded and booted. The startup log confirms Google Wi-Fi positioning with 9 eligible BSSIDs, an 18 m reported accuracy radius, and reverse-geocoded place `Bury`. PR #37's Weather icon/current/forecast request behaviour and full interaction regression still require device confirmation.
 
 ## 11. Data ownership and coupling findings
 
