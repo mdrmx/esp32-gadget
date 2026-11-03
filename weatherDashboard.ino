@@ -1,6 +1,4 @@
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
-#include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Arduino_GFX_Library.h>
 #include <PNGdec.h>
@@ -18,6 +16,7 @@
 #include "src/hardware/Cst816Reader.h"
 #include "src/services/TimeService.h"
 #include "src/services/LocationService.h"
+#include "src/services/HttpRequestClient.h"
 
 // =====================================================
 // CONFIGURATION
@@ -588,18 +587,15 @@ bool loadOpenWeatherIconPNG() {
 String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   DEBUG_PRINTF("Downloading OpenWeather icon %s\n", weatherIcon.c_str());
 
-  WiFiClientSecure client;
-  client.setInsecure();
-
-  HTTPClient http;
-  if (!http.begin(client, url)) {
+  HttpRequestClient http;
+  if (!http.begin(
+        url, 10000, 10000,
+        HttpRequestClient::TlsPolicy::InsecureCompatibility)) {
     DEBUG_PRINTLN("Could not initialise OpenWeather icon request");
     return false;
   }
 
-  http.setConnectTimeout(10000);
-  http.setTimeout(10000);
-  int status = http.GET();
+  int status = http.get();
 
   if (status != HTTP_CODE_OK) {
     DEBUG_PRINTF("OpenWeather icon HTTP status: %d\n", status);
@@ -622,6 +618,13 @@ String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   }
 
   Stream* stream = http.getStreamPtr();
+  if (stream == nullptr) {
+    DEBUG_PRINTLN("OpenWeather icon response stream unavailable");
+    http.end();
+    free(newData);
+    return false;
+  }
+
   size_t bytesRead = 0;
   unsigned long startedAt = millis();
 
@@ -2512,24 +2515,21 @@ bool fetchWeather() {
   }
 
   drawLoading("Fetching weather...");
-  WiFiClientSecure client;
-  client.setInsecure();
-  HTTPClient http;
-
   String url =
     "https://api.openweathermap.org/data/2.5/weather?lat=" +
     String(locationLat, 4) + "&lon=" + String(locationLon, 4) +
     "&appid=" + String(apiKey) + "&units=metric";
 
-  if (!http.begin(client, url)) {
+  HttpRequestClient http;
+  if (!http.begin(
+        url, 15000, 15000,
+        HttpRequestClient::TlsPolicy::InsecureCompatibility)) {
     if (weatherAvailable) drawWeather();
     else drawError("HTTP init failed");
     return false;
   }
 
-  http.setConnectTimeout(15000);
-  http.setTimeout(15000);
-  int code = http.GET();
+  int code = http.get();
 
   if (code != HTTP_CODE_OK) {
     DEBUG_PRINTF("Weather HTTP status: %d\n", code);
@@ -2667,19 +2667,16 @@ bool loadDemoWeatherData() {
 }
 
 bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
-  WiFiClientSecure client;
-  client.setInsecure();
-
-  HTTPClient http;
-  if (!http.begin(client, url)) {
+  HttpRequestClient http;
+  if (!http.begin(
+        url, 15000, 15000,
+        HttpRequestClient::TlsPolicy::InsecureCompatibility)) {
     forecastError = "Hourly API unavailable";
     DEBUG_PRINTLN("One Call HTTP initialisation failed");
     return false;
   }
 
-  http.setConnectTimeout(15000);
-  http.setTimeout(15000);
-  int code = http.GET();
+  int code = http.get();
 
   if (code != HTTP_CODE_OK) {
     // Capture the response body before closing HTTP. OpenWeather normally
