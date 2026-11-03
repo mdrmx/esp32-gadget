@@ -355,10 +355,19 @@ private:
 
     const int status = http.get();
     if (status != 200) {
-      // Keep the existing bounded diagnostic read before closing the session.
-      String errorBody = http.getString();
-      if (errorBody.length() > 240) {
-        errorBody = errorBody.substring(0, 240);
+      // The error body is diagnostic only. Read at most 240 bytes so a large
+      // captive-portal/CDN response cannot allocate an unbounded String.
+      String errorPreview;
+      NetworkClient* responseStream = http.getStreamPtr();
+      if (responseStream != nullptr) {
+        char previewBuffer[241];
+        const size_t previewLength = responseStream->readBytes(
+          reinterpret_cast<uint8_t*>(previewBuffer),
+          sizeof(previewBuffer) - 1);
+        if (previewLength > 0) {
+          previewBuffer[previewLength] = '\\0';
+          errorPreview = previewBuffer;
+        }
       }
       http.end();
 
@@ -370,8 +379,8 @@ private:
         status == 401 || status == 403 ? ErrorCode::Unauthorized :
         ErrorCode::HttpError;
       result.detail = forecast_.error;
-      if (errorBody.length() > 0) {
-        result.detail += ": " + errorBody;
+      if (errorPreview.length() > 0) {
+        result.detail += ": " + errorPreview;
       }
       return result;
     }
