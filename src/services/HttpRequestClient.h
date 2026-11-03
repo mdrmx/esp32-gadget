@@ -90,6 +90,10 @@ public:
     return http_.getSize();
   }
 
+  bool connected() {
+    return http_.connected();
+  }
+
   // The response stream is owned by HTTPClient and remains valid only until
   // end() or destruction of this request session.
   NetworkClient& getStream() {
