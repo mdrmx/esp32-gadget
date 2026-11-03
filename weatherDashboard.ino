@@ -1,5 +1,4 @@
 #include <WiFi.h>
-#include <ArduinoJson.h>
 #include <Arduino_GFX_Library.h>
 #include <PNGdec.h>
 #include <time.h>
