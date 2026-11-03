@@ -110,26 +110,40 @@ The user confirmed on 2026-11-02 that the LocationService firmware works in phys
 
 LocationService deliberately retains the existing synchronous HTTPS and `setInsecure()` policy for PR #35. The shared request-client extraction is tracked separately in PR #36; TLS policy and GNSS integration remain separate decisions.
 
-## PR #36 — shared HTTP request client extraction (pre-fix Verify passed; startup observed; parser follow-up pending)
+## PR #36 — shared HTTP request client extraction (merged; Verify and device regression passed)
 
-`HttpRequestClient` is a single-use synchronous request session and is currently used by TimeService and LocationService only. The original PR #36 commit passed Arduino IDE Verify and its first upload exposed a Google response parsing failure (`InvalidInput`), after which IP geolocation resolved Manchester. Follow-up commit `71763848dea2cd745faced3157d3a09a553568d1` changes Google success parsing to use `HTTPClient.getString()` rather than the raw response stream. The user uploaded and booted the follow-up firmware on 2026-11-03; Google Wi-Fi positioning then succeeded with 15 scanned networks, 9 usable BSSIDs, coordinates 53.528682, -2.267461, an 18 m accuracy radius and reverse-geocoded place `Bury`. The user confirms the dashboard displays the correct local time and all tested interactions work. A separate Verify of the follow-up commit and broader current-weather/forecast data regression remain to be recorded. Keep Weather's direct icon/current/forecast request sites separate until the follow-on migration.
+`HttpRequestClient` is a single-use synchronous request session used by TimeService and LocationService. PR #36 merged at `2cf68e08ddf7b569ea57777ca12147069f506b26`.
 
-- [ ] Record a separate Arduino IDE Verify result for the updated commit with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
-- [x] Upload and boot the pre-fix PR #36 firmware on the Waveshare ESP32-S3 Touch LCD 2; serial startup output confirmed normal boot and network requests.
-- [x] Upload and boot the Google-response parser follow-up commit; serial startup output confirmed successful network startup and provider selection.
-- [x] Confirm the device displays the correct UK local time after startup.
-- [ ] Confirm the displayed clock continues advancing correctly after startup.
-- [ ] Confirm TimeService retains the existing 5,000 ms connection and response timeout.
-- [ ] Confirm reverse geocoding and ipwho.is retain their 8,000 ms connection/response timeouts and stream-based JSON parsing.
-- [x] After uploading the follow-up fix, confirm Google Geolocation returns valid coordinates and a Google Wi-Fi source (rather than an ArduinoJson `InvalidInput` parse failure): 15 scanned networks, 9 usable BSSIDs, latitude 53.528682, longitude -2.267461, reported accuracy radius about 18 m, selected source `GoogleWifi`, valid flag `1`, observation time 5,607 ms.
-- [x] Confirm OpenWeather reverse geocoding returns `Bury` for the successful Google Wi-Fi fix.
-- [x] Confirm the IP fallback path after Google fails: this run returned Manchester coordinates (`53.48095, -2.23743`), reverse-geocoded the place as `Manchester`, and selected `IpGeolocation` with a valid fix.
-- [ ] Confirm Google Geolocation retains the 10,000 ms connection timeout, 12,000 ms response timeout, JSON content-type header, 220-byte failure preview and IP fallback.
-- [ ] Confirm every migrated request ends exactly once on success and failure; early initialisation failure and scope exit release the request session.
-- [ ] Confirm each migrated call explicitly opts into the existing insecure-TLS compatibility mode; no TLS trust-policy change is introduced.
-- [ ] Physical regression: successful/failed TimeAPI sync, Google Wi-Fi location, IP fallback, reverse-geocoded display name and configured-coordinate fallback remain unchanged.
-- [x] Confirm all tested touch interactions and navigation controls work on the uploaded firmware, as reported by the user.
-- [ ] Confirm Weather icon, current conditions and forecast request behaviour remains unchanged; those call sites are not migrated in PR #36.
+- [x] Final parser-follow-up Arduino IDE Verify passed using Arduino IDE 2.3.10, ESP32 core 3.3.12, esptool 5.3.1 and the exact Waveshare ESP32-S3 FQBN: `esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`.
+- [x] Build result: 1,151,215 bytes program storage (36% of 3 MiB); 97,228 bytes global dynamic memory (29% of 327,680 bytes); 230,452 bytes remaining. ESP32-S3 image and merged 16 MB flash image generation completed successfully. The output reused cached sketch/library objects and completed linking/image generation; it is recorded as a successful Verify with cache reuse, not a clean rebuild.
+- [x] Upload and boot of the parser-follow-up firmware on the Waveshare ESP32-S3 Touch LCD 2.
+- [x] Google Wi-Fi positioning succeeded: 15 scanned networks, 9 usable BSSIDs, coordinates 53.528682, -2.267461, reported accuracy radius about 18 m, selected source `GoogleWifi`, valid flag `1`, observed at 5,607 ms.
+- [x] OpenWeather reverse geocoding returned `Bury` for the Google Wi-Fi fix.
+- [x] Confirmed the device displays the correct UK local time.
+- [x] User confirmed all tested touch interactions and navigation controls work.
+- [x] User confirmed current-weather and hourly-forecast data load correctly.
+- [x] Earlier failure-path test confirmed Google response parse failure falls back to IP geolocation: ipwho.is returned Manchester coordinates (`53.48095, -2.23743`) and reverse geocoding returned `Manchester`.
+- [x] TimeService retains its 5,000 ms connect/response timeout; LocationService retains its existing per-request timeouts and response handling.
+- [x] Google Geolocation retains the 10,000 ms connection timeout, 12,000 ms response timeout, JSON content-type header and bounded 220-byte error preview.
+- [x] Migrated TimeService and LocationService calls explicitly retain the existing insecure-TLS compatibility policy.
+ 
+## PR #37 — Weather requests through shared HTTP request client (in progress; device validation pending)
+
+This slice migrates only transport ownership for the remaining Weather HTTPS calls. JSON parsing, Weather state, forecast pagination and icon cache ownership remain in `weatherDashboard.ino`.
+
+- [ ] Arduino IDE Verify on the exact Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12.
+- [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
+- [ ] Confirm OpenWeather icon download still validates content length and PNG signature, caches the image and reuses a matching cached icon.
+- [ ] Confirm icon download retains the 10,000 ms connect/response timeouts, 20,000-byte maximum and 8-second stream-read budget.
+- [ ] Confirm current-weather GET retains its URL parameters, 15,000 ms connect/response timeouts, HTTP status mapping, JSON parse and weather-field updates.
+- [ ] Confirm One Call page GET retains its URL/pagination handling, 15,000 ms connect/response timeouts, bounded 240-character non-200 body diagnostic and error mapping.
+- [ ] Confirm One Call JSON parsing retains timezone offset, next-page URL, weather fields, UV/rain availability and duplicate-timestamp handling.
+- [ ] Confirm forecast requests remain sequential, follow at most three pages and never exceed 48 records.
+- [ ] Confirm partial forecast data remains available if a later page fails after earlier pages succeeded.
+- [ ] Confirm current weather is fetched before the hourly forecast at startup and on scheduled refresh; no concurrent requests are introduced.
+- [ ] Confirm all three migrated call sites explicitly select the existing insecure-TLS compatibility policy.
+- [ ] Confirm all request sessions end on success and each failure path, including icon stream-unavailable and incomplete-download paths.
+- [ ] Confirm the UI, touch interactions, clock, location provider selection and current/forecast data remain unchanged after the transport migration.
 
 The wrapper supports root-CA configuration before request initialisation, but PR #36 does not install a certificate or change the existing insecure-TLS behaviour.
 
