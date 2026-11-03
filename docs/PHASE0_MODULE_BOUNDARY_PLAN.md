@@ -125,17 +125,21 @@ The current implementation stores both concepts in related global state. The ext
 
 ### 3.7 Weather data service and model
 
-**Owns:** current-weather and One Call page requests, JSON parsing, forecast pagination, data validity and Weather data models.
+**Owns:** current-weather and One Call page requests via `HttpRequestClient`, JSON parsing, sequential forecast pagination, bounded 48-record forecast storage, data validity/error state and the offline demo-data fixture.
 
-**Does not own:** Wi-Fi association, location-provider selection, display calls or loading/error drawing.
+**Does not own:** Wi-Fi association/connection lifecycle, LocationService/provider selection, device location coordinates, icon PNG fetching/cache ownership, display calls, Weather screen state or loading/error drawing. The caller supplies API key and selected coordinates; the service does not obtain location or connect Wi-Fi.
+
+**PR #38 — WeatherDataService (in progress):** `src/services/WeatherDataService.h` will own current-weather and One Call request/parsing, current/forecast models, forecast pagination and demo data. Keep rendering/asset-cache ownership separate. Existing sketch-facing names may temporarily bind to references into the service-owned models so the drawing code does not need a broad rewrite in this slice.
 
 Initially preserve:
-- The existing current-weather fields and availability semantics.
-- The fixed 48-record forecast capacity.
+- The existing current-weather fields, update semantics and availability flags.
+- The fixed 48-record forecast capacity and duplicate timestamp filtering.
 - Partial forecast behaviour if a later page fails after earlier data has been received.
-- The existing refresh order and cadence.
+- One Call's provider timezone offset as separate state from the Europe/London device clock.
+- The existing current-weather-before-forecast request order and refresh cadence.
+- Offline demo-data behaviour, including 24 forecast entries without network access.
 
-Do not combine weather fetching and forecast fetching into a concurrent job in the first extraction. They currently share mutable location/time/UV/rain state and execute sequentially.
+The Weather app remains responsible for `connectWiFi()`, location coordinate ownership, location-provider selection, icon fetching/cache, loading/error drawing and presentation. Do not introduce concurrent current/forecast jobs in this extraction; they share mutable location/time/UV/rain context and currently execute sequentially.
 
 ### 3.8 Weather application and views
 
@@ -214,7 +218,7 @@ Each item should be its own reviewable PR and keep runtime behaviour unchanged u
    **PR #32 — interaction ownership/arbitration (merged):** adds `src/input/InteractionArbiter.h` with one enum-backed active owner: metric panel, forecast list, graph or forecast control. The sketch chooses the owner using its existing hit regions and intent thresholds. Metric/list candidates remain unclaimed until vertical drag intent activates; horizontal candidates remain available to tab navigation. Graph/control contacts claim immediately, matching the previous suppression conditions. The arbiter replaces the active-interaction OR list in `pollTouch()`; Weather retains release grace timing and the graph quiet-period suppression latch. No dynamic allocation is introduced. Arduino Verify passed with 1,149,179 bytes program storage and 97,212 bytes global dynamic memory; the user confirmed upload/boot and physical regression. Merged at `343eb7ed0120d947990cab48cec0c688177f4ec5`.
 5. **Scroll mechanics (PR #33 merged):** `src/ui/ScrollController.h` extracts only stateless drag-delta, elastic-resistance, elastic-bound and nearest-step snap calculations. Weather supplies its existing 20 px overscroll cap, resistance divisor 3, maximum positions and per-view step sizes. Per-view offsets, drag lifecycles, release timers, animation and rendering remain separate. Graph hold timing, quick-swipe classification, point selection and horizontal paging remain graph-specific Weather policy. Compile-time assertions, a standalone C++14 header compile, Arduino IDE Verify, upload/boot and physical metric-card, forecast-list and graph scroll regression passed; the user confirmed the firmware and interactions on 2026-11-02. Merged at `4f3aeae4713b8c6252266112e476a9e50cb86c52`. Do not turn this into a generic UI scrolling framework.
 6. **Time and location boundaries:** PR #34 extracts `TimeService` and is merged. PR #35 extracts `LocationService` and is merged, preserving Google Wi-Fi → IP → configured-coordinate priority and returning a source/accuracy/observation-time/validity-bearing fix. The user confirmed the physical regression passed on 2026-11-02.
-7. **Network request support and Weather data.** **PR #36 — shared HTTP request transport (merged):** routes TimeService and LocationService through `HttpRequestClient`. **PR #37 — remaining Weather HTTP calls (in progress):** migrates icon download, current-weather GET and One Call hourly forecast page GET to the same request-session wrapper. Arduino IDE Verify passed using the Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12 (1,151,707 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining). The user uploaded and booted the firmware; Google Wi-Fi position succeeded with 9 usable BSSIDs, 18 m accuracy and reverse-geocoded place `Bury`. This confirms compilation, startup and location regression, not yet icon/current/forecast behaviour. This is a transport-only extraction: keep domain parsing, Weather state, asset-cache ownership, pagination and UI presentation in place. The next separate slice is the Weather data service/model boundary, which will own current-weather and One Call page requests, JSON parsing, forecast pagination, data validity and Weather data models, while remaining independent of Wi-Fi association, location selection and drawing. Keep all requests synchronous and sequential; preserve refresh order, partial-forecast behaviour and the 48-record capacity.
+7. **Network request support and Weather data.** **PR #36 — shared HTTP request transport (merged)** routes TimeService and LocationService through `HttpRequestClient`. **PR #37 — remaining Weather HTTP calls (merged at `65b3019ef6ae5a89ba25591430532bf646e3e51e`)** routes icon download, current-weather GET and One Call forecast-page GET through the shared transport. Arduino Verify passed at 1,151,707 bytes program storage and 97,228 bytes global dynamic memory; the user confirmed upload and the full physical icon/current/forecast/pagination/interaction regression. **PR #38 — WeatherDataService (in progress)** now separates current-weather and One Call data/request ownership from the sketch. Keep the first slice synchronous and sequential; preserve refresh order, partial-forecast behaviour, separate provider timezone state and the 48-record capacity. The service must not own Wi-Fi association, location-provider selection, icon cache, or drawing.
 8. **Weather application/views and asset cache.** Move screen state and rendering behind the Weather app boundary; remove network side effects from drawing as a separate, testable change.
 9. **Application Manager.** Defer until Phase 4. Phase 1 should leave Weather as the only application.
 
