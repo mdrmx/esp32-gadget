@@ -112,18 +112,23 @@ LocationService deliberately retains the existing synchronous HTTPS and `setInse
 
 ## PR #36 — shared HTTP request client extraction (pre-fix Verify passed; startup observed; parser follow-up pending)
 
-`HttpRequestClient` is a single-use synchronous request session and is currently used by TimeService and LocationService only. The original PR #36 commit passed Arduino IDE Verify and was uploaded. Its first startup completed the location fallback path: 14 nearby networks were found, 8 BSSIDs were eligible, Google response parsing returned ArduinoJson `InvalidInput`, and IP geolocation plus OpenWeather reverse geocoding succeeded for Manchester. Follow-up commit `71763848dea2cd745faced3157d3a09a553568d1` changes Google success parsing to use `HTTPClient.getString()` rather than the raw response stream. The updated commit still requires Verify and upload. Keep Weather's direct icon/current/forecast request sites separate until the follow-on migration.
+`HttpRequestClient` is a single-use synchronous request session and is currently used by TimeService and LocationService only. The original PR #36 commit passed Arduino IDE Verify and its first upload exposed a Google response parsing failure (`InvalidInput`), after which IP geolocation resolved Manchester. Follow-up commit `71763848dea2cd745faced3157d3a09a553568d1` changes Google success parsing to use `HTTPClient.getString()` rather than the raw response stream. The user uploaded and booted the follow-up firmware on 2026-11-03; Google Wi-Fi positioning then succeeded with 15 scanned networks, 9 usable BSSIDs, coordinates 53.528682, -2.267461, an 18 m accuracy radius and reverse-geocoded place `Bury`. The user confirms the dashboard displays the correct local time and all tested interactions work. A separate Verify of the follow-up commit and broader current-weather/forecast data regression remain to be recorded. Keep Weather's direct icon/current/forecast request sites separate until the follow-on migration.
 
-- [ ] Re-run Arduino IDE Verify on the updated commit with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
+- [ ] Record a separate Arduino IDE Verify result for the updated commit with Arduino IDE 2.3.10, ESP32 core 3.3.12 and the exact Waveshare ESP32-S3 FQBN recorded in the toolchain baseline.
 - [x] Upload and boot the pre-fix PR #36 firmware on the Waveshare ESP32-S3 Touch LCD 2; serial startup output confirmed normal boot and network requests.
-- [ ] Confirm TimeService retains the existing 5,000 ms connection and response timeout and that the device clock displays the correct UK time and advances.
+- [x] Upload and boot the Google-response parser follow-up commit; serial startup output confirmed successful network startup and provider selection.
+- [x] Confirm the device displays the correct UK local time after startup.
+- [ ] Confirm the displayed clock continues advancing correctly after startup.
+- [ ] Confirm TimeService retains the existing 5,000 ms connection and response timeout.
 - [ ] Confirm reverse geocoding and ipwho.is retain their 8,000 ms connection/response timeouts and stream-based JSON parsing.
-- [ ] After uploading the follow-up fix, confirm Google Geolocation returns valid coordinates and a Google Wi-Fi source (rather than an ArduinoJson `InvalidInput` parse failure).
+- [x] After uploading the follow-up fix, confirm Google Geolocation returns valid coordinates and a Google Wi-Fi source (rather than an ArduinoJson `InvalidInput` parse failure): 15 scanned networks, 9 usable BSSIDs, latitude 53.528682, longitude -2.267461, reported accuracy radius about 18 m, selected source `GoogleWifi`, valid flag `1`, observation time 5,607 ms.
+- [x] Confirm OpenWeather reverse geocoding returns `Bury` for the successful Google Wi-Fi fix.
 - [x] Confirm the IP fallback path after Google fails: this run returned Manchester coordinates (`53.48095, -2.23743`), reverse-geocoded the place as `Manchester`, and selected `IpGeolocation` with a valid fix.
 - [ ] Confirm Google Geolocation retains the 10,000 ms connection timeout, 12,000 ms response timeout, JSON content-type header, 220-byte failure preview and IP fallback.
 - [ ] Confirm every migrated request ends exactly once on success and failure; early initialisation failure and scope exit release the request session.
 - [ ] Confirm each migrated call explicitly opts into the existing insecure-TLS compatibility mode; no TLS trust-policy change is introduced.
 - [ ] Physical regression: successful/failed TimeAPI sync, Google Wi-Fi location, IP fallback, reverse-geocoded display name and configured-coordinate fallback remain unchanged.
+- [x] Confirm all tested touch interactions and navigation controls work on the uploaded firmware, as reported by the user.
 - [ ] Confirm Weather icon, current conditions and forecast request behaviour remains unchanged; those call sites are not migrated in PR #36.
 
 The wrapper supports root-CA configuration before request initialisation, but PR #36 does not install a certificate or change the existing insecure-TLS behaviour.
