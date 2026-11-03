@@ -365,7 +365,7 @@ private:
           reinterpret_cast<uint8_t*>(previewBuffer),
           sizeof(previewBuffer) - 1);
         if (previewLength > 0) {
-          previewBuffer[previewLength] = '\\0';
+          previewBuffer[previewLength] = 0;
           errorPreview = previewBuffer;
         }
       }
