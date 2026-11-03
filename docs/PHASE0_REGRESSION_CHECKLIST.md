@@ -127,26 +127,47 @@ LocationService deliberately retains the existing synchronous HTTPS and `setInse
 - [x] Google Geolocation retains the 10,000 ms connection timeout, 12,000 ms response timeout, JSON content-type header and bounded 220-byte error preview.
 - [x] Migrated TimeService and LocationService calls explicitly retain the existing insecure-TLS compatibility policy.
  
-## PR #37 — Weather requests through shared HTTP request client (in progress; device validation pending)
+## PR #37 — Weather requests through shared HTTP request client (merged; all device tests passed)
 
 This slice migrates only transport ownership for the remaining Weather HTTPS calls. JSON parsing, Weather state, forecast pagination and icon cache ownership remain in `weatherDashboard.ino`.
 
 - [x] Arduino IDE Verify passed using Arduino IDE 2.3.10, ESP32 core 3.3.12, esptool 5.3.1 and FQBN `esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`. Build: 1,151,707 bytes program storage (36% of 3 MiB); 97,228 bytes global dynamic memory (29% of 327,680 bytes); 230,452 bytes remaining. ESP32-S3 image and merged 16 MB flash image generated successfully.
 - [x] User uploaded and booted the PR #37 firmware on the Waveshare ESP32-S3 Touch LCD 2; startup completed and proceeded into location resolution.
 - [x] Location smoke test passed after upload: 14 Wi-Fi networks scanned, 9 eligible BSSIDs, Google Wi-Fi returned 53.528695, -2.267449 with an 18 m accuracy radius, OpenWeather reverse geocoded `Bury`, and `Google Wi-Fi` was selected as a valid fix observed at 6,537 ms.
-- [ ] Confirm OpenWeather icon download still validates content length and PNG signature, caches the image and reuses a matching cached icon.
-- [ ] Confirm icon download retains the 10,000 ms connect/response timeouts, 20,000-byte maximum and 8-second stream-read budget.
-- [ ] Confirm current-weather GET retains its URL parameters, 15,000 ms connect/response timeouts, HTTP status mapping, JSON parse and weather-field updates.
-- [ ] Confirm One Call page GET retains its URL/pagination handling, 15,000 ms connect/response timeouts, bounded 240-character non-200 body diagnostic and error mapping.
-- [ ] Confirm One Call JSON parsing retains timezone offset, next-page URL, weather fields, UV/rain availability and duplicate-timestamp handling.
-- [ ] Confirm forecast requests remain sequential, follow at most three pages and never exceed 48 records.
-- [ ] Confirm partial forecast data remains available if a later page fails after earlier pages succeeded.
-- [ ] Confirm current weather is fetched before the hourly forecast at startup and on scheduled refresh; no concurrent requests are introduced.
-- [ ] Confirm all three migrated call sites explicitly select the existing insecure-TLS compatibility policy.
-- [ ] Confirm all request sessions end on success and each failure path, including icon stream-unavailable and incomplete-download paths.
-- [ ] Confirm the UI, touch interactions, clock, location provider selection and current/forecast data remain unchanged after the transport migration.
+- [x] User confirmed all remaining PR #37 device regression tests passed, including icon PNG fetch/cache, current-weather display/data, One Call hourly forecast, UV/rain metrics, page loading/pagination, partial-data behaviour and full touch/navigation regression.
+- [x] Confirm OpenWeather icon download still validates content length and PNG signature, caches the image and reuses a matching cached icon.
+- [x] Confirm icon download retains the 10,000 ms connect/response timeouts, 20,000-byte maximum and 8-second stream-read budget.
+- [x] Confirm current-weather GET retains its URL parameters, 15,000 ms connect/response timeouts, HTTP status mapping, JSON parse and weather-field updates.
+- [x] Confirm One Call page GET retains its URL/pagination handling, 15,000 ms connect/response timeouts, bounded 240-character non-200 body diagnostic and error mapping.
+- [x] Confirm One Call JSON parsing retains timezone offset, next-page URL, weather fields, UV/rain availability and duplicate-timestamp handling.
+- [x] Confirm forecast requests remain sequential, follow at most three pages and never exceed 48 records.
+- [x] Confirm partial forecast data remains available if a later page fails after earlier pages succeeded.
+- [x] Confirm current weather is fetched before the hourly forecast at startup and on scheduled refresh; no concurrent requests are introduced.
+- [x] Confirm all three migrated call sites explicitly select the existing insecure-TLS compatibility policy.
+- [x] Confirm all request sessions end on success and each failure path, including icon stream-unavailable and incomplete-download paths.
+- [x] Confirm the UI, touch interactions, clock, location provider selection and current/forecast data remain unchanged after the transport migration.
 
 The wrapper supports root-CA configuration before request initialisation, but PR #36 does not install a certificate or change the existing insecure-TLS behaviour.
+
+## PR #38 — WeatherDataService and data model extraction (in progress; review fixes applied)
+
+`WeatherDataService` owns current-weather and One Call requests/parsing, forecast pagination, weather-data validity and the fixed-capacity data models. Wi-Fi association, LocationService/provider selection, icon PNG download/cache, loading/error UI and rendering remain outside the service. The One Call non-200 diagnostic reads a maximum of 240 bytes into a fixed stack buffer, avoiding unbounded response-body allocation. Unused sketch aliases `locationTimezoneOffset` and `weatherMain` were removed. The service preserves the original first-valid-hour UV/rain metric selection order, including when an initial record is skipped as a duplicate. The sketch delegates Wi-Fi-unavailable forecast state to the service.
+
+- [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12 after the review-fix commits.
+- [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
+- [ ] Confirm current conditions, weather availability, descriptions, icon code and all metric values match the pre-extraction firmware.
+- [ ] Confirm One Call forecast page parsing, timezone offset, next-page URL and forecast record mapping remain correct.
+- [ ] Confirm sequential pagination stops after at most three pages or 48 records and filters duplicate timestamps.
+- [ ] Confirm partial forecast data remains available if a later page fails after earlier records have been received.
+- [ ] Confirm a first-page failure marks the forecast unavailable and preserves the existing error mapping.
+- [ ] Confirm a later-page failure marks the forecast as available and retains the earlier records while exposing the page error in `FetchResult`.
+- [ ] Confirm forecast timezone remains separate from the Europe/London device clock.
+- [ ] Confirm UV index/rain probability values and their availability flags retain existing semantics, including first-valid-hour selection before duplicate timestamp filtering.
+- [ ] Confirm the offline demo fixture still loads the same current weather and 24 forecast entries without network calls.
+- [ ] Confirm Wi-Fi association and LocationService/provider selection remain outside WeatherDataService.
+- [ ] Confirm icon PNG download/cache stays in the sketch and continues to work.
+- [ ] Confirm loading/error rendering, screen state, metric/list/graph rendering, clock and all touch interactions remain unchanged.
+- [ ] Confirm current weather is fetched before hourly forecast; no concurrent requests are introduced.
 
 ## 5. Clock and location
 
