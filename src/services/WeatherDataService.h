@@ -2,7 +2,6 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <HTTPClient.h>
 #include <time.h>
 
 #include "HttpRequestClient.h"
@@ -125,7 +124,7 @@ public:
     }
 
     const int status = http.get();
-    if (status != HTTP_CODE_OK) {
+    if (status != 200) {
       http.end();
       result.httpStatus = status;
       result.errorCode = currentWeatherHttpError(status);
@@ -355,7 +354,7 @@ private:
     }
 
     const int status = http.get();
-    if (status != HTTP_CODE_OK) {
+    if (status != 200) {
       // Keep the existing bounded diagnostic read before closing the session.
       String errorBody = http.getString();
       if (errorBody.length() > 240) {
