@@ -5,9 +5,9 @@
 **Related inventory:** [Phase 0, Step 1 — Code inventory](PHASE0_STEP1_CODE_INVENTORY.md)  
 **Repository:** `mdrmx/esp32-gadget`  
 **Primary runtime entry point:** `weatherDashboard.ino`  
-**Service modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`  
-**Source checkpoint:** `main` includes PR #36 merge `2cf68e08ddf7b569ea57777ca12147069f506b26`; PR #37 working branch `phase1/11-weather-http-requests`  
-**Extraction status:** PR #36 merged and verified. PR #37 routes the remaining icon/current/forecast calls through `HttpRequestClient`; Arduino IDE Verify and upload/boot passed, and startup Google Wi-Fi location smoke test passed. Weather icon/current/forecast and full interaction regression remain pending  
+**Service modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`; PR #38 adds `src/services/WeatherDataService.h`  
+**Source checkpoint:** `main` includes PR #37 merge `65b3019ef6ae5a89ba25591430532bf646e3e51e`; PR #38 working branch `phase1/12-weather-data-service`  
+**Extraction status:** PR #37 merged; Verify, upload and all user-reported physical Weather and interaction regression tests passed. PR #38 is extracting current/forecast data models, parsing and sequential pagination; implementation and verification are in progress  
 **Review date:** 2026-11-03
 
 ---
@@ -486,9 +486,9 @@ These are source-level reasons to investigate a queued / state-driven network se
 
 At the PR #35 merge checkpoint, the TimeService and LocationService HTTPS clients used `WiFiClientSecure` and called `setInsecure()`. PR #36 routes those four request call sites through `HttpRequestClient`; callers explicitly opt into the same legacy insecure-TLS mode. The Google Geolocation success response uses `HTTPClient.getString()` so transfer encoding is handled before JSON deserialisation. PR #37 migrates the remaining Weather icon, current-conditions and One Call forecast requests through `HttpRequestClient`, with the same explicit compatibility TLS policy. Certificate validation is therefore not enforced by these HTTPS call sites. This remains a known security concern; neither PR changes the TLS trust policy.
 
-Time and Location domain services use the shared synchronous `HttpRequestClient` transport while retaining endpoint construction, status handling and response parsing. PR #37 also routes the Weather icon/current/forecast request sites through the wrapper; it does not move JSON parsing, pagination, Weather state or asset-cache ownership. There is still no shared connectivity manager or transport-selection abstraction.
+Time and Location domain services and the Weather icon/current/forecast request sites all use the shared synchronous `HttpRequestClient` transport. PR #37 is merged and the user confirmed its full physical regression passed. PR #38 is the next step for moving current/forecast parsing, pagination and data models into `WeatherDataService`; Wi-Fi lifecycle, location selection, icon-cache ownership and drawing remain outside this service. There is still no shared connectivity manager or transport-selection abstraction.
 
-The final PR #36 parser-follow-up Verify passed using the recorded ESP32-S3 FQBN and ESP32 core 3.3.12 (1,151,215 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining). The user confirmed current-weather and forecast data loading, Google Wi-Fi positioning, correct clock display and all tested interactions. PR #37 Arduino IDE Verify has now passed (1,151,707 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining), and the firmware has been uploaded and booted. The startup log confirms Google Wi-Fi positioning with 9 eligible BSSIDs, an 18 m reported accuracy radius, and reverse-geocoded place `Bury`. PR #37's Weather icon/current/forecast request behaviour and full interaction regression still require device confirmation.
+The final PR #36 parser-follow-up Verify passed using the recorded ESP32-S3 FQBN and ESP32 core 3.3.12 (1,151,215 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining). The user confirmed current-weather and forecast data loading, Google Wi-Fi positioning, correct clock display and all tested interactions. PR #37 Arduino IDE Verify passed (1,151,707 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining), and the firmware was uploaded and booted. The user confirmed all PR #37 tests passed, including icon/current/forecast loading, forecast data behaviour and full interaction regression. PR #38 now owns the current/forecast parsing and data-model extraction; its build and hardware regression are pending.
 
 ## 11. Data ownership and coupling findings
 
