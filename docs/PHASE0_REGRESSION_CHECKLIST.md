@@ -149,18 +149,20 @@ This slice migrates only transport ownership for the remaining Weather HTTPS cal
 
 The wrapper supports root-CA configuration before request initialisation, but PR #36 does not install a certificate or change the existing insecure-TLS behaviour.
 
-## PR #38 — WeatherDataService and data model extraction (in progress)
+## PR #38 — WeatherDataService and data model extraction (in progress; review fixes applied)
 
-The service is being extracted to own current-weather and One Call requests/parsing, forecast pagination, weather-data validity and the fixed-capacity data models. Wi-Fi association, LocationService/provider selection, icon PNG download/cache, loading/error UI and rendering remain outside the service.
+`WeatherDataService` owns current-weather and One Call requests/parsing, forecast pagination, weather-data validity and the fixed-capacity data models. Wi-Fi association, LocationService/provider selection, icon PNG download/cache, loading/error UI and rendering remain outside the service. The One Call non-200 diagnostic reads a maximum of 240 bytes into a fixed stack buffer, avoiding unbounded response-body allocation. Unused sketch aliases `locationTimezoneOffset` and `weatherMain` were removed. The service preserves the original first-valid-hour UV/rain metric selection order, including when an initial record is skipped as a duplicate. The sketch delegates Wi-Fi-unavailable forecast state to the service.
 
-- [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12.
+- [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12 after the review-fix commits.
 - [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
 - [ ] Confirm current conditions, weather availability, descriptions, icon code and all metric values match the pre-extraction firmware.
 - [ ] Confirm One Call forecast page parsing, timezone offset, next-page URL and forecast record mapping remain correct.
 - [ ] Confirm sequential pagination stops after at most three pages or 48 records and filters duplicate timestamps.
 - [ ] Confirm partial forecast data remains available if a later page fails after earlier records have been received.
+- [ ] Confirm a first-page failure marks the forecast unavailable and preserves the existing error mapping.
+- [ ] Confirm a later-page failure marks the forecast as available and retains the earlier records while exposing the page error in `FetchResult`.
 - [ ] Confirm forecast timezone remains separate from the Europe/London device clock.
-- [ ] Confirm UV index/rain probability values and their availability flags retain existing semantics.
+- [ ] Confirm UV index/rain probability values and their availability flags retain existing semantics, including first-valid-hour selection before duplicate timestamp filtering.
 - [ ] Confirm the offline demo fixture still loads the same current weather and 24 forecast entries without network calls.
 - [ ] Confirm Wi-Fi association and LocationService/provider selection remain outside WeatherDataService.
 - [ ] Confirm icon PNG download/cache stays in the sketch and continues to work.
