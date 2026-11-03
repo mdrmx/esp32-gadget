@@ -5,7 +5,7 @@
 **Last reviewed:** 2026-11-02  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete; PRs #27–#35 merged. PR #36 introduces the shared synchronous HTTP request client on `phase1/10-http-request-client`; Arduino IDE Verify has passed, while upload/boot and physical regression remain pending. Follow-on work is Weather request/data separation and application/view boundaries.
+**Current roadmap status:** Phase 0 baseline complete; PRs #27–#35 merged. PR #36 introduces the shared synchronous HTTP request client on `phase1/10-http-request-client`. Its pre-fix build passed Verify and the firmware booted on-device; the first startup test confirmed IP geolocation fallback and reverse geocoding, but Google Wi-Fi response parsing returned ArduinoJson `InvalidInput`. A follow-up commit now reads Google's small success response through `HTTPClient.getString()` to preserve transfer-encoding handling; Verify and upload of that fix are pending. Follow-on work is Weather request/data separation and application/view boundaries.
 
 ---
 
@@ -342,7 +342,7 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PRs #27–#35 are merged; PR #36 extracts shared synchronous HTTP request support for TimeService and LocationService. PR #36 Arduino IDE Verify passed on the Waveshare ESP32-S3 Touch LCD 2 configuration on 2026-11-02 (1,151,199 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining). Upload/boot and physical time/location regression remain pending. PR #35 physical regression and Verify passed; gesture-recognition, interaction-ownership and scroll-calculation extractions are also verified.**
+**Status: IN PROGRESS — PRs #27–#35 are merged; PR #36 extracts shared synchronous HTTP request support for TimeService and LocationService. The pre-fix commit passed Arduino IDE Verify on the Waveshare ESP32-S3 configuration (1,151,199 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining), and the user uploaded it and captured a successful startup. That run found 14 Wi-Fi networks (8 eligible BSSIDs), but Google success-response parsing returned `InvalidInput`; IP geolocation and OpenWeather reverse geocoding then succeeded for Manchester. A follow-up parsing fix is committed and requires fresh Verify/upload and regression. Time display and broader Weather UI checks are not yet reported. PR #35 physical regression and Verify passed; gesture-recognition, interaction-ownership and scroll-calculation extractions are also verified.**
 
 The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample`, display ownership, CST816 reader, typed gesture-code, controller-level gesture-recognition, interaction-ownership, scroll-calculation and TimeService extractions are merged. PR #31 and PR #32 were verified, uploaded and physically regression-tested successfully. PR #32 adds a small `InteractionArbiter` for the active contact owner and the decision to suppress a duplicate controller gesture. Weather continues to choose the owner through its existing hit-tests and retains all view-specific drag, timing, graph and navigation policies. PR #33 adds a stateless `ScrollController` math helper; the user confirmed Arduino IDE Verify, upload/boot and physical metric-card, forecast-list and graph scroll regression on 2026-11-02. PR #34 moves system clock validity, UK timezone setup, TimeAPI synchronisation and retry policy into `src/services/TimeService.h`; the user confirmed its physical test, while IDE Verify remains unconfirmed. Weather retains the header redraw cache and forecast timezone offset. PR #35 moves Google Wi-Fi positioning, IP fallback and reverse-geocoding into `src/services/LocationService.h`, returning an explicit source/accuracy/timestamp-bearing fix while retaining Weather-facing coordinates and display behaviour. The user confirmed the physical provider/fallback and Weather regression passed before merge.
 
@@ -367,7 +367,7 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
 
 
 - [x] **PR #35 — LocationService boundary:** `src/services/LocationService.h` owns Google Wi-Fi positioning, IP fallback and reverse-geocoding coordination. Physical provider/fallback and Weather regression passed; Arduino IDE Verify completed successfully at 1,150,279 bytes program storage and 97,228 bytes global dynamic memory.
-- [ ] **PR #36 — Shared HTTP request client (in progress):** `src/services/HttpRequestClient.h` provides a single-use synchronous session for HTTP/TLS setup, timeout configuration, request methods, headers and response access. TimeService and LocationService have been migrated. Weather icon/current/forecast request sites remain in the sketch. Arduino IDE Verify passed on 2026-11-02: 1,151,199 bytes program storage (36%); 97,228 bytes global dynamic memory (29%), leaving 230,452 bytes. Upload/boot and physical regression remain pending.
+- [ ] **PR #36 — Shared HTTP request client (in progress):** `src/services/HttpRequestClient.h` provides a single-use synchronous session for HTTP/TLS setup, timeout configuration, request methods, headers and response access. TimeService and LocationService have been migrated. The pre-fix commit passed Arduino IDE Verify (1,151,199 bytes program storage; 97,228 bytes global dynamic memory). The user uploaded it and confirmed startup; the first run showed Google Wi-Fi response parsing failing with `InvalidInput`, followed by successful IP geolocation and reverse geocoding to Manchester. Commit `71763848dea2cd745faced3157d3a09a553568d1` changes Google success-response parsing to use `getString()` for HTTPClient transfer-encoding handling. Re-Verify, re-upload and Google Wi-Fi/time/Weather regression remain pending. Weather icon/current/forecast request sites remain in the sketch.
 
 **Phase 1 tasks:**
 
@@ -578,7 +578,7 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ## 10. Handover instructions for future development sessions
 
-### Current handover — 2026-11-02 (Phase 1 PR #36 shared HTTP request client in progress)
+### Current handover — 2026-11-02 (PR #36 Google response parsing fix committed; retest pending)
 
 Recheck GitHub before acting; this handover is current through PR #35 merge, the PR #36 request-client implementation/review fixes, and the user's successful PR #36 Arduino IDE Verify on 2026-11-02.
 
@@ -637,10 +637,10 @@ PR #33 merged at the commit recorded above. Its scope remains limited to shared 
 - **Branch:** `phase1/10-http-request-client`, based on `main` at PR #35 merge checkpoint `fbd87e9b73b4a21e4b2579a7e2d0c15708e410cb` (including the post-merge documentation updates).
 - **New module:** `src/services/HttpRequestClient.h` owns one synchronous request session: the secure socket, `HTTPClient` lifetime, connection/response timeouts, HTTP GET/POST, headers and response access.
 - **Migrated callers:** `TimeService` TimeAPI GET, and `LocationService` reverse-geocode GET, Google Geolocation POST and ipwho.is GET.
-- **Preserved boundaries:** URL construction, status interpretation, JSON parsing, location-provider fallback, clock update and UI decisions stay in their existing domain owners. TimeAPI still buffers its complete chunked response into a `String`; LocationService still parses successful responses from the stream and caps Google's non-200 preview at 220 bytes.
+- **Preserved boundaries:** URL construction, status interpretation, domain parsing, location-provider fallback, clock update and UI decisions stay in their existing domain owners. TimeAPI buffers its complete response into a `String`; reverse-geocode and IP-location responses remain parsed from their streams; Google Geolocation now reads its small success body through `getString()` so HTTPClient can handle transfer encoding, while its non-200 preview remains capped at 220 bytes.
 - **TLS policy:** each migrated call explicitly opts into the existing `setInsecure()` compatibility mode. The wrapper exposes root-CA configuration for a future reviewed certificate-validation change; this PR does not change TLS trust policy.
 - **Not migrated yet:** Weather icon, current-conditions and One Call forecast requests remain directly owned by `weatherDashboard.ino`. Their migration and Weather data/model separation are follow-on work.
-- **Validation:** Arduino IDE Verify passed on 2026-11-02 using the exact recorded FQBN and ESP32 core 3.3.12. The log reports 1,151,199 bytes program storage (36% of the 3 MiB app partition) and 97,228 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,452 bytes; ESP32-S3 image and merged 16 MB flash image generation completed successfully. Upload/boot and physical time/location regression remain pending.
+- **Validation:** the pre-fix commit passed Arduino IDE Verify on 2026-11-02 using the exact recorded FQBN and ESP32 core 3.3.12 (1,151,199 bytes program storage; 97,228 bytes global dynamic memory; ESP32-S3 image and merged 16 MB flash image generated). The user then uploaded and booted that firmware. Startup selected IP geolocation after Google response parsing returned `InvalidInput`; ipwho.is returned Manchester coordinates and OpenWeather reverse geocoding returned `Manchester`. Follow-up commit `71763848dea2cd745faced3157d3a09a553568d1` changes Google success parsing from the raw stream to `getString()`; this updated commit has not yet been verified or uploaded. Time-display and full Weather regression remain unreported.
 
 ### Next follow-up after PR #36
 
@@ -668,7 +668,7 @@ When resuming work after a context reset:
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
-| 1 | Project structure and shared foundations | In progress — PRs #27–#35 merged; PR #36 shared HTTP request client Verify passed, upload/physical regression pending; Weather data separation remains |
+| 1 | Project structure and shared foundations | In progress — PRs #27–#35 merged; PR #36 pre-fix Verify and startup boot observed; Google response parsing fix committed, retest pending; Weather data separation remains |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
@@ -731,4 +731,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-02 — Version 4.9:** Reviewed the uploaded PR #35 Arduino Verify output: successful ESP32-S3 link/image generation, 1,150,279 bytes program storage, 97,228 bytes global dynamic memory and 230,452 bytes remaining. The output reused cached sketch/library objects, so it is an incremental Verify rather than a forced clean rebuild. Started PR #36 on `phase1/10-http-request-client`, adding `HttpRequestClient` and migrating TimeService/LocationService without changing endpoint parsing, timeout values or TLS policy.
 - **2026-11-02 — PR #35 review follow-up:** Google Geolocation checks HTTP status before reading the response. Non-200 diagnostics are capped at 220 bytes in a fixed stack buffer; successful JSON is deserialized directly from the response stream. The reviewer reply was posted and the outdated inline thread was resolved; the user subsequently confirmed the physical regression passed.
 
-- **2026-11-02 — Version 4.10:** Recorded successful Arduino IDE Verify for PR #36 on the exact Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12. The build reports 1,151,199 bytes program storage, 97,228 bytes global dynamic memory and 230,452 bytes remaining; ESP32-S3 image and merged flash image generation completed. Upload/boot and physical time/location regression remain pending; PR #36 remains open and unmerged.
+- **2026-11-02 — Version 4.10:** Recorded successful Arduino IDE Verify for PR #36 on the exact Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12. The build reports 1,151,199 bytes program storage, 97,228 bytes global dynamic memory and 230,452 bytes remaining; ESP32-S3 image and merged flash image generation completed.
+- **2026-11-03 — Version 4.11:** Recorded the first PR #36 device startup: 14 Wi-Fi networks scanned, 8 usable BSSIDs, Google success-response deserialization returned `InvalidInput`, and IP geolocation plus OpenWeather reverse geocoding successfully selected Manchester. Committed `71763848dea2cd745faced3157d3a09a553568d1` to parse Google's small success body using `HTTPClient.getString()` instead of the raw response stream. This follow-up requires Arduino IDE Verify and a fresh upload/physical test; clock and broader Weather checks remain outstanding.
