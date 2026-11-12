@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.18  
+**Version:** 4.19  
 **Last reviewed:** 2026-11-12  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#38 are merged. PR #38 merged on 2026-11-12 at `716670c118cec37488cd895117d533a69c31d407`; `src/services/WeatherDataService.h` owns current-weather and One Call requests/parsing, bounded current/forecast models, sequential pagination, validity/error state and offline demo data. The sketch retains Wi-Fi lifecycle, location-provider selection, location coordinates, icon download/cache, loading/error presentation, Weather view state, rendering and input. PR #38 review fixes include a 240-byte fixed-buffer One Call error preview, removal of unused sketch aliases, preservation of first-valid-hour UV/rain semantics and service ownership of forecast-unavailable state. The PR description's validation section still lists Verify/upload/device regression as pending; record later user-confirmed hardware evidence separately.
+**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#38 are merged and, under the project's working convention, merged PRs are treated as having passed Verify, upload/boot and required hardware regression unless explicitly stated otherwise. PR #38 merged on 2026-11-12 at `716670c118cec37488cd895117d533a69c31d407`; the user confirms its hardware test passed. `src/services/WeatherDataService.h` owns current-weather and One Call requests/parsing, bounded current/forecast models, sequential pagination, validity/error state and offline demo data. The sketch retains Wi-Fi lifecycle, location-provider selection, location coordinates, icon download/cache, loading/error presentation, Weather view state, rendering and input. Review fixes include the bounded 240-byte One Call error preview, removal of unused aliases, preservation of first-valid-hour UV/rain semantics and service ownership of forecast-unavailable state.
 
 ---
 
@@ -342,7 +342,7 @@ These limitations are documented in the relevant audit and checklist. They shoul
 
 ### Phase 1 — Project structure and shared foundations
 
-**Status: IN PROGRESS — PRs #27–#38 are merged.** PR #37 Verify and full physical regression passed (1,151,707 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining). PR #38 merged at `716670c118cec37488cd895117d533a69c31d407` on 2026-11-12 and completes the Weather current/forecast data-service boundary. The service owns request/parsing, current/forecast models, sequential pagination, data validity/error state and offline fixture. The sketch retains Wi-Fi/location orchestration, icon asset/cache handling and all presentation/input responsibilities. The PR's validation section lists Verify/upload/physical regression as pending; do not mark these complete solely from merge. Next planned extraction: Weather application/view boundary, beginning with a narrow ownership/interface design rather than wholesale renderer rewrite.
+**Status: IN PROGRESS — PRs #27–#38 are merged and validated.** PR #37 Verify and full physical regression passed (1,151,707 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining). PR #38 merged at `716670c118cec37488cd895117d533a69c31d407` on 2026-11-12; the user confirms its hardware test passed. Per the project convention, merged PRs are treated as having passed Verify, upload/boot and required regression unless explicitly noted otherwise. Its data-service boundary is complete. Next planned extraction: Weather application/view boundary, starting with a narrow ownership/interface design rather than a wholesale renderer rewrite.
 
 The Arduino `src/` layout has passed a compile/link spike using the recorded board configuration. The `TouchSample`, display ownership, CST816 reader, typed gesture-code, controller-level gesture-recognition, interaction-ownership, scroll-calculation and TimeService extractions are merged. PR #31 and PR #32 were verified, uploaded and physically regression-tested successfully. PR #32 adds a small `InteractionArbiter` for the active contact owner and the decision to suppress a duplicate controller gesture. Weather continues to choose the owner through its existing hit-tests and retains all view-specific drag, timing, graph and navigation policies. PR #33 adds a stateless `ScrollController` math helper; the user confirmed Arduino IDE Verify, upload/boot and physical metric-card, forecast-list and graph scroll regression on 2026-11-02. PR #34 moves system clock validity, UK timezone setup, TimeAPI synchronisation and retry policy into `src/services/TimeService.h`; the user confirmed its physical test, while IDE Verify remains unconfirmed. Weather retains the header redraw cache and forecast timezone offset. PR #35 moves Google Wi-Fi positioning, IP fallback and reverse-geocoding into `src/services/LocationService.h`, returning an explicit source/accuracy/timestamp-bearing fix while retaining Weather-facing coordinates and display behaviour. The user confirmed the physical provider/fallback and Weather regression passed before merge.
 
@@ -582,17 +582,17 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ### Current handover — 2026-11-12 (PR #38 merged; WeatherDataService boundary complete)
 
-Recheck GitHub before acting; this handover is current through PR #38 merge on 2026-11-12. PR #38 is merged to `main` at `716670c118cec37488cd895117d533a69c31d407`. Its PR description records Arduino Verify/upload/physical regression as pending. The user has confirmed merge, but the PR record reviewed here does not contain a later validation result.
+Recheck GitHub before acting; this handover is current through PR #38 merge on 2026-11-12. PR #38 is merged to `main` at `716670c118cec37488cd895117d533a69c31d407`, and the user confirms the hardware test passed. Project convention: when a PR is merged, assume Arduino Verify, upload/boot and required hardware regression have passed unless the user explicitly says otherwise. Do not invent build-size figures or measurements that were not supplied.
 
 - **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
-- **Latest firmware merge checkpoint:** `716670c118cec37488cd895117d533a69c31d407`, PR #38 merge commit. The preceding PR #37 Verify passed (1,151,707 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining), and user-confirmed upload/full hardware regression passed. PR #38's own description still lists Verify/upload/physical regression as pending; update this record when subsequent test results are confirmed.
+- **Latest firmware merge checkpoint:** `716670c118cec37488cd895117d533a69c31d407`, PR #38 merge commit. PR #38 hardware regression passed, as confirmed by the user. By the project's merged-PR convention, Verify and upload/boot are also treated as passed. Exact PR #38 build-size figures were not supplied and are intentionally not recorded.
 - **PR #27:** `TouchSample` value-type extraction is merged after successful compile, upload and physical input regression.
 - **PR #28:** `DisplayManager` extraction and resource-lifecycle fixes are merged after successful compile, upload and physical display/input regression. Exact post-change heap comparison remains unrecorded.
 - **PR #29:** `Cst816Reader` extraction and review fixes are merged at `5ee7ce7d1a42e31d275cc7fa2e2899544d6d9a42`. The user confirmed successful compile, upload and full physical input regression. The feature branch was deleted.
 - **PR #22 / #24 / #25:** permanent Step 4 audit, handover refresh and Phase 0 memory/profile documentation are merged.
 - **PR #23 / #26:** temporary diagnostics and Arduino source-layout spike were closed without merging; reusable results are recorded in Phase 0 docs.
 - **Phase 0:** complete. Extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups.
-- **Phase 1:** in progress. PRs #27–#38 are merged. PR #30 was tested with all gestures intact; PRs #31–#33 passed their reported Verify/upload/physical regression. PR #34 physical testing passed; standalone Verify remains unconfirmed. PR #35 passed its location/Weather regression and Verify. PR #36 passed final Verify and physical regression for Google Wi-Fi positioning, clock display, interactions and weather data loading. PR #37 passed Verify (1,151,707 bytes program storage; 97,228 bytes global dynamic memory), upload/boot and all user-reported hardware tests. PR #38 completes WeatherDataService; its PR description records Verify/upload/physical regression as pending.
+- **Phase 1:** in progress. PRs #27–#38 are merged and treated as validated under the merged-PR convention. PR #30 gesture regression passed; PRs #31–#33 passed Verify/upload/physical regression. PR #34 physical testing passed; its exact Verify figures were not recorded. PR #35 passed location/Weather regression and Verify. PR #36 passed Verify and physical regression. PR #37 passed Verify (1,151,707 bytes program storage; 97,228 bytes global dynamic memory), upload/boot and full Weather/network/interaction tests. PR #38 hardware regression passed, as confirmed by the user; its exact Verify memory figures are not recorded.
 - **PR #30 scope/result:** `src/input/GestureCode.h` defines the typed CST816 values and a `constexpr` decoder. The existing `0x00`–`0x04` mapping and `Unknown` fallback are unchanged. The user reports running and testing the latest code with all gestures intact.
 - **PR #31 scope (at merge):** `src/input/GestureRecognizer.h` converts a raw `TouchSample` into `GestureObservation`: raw gesture value, typed `GestureCode`, raw-register transition flag/previous value, and touch-present/start/release flags. At that stage, Weather still owned contact arbitration and metric/list/graph drag behaviour. PR #32 now extracts only the active-owner latch; hit-testing and view-specific interaction policy remain in the sketch.
 - **PR #32 result:** [merged pull request](https://github.com/mdrmx/esp32-gadget/pull/32), merge commit `343eb7ed0120d947990cab48cec0c688177f4ec5`. Arduino Verify passed (1,149,179 bytes program storage; 97,212 bytes global dynamic memory); upload/boot and physical interaction regression were confirmed passed by the user.
@@ -653,15 +653,16 @@ PR #33 merged at the commit recorded above. Its scope remains limited to shared 
 - **Preserved behaviour:** explicit insecure-TLS compatibility policy, 10,000 ms icon and 15,000 ms weather/forecast timeouts, PNG content-length/signature validation, 20,000-byte upper bound, 8-second stream-read budget, cache replacement/freeing, HTTP error mapping, JSON parsing, current-weather-before-forecast order, sequential pagination, three-page maximum, fixed 48-record capacity, duplicate filtering and partial forecast retention.
 - **Validation:** Arduino Verify passed (1,151,707 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining) on the recorded 16 MB / OPI PSRAM Waveshare FQBN and ESP32 core 3.3.12. The user uploaded the firmware and confirmed all tests passed, including icon download/cache, current conditions, One Call hourly forecast, UV/rain metrics, paging/partial-data behaviour, navigation and full touch interaction.
 
-### Current task — PR #38: WeatherDataService and data model extraction
+### Latest completed extraction — PR #38: WeatherDataService and data model extraction
 
 - **Branch:** `phase1/12-weather-data-service`, based on `main` after PR #37 merge.
+- **Merge:** `716670c118cec37488cd895117d533a69c31d407` on 2026-11-12.
 - **New module:** `src/services/WeatherDataService.h` owns current-weather and One Call requests/parsing, `WeatherCurrentData` / `WeatherForecastData`, forecast pagination, validity/error state and the deterministic offline demo fixture.
 - **Sketch retains:** Wi-Fi association, `connectWiFi()`, LocationService/provider selection, selected coordinates, icon PNG download/cache, loading/error rendering, Weather screen state, offsets, drawing and input handling.
-- **Compatibility facade:** temporary references keep existing renderer field names readable; the two obsolete `locationTimezoneOffset` and `weatherMain` aliases have been removed. Forecast provider timezone remains in `WeatherForecastData` and stays separate from TimeService's Europe/London device clock.
-- **Preserved behaviour:** current-weather field defaults and availability; current-weather-before-forecast order; 15 s data request timeouts; explicit insecure-TLS compatibility; 48-record fixed capacity; three-page maximum; duplicate timestamp filtering; partial-data retention; first-record UV/rain metric selection; forecast timestamp formatting; demo fixture values and 24 records; no async/concurrent requests.
-- **Review fixes:** One Call non-200 response diagnostics read at most 240 bytes using `NetworkClient::readBytes()` into a 241-byte stack buffer. Review thread is resolved. The unused sketch aliases were removed and their threads addressed.
-- **Validation:** source review and review follow-ups applied. The user has not yet run Arduino IDE Verify, uploaded this branch or performed hardware regression.
+- **Compatibility facade:** temporary references keep existing renderer field names readable; the obsolete `locationTimezoneOffset` and `weatherMain` aliases have been removed. Forecast provider timezone remains in `WeatherForecastData`, separate from TimeService's Europe/London device clock.
+- **Preserved behaviour:** current-weather defaults and availability; current-weather-before-forecast order; 15 s data request timeouts; existing TLS compatibility; 48-record capacity; three-page maximum; duplicate filtering; partial-data retention; first-valid-hour UV/rain selection; forecast timestamp formatting; 24-record offline demo fixture; no concurrent requests.
+- **Review fixes:** One Call non-200 diagnostics read at most 240 bytes using `NetworkClient::readBytes()` into a 241-byte stack buffer. Unused aliases were removed and all three review threads addressed/resolved.
+- **Validation:** the user confirms PR #38 hardware testing passed. Under the project's convention, merge also records Verify and upload/boot as passed. Exact build-size/memory figures were not supplied.
 
 ### Standing handover procedure
 
@@ -674,7 +675,7 @@ When resuming work after a context reset:
 5. Confirm implementation decisions in code, PR discussion and user instruction.
 6. Report the current state and next small task before making changes.
 7. Continue from an existing branch/PR where appropriate; do not overwrite work or create a duplicate branch.
-8. Use complete, copy-paste-ready code when code is requested; run the hardware regression checks; use feature branches and PRs; **never merge without the user's explicit instruction**.
+8. Use complete, copy-paste-ready code when code is requested; use feature branches and PRs; **never merge without the user's explicit instruction**. Treat a merged PR as having passed Arduino Verify, upload/boot and required hardware regression unless the user explicitly says otherwise. Record exact build/memory figures only when supplied.
 
 **Source of truth:** the live repository is authoritative for implementation. This roadmap is authoritative for the agreed direction and staged plan. If they differ, explain the discrepancy and update the roadmap deliberately rather than silently assuming either is current.
 
@@ -683,7 +684,7 @@ When resuming work after a context reset:
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
-| 1 | Project structure and shared foundations | In progress — PRs #27–#38 merged; WeatherDataService boundary complete; confirm PR #38 Verify/upload/physical regression, then extract Weather application/views |
+| 1 | Project structure and shared foundations | In progress — PRs #27–#38 merged and validated; WeatherDataService boundary complete; next extract Weather application/views |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
