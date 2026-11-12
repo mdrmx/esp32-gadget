@@ -129,7 +129,7 @@ The current implementation stores both concepts in related global state. The ext
 
 **Does not own:** Wi-Fi association/connection lifecycle, LocationService/provider selection, device location coordinates, icon PNG fetching/cache ownership, display calls, Weather screen state or loading/error drawing. The caller supplies API key and selected coordinates; the service does not obtain location or connect Wi-Fi.
 
-**PR #38 — WeatherDataService (in progress):** `src/services/WeatherDataService.h` will own current-weather and One Call request/parsing, current/forecast models, forecast pagination and demo data. Keep rendering/asset-cache ownership separate. Existing sketch-facing names may temporarily bind to references into the service-owned models so the drawing code does not need a broad rewrite in this slice.
+**PR #38 — WeatherDataService (merged):** `src/services/WeatherDataService.h` owns current-weather and One Call request/parsing, current/forecast models, forecast pagination, validity/error state and offline demo data. The sketch retains Wi-Fi lifecycle, LocationService/provider selection, location coordinates, icon fetching/cache, loading/error UI, screen/view state, rendering and input. Temporary sketch-facing references into service-owned models preserve the existing renderers. Merged at `716670c118cec37488cd895117d533a69c31d407` (2026-11-12); Verify/upload/physical regression are not established by the merge record.
 
 Initially preserve:
 - The existing current-weather fields, update semantics and availability flags.
@@ -144,6 +144,8 @@ The Weather app remains responsible for `connectWiFi()`, location coordinate own
 ### 3.8 Weather application and views
 
 **Owns:** Weather screen state, active Weather view, presentation layout, metric/list/graph rendering, and the mapping from semantic input to Weather actions.
+
+**Next extraction after PR #38:** treat this as an application/view boundary, not a generic UI framework. First map all functions and globals that read or mutate Weather state, the `setup()` / `loop()` call sites, render-target/canvas dependencies, and input callbacks. Then design a narrow Weather application façade with explicit lifecycle/update/input/render entry points and references to platform services/resources. Preserve existing renderers initially; do not combine this with a wholesale layout rewrite, asset-cache/network extraction or asynchronous scheduling. Keep graph/list/metric interaction policies local to Weather until a separate, evidence-based extraction is justified.
 
 The Weather app consumes platform Display, Input, Location and Time capabilities plus Weather data results. It must not configure Wi-Fi, call HTTP clients or fetch assets from inside drawing functions.
 
