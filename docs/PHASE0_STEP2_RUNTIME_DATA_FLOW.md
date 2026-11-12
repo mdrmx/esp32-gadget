@@ -7,7 +7,7 @@
 **Primary runtime entry point:** `weatherDashboard.ino`  
 **Service modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`; PR #38 adds `src/services/WeatherDataService.h`  
 **Source checkpoint:** `main` includes PR #37 merge `65b3019ef6ae5a89ba25591430532bf646e3e51e`; PR #38 working branch `phase1/12-weather-data-service`  
-**Extraction status:** PR #37 merged; Verify, upload and all user-reported physical Weather and interaction regression tests passed. PR #38 is extracting current/forecast data models, parsing and sequential pagination; implementation and verification are in progress  
+**Extraction status:** PRs #37 and #38 merged; PR #37 Verify/upload and physical Weather/interaction regression passed. PR #38 moves current/forecast data models, parsing and sequential pagination into `WeatherDataService`; its PR description lists Verify/upload/physical regression as pending. The next planned boundary is Weather application/views.  
 **Review date:** 2026-11-03
 
 ---
