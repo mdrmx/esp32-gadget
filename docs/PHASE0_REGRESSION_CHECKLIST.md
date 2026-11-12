@@ -149,9 +149,9 @@ This slice migrates only transport ownership for the remaining Weather HTTPS cal
 
 The wrapper supports root-CA configuration before request initialisation, but PR #36 does not install a certificate or change the existing insecure-TLS behaviour.
 
-## PR #38 — WeatherDataService and data model extraction (in progress; review fixes applied)
+## PR #38 — WeatherDataService and data model extraction (merged; validation status to be confirmed)
 
-`WeatherDataService` owns current-weather and One Call requests/parsing, forecast pagination, weather-data validity and the fixed-capacity data models. Wi-Fi association, LocationService/provider selection, icon PNG download/cache, loading/error UI and rendering remain outside the service. The One Call non-200 diagnostic reads a maximum of 240 bytes into a fixed stack buffer, avoiding unbounded response-body allocation. Unused sketch aliases `locationTimezoneOffset` and `weatherMain` were removed. The service preserves the original first-valid-hour UV/rain metric selection order, including when an initial record is skipped as a duplicate. The sketch delegates Wi-Fi-unavailable forecast state to the service.
+`WeatherDataService` owns current-weather and One Call requests/parsing, forecast pagination, weather-data validity and fixed-capacity data models. Wi-Fi association, LocationService/provider selection, icon PNG download/cache, loading/error UI and rendering remain outside the service. The One Call non-200 diagnostic reads a maximum of 240 bytes into a fixed stack buffer. Unused sketch aliases `locationTimezoneOffset` and `weatherMain` were removed. The service preserves first-valid-hour UV/rain selection order, including when an initial record is skipped as a duplicate. The sketch delegates Wi-Fi-unavailable forecast state to the service. PR #38 merged at `716670c118cec37488cd895117d533a69c31d407` on 2026-11-12. The pull request body still reports Verify/upload/physical regression as pending; the checklist below is therefore retained as outstanding until the user supplies the subsequent test outcome.
 
 - [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12 after the review-fix commits.
 - [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
