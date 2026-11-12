@@ -1,5 +1,4 @@
 #include <WiFi.h>
-#include <ArduinoJson.h>
 #include <Arduino_GFX_Library.h>
 #include <PNGdec.h>
 #include <time.h>
@@ -16,7 +15,13 @@
 #include "src/hardware/Cst816Reader.h"
 #include "src/services/TimeService.h"
 #include "src/services/LocationService.h"
-#include "src/services/HttpRequestClient.h"
+#include "src/services/WeatherDataService.h"
+
+// The service owns these models. Temporary references keep the existing
+// Weather renderers readable while data ownership moves out of the sketch.
+WeatherDataService weatherDataService;
+WeatherCurrentData& weatherCurrentData = weatherDataService.current();
+WeatherForecastData& weatherForecastData = weatherDataService.forecast();
 
 // =====================================================
 // CONFIGURATION
@@ -42,7 +47,6 @@ const char* apiKey = OPENWEATHER_API_KEY;
 const char* CITY = "Manchester,GB";
 float locationLat = 53.4808f;
 float locationLon = -2.2426f;
-long locationTimezoneOffset = 0;
 // Prefer a reverse-geocoded display name, with the IP provider's city as a
 // fallback. Keep it separate from the weather provider's station name.
 String locationDisplayName = "";
@@ -155,31 +159,37 @@ const uint16_t ERROR_COLOUR = 0xF986;
 // WEATHER DATA
 // =====================================================
 
-String weatherCity = "";
-String weatherDescription = "";
-String weatherMain = "";
-String weatherIcon = "03d";
-String forecastError = "";
-float temperature = 0.0;
-float feelsLike = 0.0;
-int humidity = 0;
-int pressure = 0;
-float windSpeedKmh = 0.0f;
-int cloudCover = 0;
-int visibilityMeters = 0;
-float rainLastHourMm = 0.0f;
-float currentUvIndex = 0.0f;
-float currentRainProbability = 0.0f;
-bool visibilityAvailable = false;
-bool uvIndexAvailable = false;
-bool rainProbabilityAvailable = false;
-bool weatherAvailable = false;
-bool forecastAvailable = false;
+// These aliases are a temporary compatibility facade for the existing Weather
+// presentation code. The service owns the actual current/forecast objects.
+String& weatherCity = weatherCurrentData.city;
+String& weatherDescription = weatherCurrentData.description;
+String& weatherIcon = weatherCurrentData.icon;
+bool& weatherAvailable = weatherCurrentData.available;
+
+float& temperature = weatherCurrentData.temperature;
+float& feelsLike = weatherCurrentData.feelsLike;
+int& humidity = weatherCurrentData.humidity;
+int& pressure = weatherCurrentData.pressure;
+float& windSpeedKmh = weatherCurrentData.windSpeedKmh;
+int& cloudCover = weatherCurrentData.cloudCover;
+int& visibilityMeters = weatherCurrentData.visibilityMeters;
+float& rainLastHourMm = weatherCurrentData.rainLastHourMm;
+bool& visibilityAvailable = weatherCurrentData.visibilityAvailable;
+
+String& forecastError = weatherForecastData.error;
+float& currentUvIndex = weatherForecastData.currentUvIndex;
+float& currentRainProbability = weatherForecastData.currentRainProbability;
+bool& uvIndexAvailable = weatherForecastData.uvIndexAvailable;
+bool& rainProbabilityAvailable = weatherForecastData.rainProbabilityAvailable;
+bool& forecastAvailable = weatherForecastData.available;
+int& forecastCount = weatherForecastData.count;
+ForecastItem* const forecast = weatherForecastData.items;
+
 unsigned long lastUpdate = 0;
 
 bool loadDemoWeatherData();
 
-const int MAX_FORECAST = 48;
+const int MAX_FORECAST = WeatherForecastData::MaxRecords;
 const int ITEMS_PER_PAGE = 3;
 
 const int WEATHER_METRIC_COUNT = 8;
@@ -229,21 +239,10 @@ const int FORECAST_CONTROL_TAP_SLOP_PX = 40;
 // Limit full-viewport bitmap transfers during fast finger drags.
 const unsigned long FORECAST_DRAG_RENDER_INTERVAL_MS = 50UL;
 
-struct ForecastItem {
-  String timeText;
-  String description;  // OpenWeather condition group, e.g. Clouds, Rain, Clear.
-  float temp;
-  float feelsLike;
-  float rainProbability; // 0.0 to 1.0 from OpenWeather pop.
-  uint32_t timestamp;
-};
-
-ForecastItem forecast[MAX_FORECAST];
-int forecastCount = 0;
 int forecastOffset = 0;
-bool forecastGraphView = false;
 int forecastGraphOffset = 0; // First hour currently nearest the left edge.
 int forecastGraphScrollPixels = 0;
+bool forecastGraphView = false;
 uint8_t forecastControlTouch = 0; // 3=list, 4=graph.
 int forecastControlStartX = 0;
 int forecastControlStartY = 0;
@@ -2500,10 +2499,11 @@ bool connectWiFi() {
 }
 
 // =====================================================
-// FETCH CURRENT WEATHER
+// WEATHER DATA SERVICE ADAPTERS
 // =====================================================
 
-// Location provider orchestration and reverse geocoding live in LocationService.h.
+// Keep Wi-Fi lifecycle and all loading/error UI in the Weather sketch.
+// WeatherDataService receives only the selected location and API key.
 bool fetchWeather() {
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();
@@ -2515,257 +2515,62 @@ bool fetchWeather() {
   }
 
   drawLoading("Fetching weather...");
-  String url =
-    "https://api.openweathermap.org/data/2.5/weather?lat=" +
-    String(locationLat, 4) + "&lon=" + String(locationLon, 4) +
-    "&appid=" + String(apiKey) + "&units=metric";
+  const WeatherDataService::FetchResult result =
+    weatherDataService.fetchCurrentWeather(
+      locationLat, locationLon, apiKey, locationCoordinatesResolved);
 
-  HttpRequestClient http;
-  if (!http.begin(
-        url, 15000, 15000,
-        HttpRequestClient::TlsPolicy::InsecureCompatibility)) {
-    if (weatherAvailable) drawWeather();
-    else drawError("HTTP init failed");
+  if (!result.success) {
+    DEBUG_PRINTF(
+      "Weather request failed (HTTP %d): %s\n",
+      result.httpStatus, result.detail.c_str());
+
+    if (weatherAvailable) {
+      drawWeather();
+    } else if (result.errorCode ==
+               WeatherDataService::ErrorCode::RequestInitializationFailed) {
+      drawError("HTTP init failed");
+    } else if (result.errorCode ==
+               WeatherDataService::ErrorCode::Unauthorized) {
+      drawError("Check API key");
+    } else if (result.errorCode ==
+               WeatherDataService::ErrorCode::NotFound) {
+      drawError("City not found");
+    } else if (result.errorCode ==
+               WeatherDataService::ErrorCode::JsonParseFailed) {
+      drawError("JSON parse failed");
+    } else {
+      drawError("Request failed");
+    }
     return false;
   }
 
-  int code = http.get();
-
-  if (code != HTTP_CODE_OK) {
-    DEBUG_PRINTF("Weather HTTP status: %d\n", code);
-    http.end();
-    if (weatherAvailable) drawWeather();
-    else if (code == 401) drawError("Check API key");
-    else if (code == 404) drawError("City not found");
-    else drawError("Request failed");
-    return false;
+  // OpenWeather's reporting-station coordinates are only a fallback when the
+  // platform LocationService did not obtain a provider fix.
+  if (!locationCoordinatesResolved && result.hasLocationCoordinates) {
+    locationLat = result.suggestedLatitude;
+    locationLon = result.suggestedLongitude;
   }
-
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, http.getStream());
-  http.end();
-
-  if (error) {
-    DEBUG_PRINTF("Weather JSON error: %s\n", error.c_str());
-    if (weatherAvailable) drawWeather();
-    else drawError("JSON parse failed");
-    return false;
-  }
-
-  weatherCity = doc["name"] | "Unknown";
-  weatherDescription = doc["weather"][0]["description"] | "Unknown";
-  weatherMain = doc["weather"][0]["main"] | "Unknown";
-  weatherIcon = doc["weather"][0]["icon"] | "03d";
-  // Keep coordinates supplied by the positioning lookup. OpenWeather can
-  // return coordinates for a nearby reporting location instead.
-  if (!locationCoordinatesResolved) {
-    locationLat = doc["coord"]["lat"] | locationLat;
-    locationLon = doc["coord"]["lon"] | locationLon;
-  }
-  locationTimezoneOffset = doc["timezone"] | locationTimezoneOffset;
-  temperature = doc["main"]["temp"] | 0.0f;
-  feelsLike = doc["main"]["feels_like"] | 0.0f;
-  humidity = doc["main"]["humidity"] | 0;
-  pressure = doc["main"]["pressure"] | 0;
-  windSpeedKmh = (doc["wind"]["speed"] | 0.0f) * 3.6f;
-  cloudCover = doc["clouds"]["all"] | 0;
-  visibilityAvailable = !doc["visibility"].isNull();
-  visibilityMeters = doc["visibility"] | 0;
-  rainLastHourMm = doc["rain"]["1h"] | 0.0f;
-  weatherAvailable = true;
 
   DEBUG_PRINTF(
     "%s: %.1f C, %s, humidity %d%%, pressure %d hPa\n",
-    weatherCity.c_str(), temperature, weatherDescription.c_str(), humidity, pressure);
+    weatherCity.c_str(), temperature, weatherDescription.c_str(),
+    humidity, pressure);
   return true;
 }
 
-// =====================================================
-// FETCH ONE CALL 4.0 HOURLY FORECAST
-// =====================================================
-
-String formatForecastTime(uint32_t timestamp, long timezoneOffset) {
-  time_t localTimestamp = (time_t)timestamp + (time_t)timezoneOffset;
-  struct tm localTime;
-  gmtime_r(&localTimestamp, &localTime);
-
-  char clockText[8];
-  snprintf(clockText, sizeof(clockText), "%02d:%02d", localTime.tm_hour, localTime.tm_min);
-
-  if (forecastCount > 0) {
-    time_t firstTimestamp = (time_t)forecast[0].timestamp + (time_t)timezoneOffset;
-    struct tm firstTime;
-    gmtime_r(&firstTimestamp, &firstTime);
-
-    if (localTime.tm_yday != firstTime.tm_yday || localTime.tm_year != firstTime.tm_year) {
-      const char* dayNames[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-      return String(dayNames[localTime.tm_wday]) + " " + String(clockText);
-    }
-  }
-
-  return String(clockText);
-}
-
-// Deterministic UI fixture for feature development. This intentionally fills
-// every metric and several forecast states without connecting to Wi-Fi.
+// Deterministic UI fixture for feature development. The service owns the data;
+// the sketch applies the fixture's location and clamps view-specific offsets.
 bool loadDemoWeatherData() {
-  weatherCity = "Manchester";
-  weatherDescription = "scattered clouds";
-  weatherMain = "Clouds";
-  weatherIcon = "03d";
+  const bool loaded = weatherDataService.loadDemoData(time(nullptr));
+  if (!loaded) return false;
+
   locationLat = 53.4808f;
   locationLon = -2.2426f;
-  locationTimezoneOffset = 0;
-  temperature = 14.6f;
-  feelsLike = 13.8f;
-  humidity = 68;
-  pressure = 1014;
-  windSpeedKmh = 16.2f;
-  cloudCover = 40;
-  visibilityMeters = 10000;
-  rainLastHourMm = 0.2f;
-  currentUvIndex = 1.4f;
-  currentRainProbability = 0.25f;
-  visibilityAvailable = true;
-  uvIndexAvailable = true;
-  rainProbabilityAvailable = true;
-  weatherAvailable = true;
-  forecastError = "";
-  forecastCount = 24;
   forecastOffset = min(forecastOffset, max(0, forecastCount - ITEMS_PER_PAGE));
-
-  const char* descriptions[] = {
-    "Clouds", "Clouds", "Rain", "Clouds", "Clear", "Clear",
-    "Clouds", "Rain", "Clouds", "Clear", "Clouds", "Clouds"
-  };
-  const float temperatures[] = {
-    14.6f, 14.1f, 13.8f, 13.2f, 12.9f, 12.5f,
-    12.1f, 11.8f, 11.6f, 11.9f, 12.4f, 13.0f
-  };
-  const float rainProbabilities[] = {
-    0.05f, 0.10f, 0.35f, 0.55f, 0.18f, 0.05f,
-    0.03f, 0.72f, 0.48f, 0.12f, 0.06f, 0.02f
-  };
-  const time_t now = time(nullptr);
-  for (int i = 0; i < forecastCount; i++) {
-    int sample = i % 12;
-    forecast[i].timestamp = (uint32_t)(now + (time_t)i * 3600);
-    forecast[i].timeText = formatForecastTime(
-      forecast[i].timestamp, locationTimezoneOffset);
-    forecast[i].description = descriptions[sample];
-    forecast[i].temp = temperatures[sample];
-    forecast[i].feelsLike = temperatures[sample] - (sample % 3 == 0 ? 1.0f : 0.0f);
-    forecast[i].rainProbability = rainProbabilities[sample];
-  }
   forecastGraphOffset = constrain(
     forecastGraphOffset, 0, max(0, forecastCount - FORECAST_GRAPH_POINTS));
   forecastGraphScrollPixels =
     forecastGraphOffset * FORECAST_GRAPH_POINT_SPACING;
-  forecastAvailable = true;
-  DEBUG_PRINTLN("Demo mode: loaded local weather and 24 sample forecast entries; no API calls.");
-  return true;
-}
-
-bool fetchOneCallForecastPage(const String& url, String& nextUrl) {
-  HttpRequestClient http;
-  if (!http.begin(
-        url, 15000, 15000,
-        HttpRequestClient::TlsPolicy::InsecureCompatibility)) {
-    forecastError = "Hourly API unavailable";
-    DEBUG_PRINTLN("One Call HTTP initialisation failed");
-    return false;
-  }
-
-  int code = http.get();
-
-  if (code != HTTP_CODE_OK) {
-    // Capture the response body before closing HTTP. OpenWeather normally
-    // includes a JSON message for rejected keys, subscriptions, and limits.
-    String errorBody = http.getString();
-    DEBUG_PRINTF("One Call hourly HTTP status: %d\n", code);
-    if (errorBody.length() > 0) {
-      if (errorBody.length() > 240) errorBody = errorBody.substring(0, 240);
-      DEBUG_PRINTF("One Call error response: %s\n", errorBody.c_str());
-    }
-    http.end();
-
-    if (code == 401 || code == 403) {
-      forecastError = "Check One Call access";
-    } else if (code == 429) {
-      forecastError = "One Call rate limit";
-    } else if (code < 0) {
-      forecastError = "One Call network error";
-    } else {
-      forecastError = "One Call HTTP " + String(code);
-    }
-    return false;
-  }
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, http.getStream());
-  http.end();
-
-  if (error) {
-    DEBUG_PRINTF("One Call hourly JSON error: %s\n", error.c_str());
-    forecastError = "Hourly data parse failed";
-    return false;
-  }
-
-  locationTimezoneOffset = doc["timezone_offset"] | locationTimezoneOffset;
-  nextUrl = doc["next"] | "";
-
-  JsonArray list = doc["data"].as<JsonArray>();
-  if (list.isNull()) {
-    DEBUG_PRINTLN("One Call response did not contain a data array.");
-    serializeJson(doc, Serial);
-    DEBUG_PRINTLN();
-    forecastError = "Unexpected One Call data";
-    return false;
-  }
-  DEBUG_PRINTF("One Call page contains %u record(s).\n", (unsigned)list.size());
-  for (JsonObject item : list) {
-    if (forecastCount >= MAX_FORECAST) break;
-
-    uint32_t timestamp = item["dt"] | 0UL;
-    if (timestamp == 0) continue;
-
-    bool duplicate = false;
-    for (int i = 0; i < forecastCount; i++) {
-      if (forecast[i].timestamp == timestamp) {
-        duplicate = true;
-        break;
-      }
-    }
-    if (duplicate) continue;
-
-    const char* desc = item["weather"][0]["main"] | "Unknown";
-    float temp = item["temp"] | 0.0f;
-    float feelsLikeValue = item["feels_like"] | temp;
-    float precipitationProbability = item["pop"] | 0.0f;
-    precipitationProbability = constrain(
-      precipitationProbability, 0.0f, 1.0f);
-
-    // The first valid hourly record is the nearest available estimate for
-    // current UV index and precipitation probability.
-    if (forecastCount == 0) {
-      if (!item["uvi"].isNull()) {
-        currentUvIndex = item["uvi"].as<float>();
-        uvIndexAvailable = true;
-      }
-      if (!item["pop"].isNull()) {
-        currentRainProbability = item["pop"].as<float>();
-        rainProbabilityAvailable = true;
-      }
-    }
-
-    forecast[forecastCount].timestamp = timestamp;
-    forecast[forecastCount].timeText = formatForecastTime(timestamp, locationTimezoneOffset);
-    forecast[forecastCount].description = String(desc);
-    forecast[forecastCount].temp = temp;
-    forecast[forecastCount].feelsLike = feelsLikeValue;
-    forecast[forecastCount].rainProbability = precipitationProbability;
-    forecastCount++;
-  }
-
   return true;
 }
 
@@ -2774,55 +2579,42 @@ bool fetchForecast() {
   return loadDemoWeatherData();
 #endif
   if (!connectWiFi()) {
-    forecastAvailable = false;
-    forecastError = "Wi-Fi unavailable";
+    weatherDataService.setForecastUnavailable("Wi-Fi unavailable");
     return false;
   }
 
-  forecastCount = 0;
-  forecastError = "";
-  currentUvIndex = 0.0f;
-  currentRainProbability = 0.0f;
-  uvIndexAvailable = false;
-  rainProbabilityAvailable = false;
+  const WeatherDataService::FetchResult result =
+    weatherDataService.fetchHourlyForecast(locationLat, locationLon, apiKey);
 
-  String nextUrl =
-    "https://api.openweathermap.org/data/4.0/onecall/timeline/1h?lat=" + String(locationLat, 4) + "&lon=" + String(locationLon, 4) + "&units=metric&appid=" + String(apiKey);
-
-  // The 1-hour endpoint returns up to 20 entries per request. Follow its
-  // prepared pagination URL until we have up to 48 hours or no next page.
-  int pageCount = 0;
-  const int MAX_HOURLY_PAGES = 3;
-
-  while (nextUrl.length() > 0 && forecastCount < MAX_FORECAST && pageCount < MAX_HOURLY_PAGES) {
-    String pageUrl = nextUrl;
-    String pageNext = "";
-    if (!fetchOneCallForecastPage(pageUrl, pageNext)) {
-      if (forecastCount == 0) {
-        forecastAvailable = false;
-        DEBUG_PRINTLN("Hourly forecast unavailable. Check One Call API 4.0 subscription and API key.");
-        return false;
-      }
-      break;
-    }
-
-    nextUrl = pageNext;
-    pageCount++;
+  // View offsets and graph pixels are Weather presentation state, not data
+  // service state. Clamp them only after a response has produced usable data,
+  // matching the original early-failure behaviour.
+  if (result.success || result.pagesFetched > 0) {
+    forecastGraphOffset = constrain(
+      forecastGraphOffset, 0, max(0, forecastCount - FORECAST_GRAPH_POINTS));
+    forecastGraphScrollPixels =
+      forecastGraphOffset * FORECAST_GRAPH_POINT_SPACING;
+    forecastOffset = constrain(
+      forecastOffset, 0, max(0, forecastCount - ITEMS_PER_PAGE));
   }
 
-  forecastAvailable = forecastCount > 0;
-  forecastGraphOffset = constrain(
-    forecastGraphOffset, 0, max(0, forecastCount - FORECAST_GRAPH_POINTS));
-  forecastGraphScrollPixels =
-    forecastGraphOffset * FORECAST_GRAPH_POINT_SPACING;
-  forecastOffset = constrain(
-    forecastOffset, 0, max(0, forecastCount - ITEMS_PER_PAGE));
-  if (!forecastAvailable && forecastError.length() == 0) {
-    forecastError = "No hourly records";
-    DEBUG_PRINTLN("One Call returned without any parsable hourly records.");
+  if (!result.success) {
+    DEBUG_PRINTF(
+      "Hourly forecast unavailable (%d pages): %s\n",
+      result.pagesFetched, result.detail.c_str());
+    return false;
   }
 
-  DEBUG_PRINTF("Hourly forecast records received: %d across %d page(s)\n", forecastCount, pageCount);
+  if (result.partial) {
+    DEBUG_PRINTF(
+      "Hourly forecast retained %d record(s) after a later page failed: %s\n",
+      forecastCount, result.detail.c_str());
+  } else {
+    DEBUG_PRINTF(
+      "Hourly forecast records received: %d across %d page(s)\n",
+      forecastCount, result.pagesFetched);
+  }
+
   return forecastAvailable;
 }
 
