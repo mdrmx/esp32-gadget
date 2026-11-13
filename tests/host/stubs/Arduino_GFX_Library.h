@@ -25,7 +25,42 @@ public:
 
   void print(const String& text) {
     lastPrinted = text;
+    if (printCount < MAX_RECORDED_PRINTS) {
+      printedText[printCount] = text;
+      printedX[printCount] = cursorX;
+      printedY[printCount] = cursorY;
+      printedSize[printCount] = textSize;
+      printedColour[printCount] = textColour;
+    }
     ++printCount;
+  }
+
+  void fillRect(
+    int16_t x,
+    int16_t y,
+    int16_t width,
+    int16_t height,
+    uint16_t colour
+  ) {
+    ++fillRectCount;
+    lastFillRectX = x;
+    lastFillRectY = y;
+    lastFillRectWidth = width;
+    lastFillRectHeight = height;
+    lastFillRectColour = colour;
+  }
+
+  void drawFastHLine(
+    int16_t x,
+    int16_t y,
+    int16_t width,
+    uint16_t colour
+  ) {
+    ++horizontalLineCount;
+    lastLineX = x;
+    lastLineY = y;
+    lastLineWidth = width;
+    lastLineColour = colour;
   }
 
   void getTextBounds(
@@ -55,6 +90,26 @@ public:
   int cursorY = 0;
   String lastPrinted;
   int printCount = 0;
+
+  static const int MAX_RECORDED_PRINTS = 16;
+  String printedText[MAX_RECORDED_PRINTS];
+  int printedX[MAX_RECORDED_PRINTS] = {};
+  int printedY[MAX_RECORDED_PRINTS] = {};
+  uint8_t printedSize[MAX_RECORDED_PRINTS] = {};
+  uint16_t printedColour[MAX_RECORDED_PRINTS] = {};
+
+  int fillRectCount = 0;
+  int lastFillRectX = 0;
+  int lastFillRectY = 0;
+  int lastFillRectWidth = 0;
+  int lastFillRectHeight = 0;
+  uint16_t lastFillRectColour = 0;
+
+  int horizontalLineCount = 0;
+  int lastLineX = 0;
+  int lastLineY = 0;
+  int lastLineWidth = 0;
+  uint16_t lastLineColour = 0;
 
 protected:
   Arduino_GFX(int width = 320, int height = 240)
