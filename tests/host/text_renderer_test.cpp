@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
 
 #include "../../src/ui/TextRenderer.h"
 
@@ -59,21 +60,9 @@ int main() {
   CHECK(target->cursorY == 44);
   CHECK(target->lastPrinted == String("rain"));
 
-  CHECK(displayManager.createTabTransitionCanvas(
-    displayManager.width(), displayManager.height()));
-  displayManager.beginTabTransitionRender();
-  Arduino_GFX* transitionTarget = displayManager.target();
-  CHECK(transitionTarget != nullptr);
-  CHECK(transitionTarget != target);
-
-  renderer.drawText("transition", 3, 4, 1, 0xFFFF);
-  CHECK(transitionTarget->lastPrinted == String("transition"));
-  CHECK(target->lastPrinted == String("rain"));
-
   // DisplayManager can temporarily expose no target before a transition
   // canvas is available. All renderer methods must fail safely in that state.
   const int physicalPrintCount = target->printCount;
-  displayManager.endTabTransitionRender();
   displayManager.beginTabTransitionRender();
   CHECK(displayManager.target() == nullptr);
   renderer.drawText("no target", 0, 0, 1, 0xFFFF);
@@ -85,6 +74,20 @@ int main() {
   CHECK(renderer.drawCenteredWeatherLine(
     "no target", 160, 10, 1, 0xFFFF) == 0);
   CHECK(target->printCount == physicalPrintCount);
+
+  displayManager.endTabTransitionRender();
+  CHECK(displayManager.target() == target);
+
+  CHECK(displayManager.createTabTransitionCanvas(
+    displayManager.width(), displayManager.height()));
+  displayManager.beginTabTransitionRender();
+  Arduino_GFX* transitionTarget = displayManager.target();
+  CHECK(transitionTarget != nullptr);
+  CHECK(transitionTarget != target);
+
+  renderer.drawText("transition", 3, 4, 1, 0xFFFF);
+  CHECK(transitionTarget->lastPrinted == String("transition"));
+  CHECK(target->lastPrinted == String("rain"));
 
   displayManager.endTabTransitionRender();
   CHECK(displayManager.target() == target);
