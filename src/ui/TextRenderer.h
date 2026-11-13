@@ -20,6 +20,7 @@ public:
     uint16_t colour
   ) const {
     Arduino_GFX* target = displayManager_.target();
+    if (target == nullptr) return;
     target->setTextSize(size);
     target->setTextColor(colour);
     target->setCursor(x, y);
@@ -33,6 +34,7 @@ public:
     uint16_t colour
   ) const {
     Arduino_GFX* target = displayManager_.target();
+    if (target == nullptr) return;
     target->setTextSize(size);
     target->setTextColor(colour);
 
@@ -42,10 +44,12 @@ public:
       text.c_str(), 0, y, &x1, &y1, &width, &height);
 
     int x = (displayManager_.width() - (int)width) / 2;
-    if (x < 4) x = 4;
     if (x + (int)width > displayManager_.width() - 4) {
-      x = displayManager_.width() - 4 - width;
+      x = displayManager_.width() - 4 - (int)width;
     }
+    // Keep the start of very wide text visible even when the right edge
+    // cannot fit within the display's margin.
+    if (x < 4) x = 4;
 
     target->setCursor(x, y);
     target->print(text);
@@ -53,6 +57,7 @@ public:
 
   int measureTextWidth(const String& text, uint8_t size) const {
     Arduino_GFX* target = displayManager_.target();
+    if (target == nullptr) return 0;
     target->setTextSize(size);
 
     int16_t x1, y1;
@@ -64,6 +69,7 @@ public:
 
   int measureTextHeight(const String& text, uint8_t size) const {
     Arduino_GFX* target = displayManager_.target();
+    if (target == nullptr) return 0;
     target->setTextSize(size);
 
     int16_t x1, y1;
@@ -83,6 +89,8 @@ public:
     uint8_t size,
     uint16_t colour
   ) const {
+    if (displayManager_.target() == nullptr) return 0;
+
     String lines[2];
     int lineCount = 0;
     String currentLine;
@@ -132,6 +140,7 @@ public:
     if (lineCount == 0) return 0;
 
     Arduino_GFX* target = displayManager_.target();
+    if (target == nullptr) return 0;
     target->setTextSize(size);
     target->setTextColor(colour);
     int lineHeight = measureTextHeight(lines[0], size);
@@ -155,6 +164,7 @@ public:
     uint16_t colour
   ) const {
     Arduino_GFX* target = displayManager_.target();
+    if (target == nullptr) return 0;
     target->setTextSize(size);
 
     int16_t x1, y1;
