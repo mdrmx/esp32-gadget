@@ -143,7 +143,7 @@ If the initial connection attempt fails, the live startup path still calls `fetc
 
 ## 4. Main loop and scheduling
 
-The complete `loop()` body is small (lines 3573–3594), but it runs several potentially blocking operations in sequence.
+The device `loop()` is now a small platform adapter: it calls `weatherApp.update()` and retains the 30 ms pacing delay. `WeatherApp` runs the Weather-owned input/time/render/refresh sequence through injected hooks. The operations remain synchronous and some can block.
 
 ```mermaid
 flowchart TD
@@ -170,11 +170,12 @@ flowchart TD
 
 | Activity | Trigger / cadence | Behaviour |
 |---|---|---|
-| Touch polling | Every loop pass | Read and interpret one CST816 sample when touch is available |
-| Time sync check | Every loop pass | Check Wi-Fi state and determine whether a TimeAPI request is due |
+| Weather application update | Every device loop pass | `weatherApp.update()` coordinates the Weather hooks |
+| Touch polling | Every WeatherApp update | Read and interpret one CST816 sample when touch is available |
+| Time sync check | Every WeatherApp update | Check Wi-Fi state and determine whether a TimeAPI request is due |
 | Header clock | At least once per second | Re-read the system clock; redraw only if the displayed minute string changed |
 | Weather refresh | Every 600,000 ms | Fetch current conditions, then hourly forecast, then redraw the active tab |
-| Idle pacing | Every loop pass | `delay(30)` after the work above |
+| Idle pacing | Every device loop pass | `delay(30)` after the WeatherApp update |
 
 The ten-minute interval is `WeatherApp::DefaultRefreshIntervalMs = 600000UL`. `WeatherApp` assigns its refresh timestamp **before** the two fetch operations begin, preserving the previous cadence. If a refresh takes long enough to cross another interval boundary, the next update can find the refresh due again; there is no separate refresh-complete timestamp. `weatherDashboard.ino` now delegates recurring work to `weatherApp.update()` and retains only the device-level 30 ms loop pacing.
 
