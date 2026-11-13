@@ -2669,7 +2669,7 @@ void weatherAppDrawForecast() {
 }
 
 void weatherAppDrawError(const char* message) {
-  drawError(String(message));
+  drawError(message != nullptr ? String(message) : String("Unknown error"));
 }
 
 void weatherAppRefreshStarted() {
