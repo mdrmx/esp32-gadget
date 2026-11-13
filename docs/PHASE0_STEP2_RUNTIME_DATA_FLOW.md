@@ -5,9 +5,9 @@
 **Related inventory:** [Phase 0, Step 1 — Code inventory](PHASE0_STEP1_CODE_INVENTORY.md)  
 **Repository:** `mdrmx/esp32-gadget`  
 **Primary runtime entry point:** `weatherDashboard.ino`  
-**Service/application modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h` and `src/apps/weather/WeatherViewState.h`  
-**Source checkpoint:** branch `phase1/14-weather-view-state` based on PR #39 merge `3c613363f3b57bebe4245350cc57a3d6aa7a52d6`  
-**Extraction status:** PRs #37–#39 are merged and validated. PR #39 WeatherApp shell is hardware-validated. PR #40 moves persistent tab, metric/list/graph offset and forecast-mode state into WeatherViewState; its C++11 host tests pass. Arduino IDE Verify, upload/boot and Waveshare physical regression for PR #40 remain pending. Renderer and detailed touch-policy ownership remain in the sketch.  
+**Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h` and `src/ui/TextRenderer.h`  
+**Source checkpoint:** branch `phase1/15-text-renderer` based on PR #40 merge `266ef646022353dd57bb552fc17a7ba523ad8708`  
+**Extraction status:** PR #40 WeatherViewState is merged after user-confirmed Waveshare physical regression; by project convention Verify and upload/boot are recorded as passed. PR #41 extracts shared text drawing, measurement and wrapping into TextRenderer; its C++11 host tests pass. Arduino IDE Verify and Waveshare physical regression for PR #41 remain pending. View-specific Weather/Forecast/graph drawing and detailed touch-policy ownership remain in the sketch.  
 **Review date:** 2026-11-13
 
 ---
@@ -16,7 +16,7 @@
 
 This document completes Phase 0, Step 2: trace how the existing firmware behaves at runtime and how input, application state, network responses and rendering connect.
 
-The trace follows the merged Weather sketch and extracted services after PR #36, plus the PR #37 request-transport migration on the current feature branch. It covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
+The trace follows the merged Weather sketch and extracted services, including the PR #40 view-state merge and PR #41 text-rendering boundary on the current feature branch. It covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
 
 This is a **static source-level runtime map**. It does not claim that the firmware was compiled, profiled, or tested on the physical Waveshare board during this step. Timing values below are configured timeout / scheduling values in the source, not measured network latency or observed responsiveness.
 
