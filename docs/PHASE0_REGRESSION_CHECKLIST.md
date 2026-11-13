@@ -220,7 +220,7 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 - [x] Under the project convention, Arduino IDE Verify, upload/boot and required Waveshare regression are recorded as passed on the final merged revision.
 - [x] No build-size figures were inferred for the final review-fixed merge. The previously recorded 1,164,219 bytes program storage, 97,380 bytes global dynamic memory and 230,300 bytes remaining are tied only to pre-review revision `36c4d634dc9ee3a66ed6c9ca4286d41b0b216700`.
 
-## PR #42 — HeaderRenderer extraction (in progress)
+## PR #42 — HeaderRenderer extraction (validation passed; awaiting merge)
 
 `HeaderRenderer` moves the fixed 36 px header background, location/clock text placement, divider and clock-only redraw region into `src/ui/HeaderRenderer.h`. Weather retains location resolution, Weather data access, `TimeService`, `lastHeaderClock` and the refresh decision; colours are passed into the renderer. The component uses `TextRenderer` and the active `DisplayManager::target()`.
 
