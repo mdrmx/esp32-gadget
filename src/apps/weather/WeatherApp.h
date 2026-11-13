@@ -13,6 +13,11 @@
 // slices.
 class WeatherApp {
  public:
+  enum class View : uint8_t {
+    Weather = 0,
+    Forecast = 1
+  };
+
   struct Hooks {
     void (*processInput)();
     void (*syncTime)();
@@ -20,9 +25,9 @@ class WeatherApp {
     uint32_t (*millisNow)();
 
     bool (*fetchCurrentWeather)();
-    bool (*fetchForecast)();
+    void (*fetchForecast)();
     bool (*weatherAvailable)();
-    int (*activeTab)();
+    View (*activeView)();
 
     void (*drawWeather)();
     void (*drawForecast)();
@@ -37,7 +42,7 @@ class WeatherApp {
           fetchCurrentWeather(nullptr),
           fetchForecast(nullptr),
           weatherAvailable(nullptr),
-          activeTab(nullptr),
+          activeView(nullptr),
           drawWeather(nullptr),
           drawForecast(nullptr),
           drawError(nullptr),
@@ -112,7 +117,7 @@ class WeatherApp {
       const bool currentOk = hooks_.fetchCurrentWeather();
       hooks_.fetchForecast();
 
-      if (hooks_.activeTab() == 1) {
+      if (hooks_.activeView() == View::Forecast) {
         hooks_.drawForecast();
       } else if (currentOk || hooks_.weatherAvailable()) {
         hooks_.drawWeather();
@@ -153,7 +158,7 @@ class WeatherApp {
            hooks.fetchCurrentWeather != nullptr &&
            hooks.fetchForecast != nullptr &&
            hooks.weatherAvailable != nullptr &&
-           hooks.activeTab != nullptr &&
+           hooks.activeView != nullptr &&
            hooks.drawWeather != nullptr &&
            hooks.drawForecast != nullptr &&
            hooks.drawError != nullptr;
