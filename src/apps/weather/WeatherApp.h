@@ -84,7 +84,7 @@ class WeatherApp {
     // Start the refresh interval after startup retrieval/rendering, matching
     // the previous sketch behaviour.
     lastRefreshMs_ = hooks_.millisNow();
-    lastClockRefreshMs_ = 0;
+    lastClockRefreshMs_ = lastRefreshMs_;
     return true;
   }
 
