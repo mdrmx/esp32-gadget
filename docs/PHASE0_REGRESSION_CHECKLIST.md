@@ -191,9 +191,9 @@ The wrapper supports root-CA configuration before request initialisation, but PR
 
 The user confirms the PR #39 physical validation checks passed on the Waveshare hardware. Arduino Verify, upload/boot and all physical regression checks in this section are therefore recorded as passed. PR #39 merged at `3c613363f3b57bebe4245350cc57a3d6aa7a52d6`; exact build-size and memory figures were not supplied.
 
-## PR #40 — WeatherViewState extraction (host-tested; hardware validation pending)
+## PR #40 — WeatherViewState extraction (passed)
 
-`WeatherViewState` owns the active tab, canonical Weather metric and forecast scroll offsets, and List/Graph mode. The sketch keeps temporary references for compatibility; drag/contact state, gesture policy, animations and renderers remain unchanged in the sketch.
+`WeatherViewState` owns the active tab, canonical Weather metric and forecast scroll offsets, and List/Graph mode. The user confirmed the physical Waveshare regression passed before merge. By project convention, Arduino IDE Verify and upload/boot are also recorded as passed. Exact build-size and memory figures were not supplied.
 
 - [x] Compile the standalone state test with C++11, `-Wall -Wextra -Werror -pedantic`.
 - [x] Confirm default state is Weather tab, first metric/hour, and List mode.
@@ -201,15 +201,33 @@ The user confirms the PR #39 physical validation checks passed on the Waveshare 
 - [x] Confirm selecting Graph resets list and graph offsets and selects Graph mode.
 - [x] Confirm selecting List resets list and graph offsets and selects List mode.
 - [x] Run `sh scripts/test-weather-view-state.sh`; host test reports `WeatherViewState tests passed.`
+- [x] Arduino IDE Verify, upload and boot on the Waveshare ESP32-S3 Touch LCD 2 (recorded by project convention after user-confirmed physical validation).
+- [x] Confirm startup, Weather/Forecast drawing and active-tab refresh remain unchanged.
+- [x] Confirm metric-card scrolling, forecast-list drag/gesture scrolling and graph drag/scroll remain unchanged.
+- [x] Confirm switching the main tab resets canonical scroll positions while retaining the selected List/Graph forecast mode.
+- [x] Confirm List/Graph selector taps still reset forecast position to the first hour and update only the selected presentation.
+- [x] Confirm the ten-minute refresh and offline demo mode remain unchanged.
+
+Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or memory figures are recorded.
+
+## PR #41 — TextRenderer extraction (host-tested; hardware validation pending)
+
+`TextRenderer` moves the shared text primitives from `weatherDashboard.ino` to `src/ui/TextRenderer.h`. It owns direct and centred text drawing, width/height measurement, bounded two-line wrapping with truncation and the centred Weather-line helper. A reference to `DisplayManager` is retained, but `target()` is resolved on each operation so drawing follows the physical display or active tab-transition canvas. The caller still owns text content, coordinates, font size and colour; the module owns no display/canvas resources or Weather data.
+
+- [x] Compile with C++11, `-Wall -Wextra -Werror -pedantic -DNDEBUG`.
+- [x] Exercise direct text drawing parameters (text size, colour, position and content).
+- [x] Exercise centred text position and measured width/height.
+- [x] Exercise the two-line wrapping/truncation path and returned block height.
+- [x] Exercise the centred Weather-line helper and returned line height.
+- [x] Confirm drawing follows `DisplayManager::target()` when switched to the tab-transition canvas and returns to the physical target afterward.
+- [x] Run `sh scripts/test-text-renderer.sh`; host test reports `TextRenderer tests passed.`
 - [ ] Arduino IDE Verify using Arduino IDE 2.3.10, ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN.
 - [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
-- [ ] Confirm startup, Weather/Forecast drawing and active-tab refresh remain unchanged.
-- [ ] Confirm metric-card scrolling, forecast-list drag/gesture scrolling and graph drag/scroll remain unchanged.
-- [ ] Confirm switching the main tab resets canonical scroll positions while retaining the selected List/Graph forecast mode.
-- [ ] Confirm List/Graph selector taps still reset forecast position to the first hour and update only the selected presentation.
-- [ ] Confirm the ten-minute refresh and offline demo mode remain unchanged.
+- [ ] Confirm startup, current Weather and hourly Forecast layouts, header/loading/error text, metric cards, forecast list and graph labels remain unchanged.
+- [ ] Confirm tab-transition composition still draws through the transition canvas without leaking text onto the physical target.
+- [ ] Confirm live data, icon caching, touch interactions and scheduled refresh are unchanged.
 
-Host tests have passed, but Arduino IDE Verify, upload/boot and physical Waveshare regression have not yet been performed for PR #40. Do not mark the hardware checks as passed until they are run on this revision; no build-size or memory figures are recorded.
+No firmware build-size, memory or physical timing figures are recorded for PR #41.
 
 ## 5. Clock and location
 
