@@ -2646,16 +2646,18 @@ bool weatherAppFetchCurrentWeather() {
   return fetchWeather();
 }
 
-bool weatherAppFetchForecast() {
-  return fetchForecast();
+void weatherAppFetchForecast() {
+  (void)fetchForecast();
 }
 
 bool weatherAppWeatherAvailable() {
   return weatherAvailable;
 }
 
-int weatherAppActiveTab() {
-  return currentTab;
+WeatherApp::View weatherAppActiveView() {
+  return currentTab == 1
+    ? WeatherApp::View::Forecast
+    : WeatherApp::View::Weather;
 }
 
 void weatherAppDrawWeather() {
@@ -2810,7 +2812,7 @@ void setup() {
   weatherHooks.fetchCurrentWeather = weatherAppFetchCurrentWeather;
   weatherHooks.fetchForecast = weatherAppFetchForecast;
   weatherHooks.weatherAvailable = weatherAppWeatherAvailable;
-  weatherHooks.activeTab = weatherAppActiveTab;
+  weatherHooks.activeView = weatherAppActiveView;
   weatherHooks.drawWeather = weatherAppDrawWeather;
   weatherHooks.drawForecast = weatherAppDrawForecast;
   weatherHooks.drawError = weatherAppDrawError;
