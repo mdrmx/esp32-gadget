@@ -33,6 +33,14 @@ int main() {
   CHECK(target->lastPrinted == String("Hi"));
   CHECK(target->textColour == 0x4321);
 
+  // A string wider than the display cannot satisfy both margins. Keep its
+  // beginning at the left margin instead of allowing the right clamp to
+  // push the cursor off-screen.
+  const String wideText(std::string(70, 'W'));
+  renderer.drawCenteredText(wideText, 52, 1, 0x4321);
+  CHECK(target->cursorX == 4);
+  CHECK(target->lastPrinted == wideText);
+
   CHECK(renderer.measureTextWidth("abc", 2) == 36);
   CHECK(renderer.measureTextHeight("abc", 2) == 16);
 
@@ -61,6 +69,22 @@ int main() {
   renderer.drawText("transition", 3, 4, 1, 0xFFFF);
   CHECK(transitionTarget->lastPrinted == String("transition"));
   CHECK(target->lastPrinted == String("rain"));
+
+  // DisplayManager can temporarily expose no target before a transition
+  // canvas is available. All renderer methods must fail safely in that state.
+  const int physicalPrintCount = target->printCount;
+  displayManager.endTabTransitionRender();
+  displayManager.beginTabTransitionRender();
+  CHECK(displayManager.target() == nullptr);
+  renderer.drawText("no target", 0, 0, 1, 0xFFFF);
+  renderer.drawCenteredText("no target", 0, 1, 0xFFFF);
+  CHECK(renderer.measureTextWidth("no target", 1) == 0);
+  CHECK(renderer.measureTextHeight("no target", 1) == 0);
+  CHECK(renderer.drawWrappedCenteredText(
+    "no target", 160, 80, 10, 1, 0xFFFF) == 0);
+  CHECK(renderer.drawCenteredWeatherLine(
+    "no target", 160, 10, 1, 0xFFFF) == 0);
+  CHECK(target->printCount == physicalPrintCount);
 
   displayManager.endTabTransitionRender();
   CHECK(displayManager.target() == target);
