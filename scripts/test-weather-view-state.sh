@@ -11,6 +11,7 @@ trap 'exit 1' HUP INT TERM
 CXX="${CXX:-g++}"
 "$CXX" -std=c++11 -Wall -Wextra -Werror -pedantic \
   -I"$ROOT_DIR" \
+  -DNDEBUG \
   "$ROOT_DIR/tests/host/weather_view_state_test.cpp" \
   -o "$BUILD_DIR/weather_view_state_test"
 
