@@ -169,6 +169,28 @@ The wrapper supports root-CA configuration before request initialisation, but PR
 - [x] Confirm loading/error rendering, screen state, metric/list/graph rendering, clock and all touch interactions remain unchanged.
 - [x] Confirm current weather is fetched before hourly forecast; no concurrent requests are introduced.
 
+
+## PR #39 — WeatherApp application shell (validated; awaiting merge)
+
+`WeatherApp` coordinates the application lifecycle while the sketch retains all current view, render and input implementations. The shell is injected with fixed function pointers and has no Arduino, networking, display or concrete Weather-model dependencies. Startup remains current weather then forecast; scheduled refresh remains synchronous, every ten minutes, and redraws the active tab. The device loop retains its 30 ms pacing delay.
+
+- [x] C++11 host compile with `-Wall -Wextra -Werror`.
+- [x] Host lifecycle test: reject incomplete hooks and do not activate.
+- [x] Host lifecycle test: initial current-weather fetch precedes forecast fetch and initial Weather render.
+- [x] Host lifecycle test: clock refresh cadence is driven by the injected millis callback.
+- [x] Host lifecycle test: periodic refresh runs current weather then forecast and redraws the active Forecast tab.
+- [x] Host lifecycle test: `end()` makes the app inactive and subsequent updates invoke no callbacks.
+- [x] Review follow-up: start the one-second clock cadence from the timestamp recorded after initial Weather rendering, avoiding a redundant immediate first-loop check.
+- [x] Review follow-up: error-render adapter uses an `Unknown error` fallback for a null message.
+- [x] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12.
+- [x] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
+- [x] Confirm current-weather/forecast startup, time sync and clock refresh remain unchanged.
+- [x] Confirm metric cards, forecast list/graph, scrolling, tab navigation and touch interactions remain unchanged.
+- [x] Confirm the 10-minute refresh redraws whichever Weather tab is active.
+- [x] Confirm offline demo mode still starts and runs without network calls.
+
+The user confirms the PR #39 physical validation checks passed on the Waveshare hardware. Arduino Verify, upload/boot and all physical regression checks in this section are therefore recorded as passed. Exact build-size and memory figures were not supplied.
+
 ## 5. Clock and location
 
 | Check | Procedure | Pass condition | Status |

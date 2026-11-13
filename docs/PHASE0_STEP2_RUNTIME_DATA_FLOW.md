@@ -5,10 +5,10 @@
 **Related inventory:** [Phase 0, Step 1 — Code inventory](PHASE0_STEP1_CODE_INVENTORY.md)  
 **Repository:** `mdrmx/esp32-gadget`  
 **Primary runtime entry point:** `weatherDashboard.ino`  
-**Service modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`; PR #38 adds `src/services/WeatherDataService.h`  
-**Source checkpoint:** `main` includes PR #38 merge `716670c118cec37488cd895117d533a69c31d407`  
-**Extraction status:** PRs #37 and #38 merged and validated. PR #38 hardware regression passed, as confirmed by the user; under project convention Verify/upload/boot are also considered passed. The next planned boundary is Weather application/views.  
-**Review date:** 2026-11-12
+**Service/application modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, and branch `phase1/13-weather-app-shell` adds `src/apps/weather/WeatherApp.h`  
+**Source checkpoint:** branch `phase1/13-weather-app-shell` based on PR #38 merge `716670c118cec37488cd895117d533a69c31d407`  
+**Extraction status:** PRs #37 and #38 merged and validated. PR #39 WeatherApp lifecycle shell has passed C++11 host lifecycle checks and user-confirmed Waveshare physical validation; Arduino Verify and upload/boot are recorded as passed. PR #39 remains open, not merged. The next boundary is Weather-owned view state and renderers.  
+**Review date:** 2026-11-13
 
 ---
 
@@ -99,8 +99,8 @@ The live startup path is ordered and synchronous.
 3. **Touch-controller detection.** The CST816 reader initialises the touch interface. If the controller is unavailable, display and network startup continue while touch polling returns immediately.
 4. **Time service setup.** `timeService.begin()` configures the Europe/London timezone/DST rule. This does not itself establish a valid clock. The existing `maybeSyncTimeFromAPI()` caller delegates synchronisation and retry policy to `TimeService::syncIfDue()`.
 5. **Demo or live startup.** In demo mode, `TimeService::setDemoTime()` sets the fixed development timestamp and no initial Wi-Fi/location requests are made. In live mode, the sketch displays a startup loading message and calls `connectWiFi()`. If connected, it calls `LocationService::resolve()`, which owns Google Wi-Fi → IP → configured-coordinate fallback and returns a `LocationFix` plus display name.
-6. **Weather data retrieval.** `fetchWeather()` runs, followed by `fetchForecast()`. The forecast request is still attempted if current-weather retrieval fails.
-7. **Initial screen and refresh timer.** The sketch draws Weather or an error state according to `weatherAvailable`, then records `lastUpdate` from `millis()`.
+6. **Weather application startup.** After platform and location setup, the sketch injects its existing Weather operations into `WeatherApp::Hooks` and calls `WeatherApp::begin()`.
+7. **Initial Weather data and render.** `WeatherApp::begin()` calls current-weather fetch then forecast fetch, draws Weather or an error state according to `weatherAvailable`, and records the refresh timestamp after initial retrieval/rendering.
 
 ### Startup flow detail
 
@@ -124,14 +124,15 @@ flowchart TD
     N --> P["Copy fix + display name to Weather"]
     O --> P
     L --> P
-    P --> Q["fetchWeather()"]
+    P --> Q["WeatherApp.begin(hooks)"]
     H --> Q
-    Q --> R["fetchForecast()"]
-    R --> S{"weatherAvailable?"}
-    S -->|Yes| T["drawWeather()"]
-    S -->|No| U["drawError()"]
-    T --> V["Set lastUpdate"]
-    U --> V
+    Q --> R["fetchCurrentWeather()"]
+    R --> S["fetchForecast()"]
+    S --> T{"weatherAvailable?"}
+    T -->|Yes| U["drawWeather()"]
+    T -->|No| V["drawError()"]
+    U --> W["Set refresh timestamp"]
+    V --> W
 ```
 
 ### Important startup nuance
@@ -142,39 +143,41 @@ If the initial connection attempt fails, the live startup path still calls `fetc
 
 ## 4. Main loop and scheduling
 
-The complete `loop()` body is small (lines 3573–3594), but it runs several potentially blocking operations in sequence.
+The device `loop()` is now a small platform adapter: it calls `weatherApp.update()` and retains the 30 ms pacing delay. `WeatherApp` runs the Weather-owned input/time/render/refresh sequence through injected hooks. The operations remain synchronous and some can block.
 
 ```mermaid
 flowchart TD
-    A["loop() begins"] --> B["pollTouch()"]
-    B --> C["maybeSyncTimeFromAPI()"]
-    C --> D{"1 second since clock check?"}
-    D -->|Yes| E["refreshHeaderClock()"]
-    D -->|No| F{"10 minutes since lastUpdate?"}
-    E --> F
-    F -->|Yes| G["Set lastUpdate = millis()"]
-    G --> H["fetchWeather()"]
-    H --> I["fetchForecast()"]
-    I --> J{"Current tab"}
-    J -->|Forecast| K["drawForecast()"]
-    J -->|Weather and request succeeded or old data exists| L["drawWeather()"]
-    J -->|Weather and no data| M["drawError()"]
-    K --> N["delay(30)"]
-    L --> N
-    M --> N
-    F -->|No| N
-    N --> A
+    A["loop() begins"] --> B["weatherApp.update()"]
+    B --> C["pollTouch() via injected hook"]
+    C --> D["maybeSyncTimeFromAPI()"]
+    D --> E{"Clock refresh due?"}
+    E -->|Yes| F["refreshHeaderClock()"]
+    E -->|No| G{"10-minute Weather refresh due?"}
+    F --> G
+    G -->|Yes| H["Set app refresh timestamp"]
+    H --> I["fetchWeather()"]
+    I --> J["fetchForecast()"]
+    J --> K{"Current tab"}
+    K -->|Forecast| L["drawForecast()"]
+    K -->|Weather and data available| M["drawWeather()"]
+    K -->|Weather and no data| N["drawError()"]
+    L --> O["delay(30)"]
+    M --> O
+    N --> O
+    G -->|No| O
+    O --> A
 ```
 
 | Activity | Trigger / cadence | Behaviour |
 |---|---|---|
-| Touch polling | Every loop pass | Read and interpret one CST816 sample when touch is available |
-| Time sync check | Every loop pass | Check Wi-Fi state and determine whether a TimeAPI request is due |
+| Weather application update | Every device loop pass | `weatherApp.update()` coordinates the Weather hooks |
+| Touch polling | Every WeatherApp update | Read and interpret one CST816 sample when touch is available |
+| Time sync check | Every WeatherApp update | Check Wi-Fi state and determine whether a TimeAPI request is due |
 | Header clock | At least once per second | Re-read the system clock; redraw only if the displayed minute string changed |
 | Weather refresh | Every 600,000 ms | Fetch current conditions, then hourly forecast, then redraw the active tab |
-| Idle pacing | Every loop pass | `delay(30)` after the work above |
+| Idle pacing | Every device loop pass | `delay(30)` after the WeatherApp update |
 
-The 10-minute interval is `UPDATE_INTERVAL = 600000UL`. `lastUpdate` is assigned **before** the two fetch operations begin. If a refresh takes long enough to cross another interval boundary, the next loop pass can find the refresh due again; there is no separate refresh-complete timestamp.
+The ten-minute interval is `WeatherApp::DefaultRefreshIntervalMs = 600000UL`. `WeatherApp` assigns its refresh timestamp **before** the two fetch operations begin, preserving the previous cadence. If a refresh takes long enough to cross another interval boundary, the next update can find the refresh due again; there is no separate refresh-complete timestamp. `weatherDashboard.ino` now delegates recurring work to `weatherApp.update()` and retains only the device-level 30 ms loop pacing.
 
 The loop is not a fixed-rate real-time scheduler. The nominal 30 ms delay is reached only after touch processing, time checks, rendering and any network activity have returned.
 
@@ -486,7 +489,7 @@ These are source-level reasons to investigate a queued / state-driven network se
 
 At the PR #35 merge checkpoint, the TimeService and LocationService HTTPS clients used `WiFiClientSecure` and called `setInsecure()`. PR #36 routes those four request call sites through `HttpRequestClient`; callers explicitly opt into the same legacy insecure-TLS mode. The Google Geolocation success response uses `HTTPClient.getString()` so transfer encoding is handled before JSON deserialisation. PR #37 migrates the remaining Weather icon, current-conditions and One Call forecast requests through `HttpRequestClient`, with the same explicit compatibility TLS policy. Certificate validation is therefore not enforced by these HTTPS call sites. This remains a known security concern; neither PR changes the TLS trust policy.
 
-Time and Location domain services and the Weather icon/current/forecast request sites all use the shared synchronous `HttpRequestClient` transport. PR #37 is merged and the user confirmed its full physical regression passed. PR #38 is merged at `716670c118cec37488cd895117d533a69c31d407`; current/forecast parsing, pagination and data-model ownership now live in `WeatherDataService`. Wi-Fi lifecycle, location selection, icon-cache ownership and drawing remain outside this service. The user confirms PR #38 hardware regression passed; per project convention Verify/upload/boot are also treated as passed. There is still no shared connectivity manager or transport-selection abstraction.
+Time and Location domain services and the Weather icon/current/forecast request sites all use the shared synchronous `HttpRequestClient` transport. PR #37 is merged and the user confirmed its full physical regression passed. PR #38 is merged at `716670c118cec37488cd895117d533a69c31d407`; current/forecast parsing, pagination and data-model ownership now live in `WeatherDataService`. PR #39 adds the Weather lifecycle shell, which coordinates existing sketch functions through fixed callbacks without changing synchronous transport or view rendering. Wi-Fi lifecycle, location selection, icon-cache ownership and drawing remain outside `WeatherDataService`. The user confirms PR #38 hardware regression passed. There is still no shared connectivity manager or transport-selection abstraction.
 
 The final PR #36 parser-follow-up Verify passed using the recorded ESP32-S3 FQBN and ESP32 core 3.3.12 (1,151,215 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining). The user confirmed current-weather and forecast data loading, Google Wi-Fi positioning, correct clock display and all tested interactions. PR #37 Arduino IDE Verify passed (1,151,707 bytes program storage; 97,228 bytes global dynamic memory; 230,452 bytes remaining), and the firmware was uploaded and booted. The user confirmed all PR #37 tests passed, including icon/current/forecast loading, forecast data behaviour and full interaction regression. PR #38 is merged at `716670c118cec37488cd895117d533a69c31d407`; current/forecast parsing and data-model ownership now live in `WeatherDataService`, with temporary sketch references preserving existing views. The One Call non-200 diagnostic reads at most 240 bytes into a fixed 241-byte stack buffer. Unused sketch aliases `locationTimezoneOffset` and `weatherMain` were removed; provider-local forecast timezone remains separate from the Europe/London device clock. Review fixes preserve first-valid-hour UV/rain semantics and service ownership of forecast-unavailable state. The user confirms PR #38 hardware regression passed; per project convention Verify/upload/boot are treated as passed. Exact PR #38 build-size figures were not supplied.
 
