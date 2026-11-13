@@ -31,12 +31,10 @@ public:
     textRenderer_.drawText(
       locationText, LOCATION_X, TEXT_Y, TEXT_SIZE, locationColour);
     drawClockText(clockText, accentColour);
+  
+    target->drawFastHLine(
+      0, HEADER_HEIGHT, displayManager_.width(), accentColour);
 
-    target = displayManager_.target();
-    if (target != nullptr) {
-      target->drawFastHLine(
-        0, HEADER_HEIGHT, displayManager_.width(), accentColour);
-    }
   }
 
   // Redraw only the clock's reserved region when the displayed time changes.
