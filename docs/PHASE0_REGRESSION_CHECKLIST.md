@@ -180,6 +180,8 @@ The wrapper supports root-CA configuration before request initialisation, but PR
 - [x] Host lifecycle test: clock refresh cadence is driven by the injected millis callback.
 - [x] Host lifecycle test: periodic refresh runs current weather then forecast and redraws the active Forecast tab.
 - [x] Host lifecycle test: `end()` makes the app inactive and subsequent updates invoke no callbacks.
+- [x] Review follow-up: start the one-second clock cadence from the timestamp recorded after initial Weather rendering, avoiding a redundant immediate first-loop check.
+- [x] Review follow-up: error-render adapter uses an `Unknown error` fallback for a null message.
 - [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12.
 - [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
 - [ ] Confirm current-weather/forecast startup, time sync and clock refresh remain unchanged.
