@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.20  
+**Version:** 4.21  
 **Last reviewed:** 2026-11-13  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -582,7 +582,7 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ## 10. Handover instructions for future development sessions
 
-### Current handover — 2026-11-13 (PR #39 WeatherApp shell validated; PR open)
+### Current handover — 2026-11-13 (PR #39 WeatherApp shell hardware-validated; PR open)
 
 Recheck GitHub before acting. PR #38 is merged and hardware-validated at `716670c118cec37488cd895117d533a69c31d407`. PR #39 is open on `phase1/13-weather-app-shell`; the user confirms its Waveshare physical validation checks passed. Project convention: when a PR is merged, assume Arduino Verify, upload/boot and required hardware regression have passed unless the user explicitly says otherwise. Explicit user confirmation of physical validation also records the tested firmware as uploaded/booted; do not invent build-size figures or measurements that were not supplied.
 
@@ -770,4 +770,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 
 - **2026-11-12 — Version 4.18:** Recorded PR #38 merge at `716670c118cec37488cd895117d533a69c31d407`. `WeatherDataService` now owns current-weather and One Call request/parsing, bounded models, pagination, validity/error state and offline fixture data. Review fixes include the 240-byte bounded diagnostic, unused sketch-alias removal, preserved first-valid-hour UV/rain semantics and service-owned forecast-unavailable state. PR documentation lists Verify/upload/physical regression as pending; confirm these separately. Next Phase 1 slice: design and extract the Weather application/view boundary while preserving existing renderers and input behaviour.
 - **2026-11-12 — Version 4.19:** Recorded the user's confirmation that PR #38 hardware regression passed. Clarified the working convention that merged PRs imply Arduino Verify, upload/boot and required hardware regression passed unless explicitly stated otherwise. Exact PR #38 build-size and memory values were not supplied and remain unrecorded.
-- **2026-11-13 — Version 4.20:** Started PR #39 on `phase1/13-weather-app-shell`. Added `src/apps/weather/WeatherApp.h` as a callback-injected application lifecycle shell, moving initial fetch/render coordination, touch/time/clock orchestration and the ten-minute refresh cadence out of the sketch loop while retaining the existing views, renderers, display resources and touch policies. C++11 host lifecycle tests passed; Arduino Verify/upload/physical regression remain pending for the unmerged branch.
+- **2026-11-13 — Version 4.20:** Started PR #39 on `phase1/13-weather-app-shell`. Added `src/apps/weather/WeatherApp.h` as a callback-injected application lifecycle shell, moving initial fetch/render coordination, touch/time/clock orchestration and the ten-minute refresh cadence out of the sketch loop while retaining the existing views, renderers, display resources and touch policies. C++11 host lifecycle tests passed.
+- **2026-11-13 — Version 4.21:** Recorded the user's confirmation that PR #39 physical validation checks passed on the Waveshare hardware. Updated the regression checklist to passed, including Verify/upload/boot and the physical Weather/Forecast, touch, refresh and demo checks. PR #39 remains open and has not been merged; exact build-size/memory figures were not supplied.
