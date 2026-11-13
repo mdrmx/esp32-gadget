@@ -586,7 +586,7 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ### Current handover — 2026-11-13 (PR #41 TextRenderer implemented; host tests passed; PR open)
 
-Recheck GitHub before acting. PR #40 is merged at `266ef646022353dd57bb552fc17a7ba523ad8708`; the user confirms its Waveshare physical regression passed. PR #41 is on `phase1/15-text-renderer`; C++11 host tests pass, while Arduino IDE Verify and physical regression are pending. Project convention: when a PR is merged, assume Arduino IDE Verify, upload/boot and required hardware regression have passed unless the user explicitly says otherwise. Explicit user confirmation of physical validation also records the tested firmware as uploaded/booted; do not invent build-size figures or measurements that were not supplied.
+Recheck GitHub before acting. PR #40 is merged at `266ef646022353dd57bb552fc17a7ba523ad8708`; the user confirms its Waveshare physical regression passed. PR #41 is on `phase1/15-text-renderer`; C++11 host tests and Arduino IDE Verify pass, while upload/boot and physical regression are pending. Project convention: when a PR is merged, assume Arduino IDE Verify, upload/boot and required hardware regression have passed unless the user explicitly says otherwise. Explicit user confirmation of physical validation also records the tested firmware as uploaded/booted; do not invent build-size figures or measurements that were not supplied.
 
 - **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
 - **Latest firmware merge checkpoint:** `266ef646022353dd57bb552fc17a7ba523ad8708`, PR #40 merge commit. The user confirmed PR #40 physical regression passed; by the project's convention, Verify and upload/boot are also treated as passed. Exact PR #40 build-size figures were not supplied and are intentionally not recorded.
@@ -717,7 +717,7 @@ When resuming work after a context reset:
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
-| 1 | Project structure and shared foundations | In progress — PRs #27–#40 merged/validated; PR #41 TextRenderer host tests passed, with Arduino Verify and physical regression pending; view-specific renderers remain in the sketch |
+| 1 | Project structure and shared foundations | In progress — PRs #27–#40 merged/validated; PR #41 TextRenderer host tests and Arduino Verify passed, with upload/boot and physical regression pending; view-specific renderers remain in the sketch |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
