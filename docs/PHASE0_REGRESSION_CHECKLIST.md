@@ -210,7 +210,7 @@ The user confirms the PR #39 physical validation checks passed on the Waveshare 
 
 Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or memory figures are recorded.
 
-## PR #41 — TextRenderer extraction (host-tested; hardware validation pending)
+## PR #41 — TextRenderer extraction (pre-review revision hardware-validated; review-fix retest pending)
 
 `TextRenderer` moves the shared text primitives from `weatherDashboard.ino` to `src/ui/TextRenderer.h`. It owns direct and centred text drawing, width/height measurement, bounded two-line wrapping with truncation and the centred Weather-line helper. A reference to `DisplayManager` is retained, but `target()` is resolved on each operation so drawing follows the physical display or active tab-transition canvas. The caller still owns text content, coordinates, font size and colour; the module owns no display/canvas resources or Weather data.
 
@@ -223,12 +223,24 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 - [x] Run `sh scripts/test-text-renderer.sh`; host test reports `TextRenderer tests passed.`
 - [x] Arduino IDE Verify using ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 16 MB / app3M_fat9M_16MB / OPI PSRAM configuration.
 - [x] Record build output: 1,164,219 bytes program storage (37% of 3 MiB); 97,380 bytes global dynamic memory (29% of 327,680 bytes); 230,300 bytes remaining. ESP32-S3 image generation and merged 16 MB image generation completed successfully.
-- [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
-- [ ] Confirm startup, current Weather and hourly Forecast layouts, header/loading/error text, metric cards, forecast list and graph labels remain unchanged.
-- [ ] Confirm tab-transition composition still draws through the transition canvas without leaking text onto the physical target.
-- [ ] Confirm live data, icon caching, touch interactions and scheduled refresh are unchanged.
+- [x] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2 (user-confirmed on pre-review revision `36c4d634dc9ee3a66ed6c9ca4286d41b0b216700`).
+- [x] User confirmed the physical Waveshare regression passed on that revision.
+- [x] Confirm startup, current Weather and hourly Forecast layouts, header/loading/error text, metric cards, forecast list and graph labels remain unchanged (covered by the user's overall hardware-validation pass).
+- [x] Confirm tab-transition composition still draws through the transition canvas without leaking text onto the physical target (covered by the user's overall hardware-validation pass).
+- [x] Confirm live data, icon caching, touch interactions and scheduled refresh are unchanged (covered by the user's overall hardware-validation pass).
 
-Arduino IDE Verify passed with the build figures above. Upload/boot, physical memory profiling and physical timing checks remain outstanding for PR #41.
+Arduino IDE Verify passed on the pre-review revision with the build figures above. The following review-hardening changes were added after that device pass: target null checks and over-wide text clamping. The latest host tests pass, but Verify/upload/device regression must be repeated on the updated head before merge. Physical memory profiling and physical timing measurements remain unclaimed.
+
+### Post-review hardening — latest branch head
+
+- [x] Add null checks for `drawText`, `drawCenteredText`, `measureTextWidth`, `measureTextHeight`, `drawWrappedCenteredText` and `drawCenteredWeatherLine`.
+- [x] Measurement and wrapping methods return 0 when no target is available; drawing methods safely do nothing.
+- [x] Change centred-text margin handling so the right-edge adjustment runs first and the final x-position is clamped to at least 4 px.
+- [x] Add host tests for the null target before transition-canvas allocation and a string wider than the 320 px viewport.
+- [x] Reply to and resolve both Gemini inline review threads.
+- [ ] Re-run Arduino IDE Verify on the latest review-fix head.
+- [ ] Upload/boot latest review-fix head and confirm display text, tab transition, null-target fallback path and normal Weather/Forecast regression remain correct.
+
 
 ## 5. Clock and location
 
