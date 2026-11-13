@@ -226,8 +226,9 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 
 - [x] Add the renderer and route full-header / clock-only draw calls through it.
 - [x] Add strict C++11 host coverage for header geometry, location/clock text and colours, divider, clock-only repaint, long-clock x-clamp, null target and transition-canvas routing.
+- [x] User ran `sh scripts/test-text-renderer.sh` after the shared graphics stub change; output: `TextRenderer tests passed.`
 - [x] Equivalent local C++11 strict-warning host checks passed.
-- [ ] Run the repository test runner: `sh scripts/test-header-renderer.sh`.
+- [x] User ran `sh scripts/test-header-renderer.sh`; output: `HeaderRenderer tests passed.`
 - [x] Arduino IDE compile / Verify succeeded on the current PR #42 head using ESP32 core 3.3.12 and FQBN `esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`.
 - [x] Build output: 1,164,667 bytes program storage (37% of 3 MiB); 97,396 bytes global dynamic memory (29% of 327,680 bytes); 230,284 bytes remaining. ESP32-S3 image and merged 16 MB flash image generated successfully.
 - [x] Upload/flash completed on `/dev/cu.usbmodem101`; written-data hashes verified and final hard reset completed.
@@ -236,7 +237,7 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 - [x] Confirm clock-only redraw at minute change, long clock text clamp and header drawing through tab-transition composition.
 - [x] Confirm Weather/Forecast navigation, loading/error screens and all existing touch/scroll/graph behaviour remain unchanged; user reports everything is preserved.
 
-Arduino build, upload/flash and the complete physical regression are now recorded as passed. The repository host runner `sh scripts/test-header-renderer.sh` remains outstanding; rerun the TextRenderer runner as well because the shared graphics stub was extended. No physical timing or runtime memory-profile measurements are claimed.
+Arduino build, upload/flash, both repository host tests and the complete physical regression are recorded as passed. No physical timing or runtime memory-profile measurements are claimed.
 
 ## 5. Clock and location
 
