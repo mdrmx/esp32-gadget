@@ -129,7 +129,7 @@ The current implementation stores both concepts in related global state. The ext
 
 **Does not own:** Wi-Fi association/connection lifecycle, LocationService/provider selection, device location coordinates, icon PNG fetching/cache ownership, display calls, Weather screen state or loading/error drawing. The caller supplies API key and selected coordinates; the service does not obtain location or connect Wi-Fi.
 
-**PR #38 — WeatherDataService (merged):** `src/services/WeatherDataService.h` owns current-weather and One Call request/parsing, current/forecast models, forecast pagination, validity/error state and offline demo data. The sketch retains Wi-Fi lifecycle, LocationService/provider selection, location coordinates, icon fetching/cache, loading/error UI, screen/view state, rendering and input. Temporary sketch-facing references into service-owned models preserve the existing renderers. Merged at `716670c118cec37488cd895117d533a69c31d407` (2026-11-12); the user confirms hardware regression passed. Under the project convention, Verify and upload/boot are treated as passed for merged PRs.
+**PR #38 — WeatherDataService (merged):** `src/services/WeatherDataService.h` owns current-weather and One Call request/parsing, current/forecast models, forecast pagination, validity/error state and offline demo data. The sketch retains Wi-Fi lifecycle, LocationService/provider selection, location coordinates, icon fetching/cache, loading/error UI, Weather presentation, rendering and input. Temporary sketch-facing references into service-owned models preserve the existing renderers. Merged at `716670c118cec37488cd895117d533a69c31d407` (2026-11-12); the user confirms hardware regression passed. Under the project convention, Verify and upload/boot are treated as passed for merged PRs. PR #40 later moves the persistent view-state fields to a separate app-owned value object.
 
 Initially preserve:
 - The existing current-weather fields, update semantics and availability flags.
@@ -143,11 +143,13 @@ The Weather app remains responsible for `connectWiFi()`, location coordinate own
 
 ### 3.8 Weather application and views
 
-**Owns:** Weather screen state, active Weather view, presentation layout, metric/list/graph rendering, and the mapping from semantic input to Weather actions.
+**Owns:** Weather screen state, active Weather view, presentation layout, metric/list/graph rendering, and the mapping from semantic input to Weather actions. `WeatherViewState` is the persistent state boundary; renderer and interaction policies remain separate owners.
 
-**PR #39 — WeatherApp shell (implemented and hardware-validated; open PR):** `src/apps/weather/WeatherApp.h` is the first application boundary. It owns begin/update/end lifecycle, startup current-weather-then-forecast coordination, initial render selection, input/time/clock callback orchestration and the existing ten-minute refresh cadence. The sketch supplies fixed function-pointer adapters to its current services and renderers; the shell is independent of Arduino_GFX, Wi-Fi, HTTP and concrete Weather data models. This preserves existing rendering and platform boundaries while moving application runtime out of the device `loop()`. C++11 host lifecycle checks and user-confirmed Waveshare physical validation passed; Arduino Verify and upload/boot are recorded as passed. PR #39 is ready for merge but remains open.
+**PR #39 — WeatherApp shell (merged and hardware-validated):** `src/apps/weather/WeatherApp.h` owns begin/update/end lifecycle, startup current-weather-then-forecast coordination, initial render selection, input/time/clock callback orchestration and the existing ten-minute refresh cadence. The sketch supplies fixed function-pointer adapters to its current services and renderers; the shell is independent of Arduino_GFX, Wi-Fi, HTTP and concrete Weather data models. It preserves the existing rendering and platform boundaries while moving application runtime out of the device `loop()`. C++11 host lifecycle checks and user-confirmed Waveshare physical validation passed. PR #39 merged at `3c613363f3b57bebe4245350cc57a3d6aa7a52d6`.
 
-**Next extraction after PR #39:** move a small, cohesive piece of Weather-owned view state or presentation into the app boundary. Start with mapping candidate state and render dependencies, not a wholesale renderer rewrite. Keep metric/list/graph interaction policies distinct. Asset-cache/network separation remains a separate change; do not combine it with this shell or introduce asynchronous scheduling.
+**PR #40 — WeatherViewState (implemented; host-tested; open PR):** `src/apps/weather/WeatherViewState.h` owns the persistent active-tab index, metric offset, forecast-list offset, forecast-graph hour/pixel offsets and List/Graph mode. The sketch currently retains temporary references under the former global names to minimise churn in the proven render and input paths. `resetScrollablePositions()` preserves the selected tab and forecast mode while returning all canonical offsets to zero; `selectForecastMode()` resets both forecast scroll representations before changing List/Graph mode. The module is plain C++11 and has no Arduino, display, input or network dependencies. The standalone host test and runner pass with `-Wall -Wextra -Werror -pedantic`. Arduino Verify, upload/boot and physical regression for PR #40 are pending.
+
+**Next extraction after PR #40:** extract a narrow rendering boundary from the sketch, beginning with an inventory of display-target, data and canvas dependencies. Keep metric, list and graph render paths separate where their behaviour differs; do not combine renderer extraction with gesture-policy or asset-cache/network changes.
 
 The Weather app consumes platform Display, Input, Location and Time capabilities plus Weather data results. It must not configure Wi-Fi, call HTTP clients or fetch assets from inside drawing functions.
 
@@ -202,6 +204,7 @@ weatherDashboard/
 │           ├── WeatherService.h
 │           ├── WeatherAssetCache.h
 │           ├── WeatherApp.h
+│           ├── WeatherViewState.h
 │           └── WeatherViews.h
 └── docs/
 ```

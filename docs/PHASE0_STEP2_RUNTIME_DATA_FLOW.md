@@ -5,9 +5,9 @@
 **Related inventory:** [Phase 0, Step 1 — Code inventory](PHASE0_STEP1_CODE_INVENTORY.md)  
 **Repository:** `mdrmx/esp32-gadget`  
 **Primary runtime entry point:** `weatherDashboard.ino`  
-**Service/application modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, and branch `phase1/13-weather-app-shell` adds `src/apps/weather/WeatherApp.h`  
-**Source checkpoint:** branch `phase1/13-weather-app-shell` based on PR #38 merge `716670c118cec37488cd895117d533a69c31d407`  
-**Extraction status:** PRs #37 and #38 merged and validated. PR #39 WeatherApp lifecycle shell has passed C++11 host lifecycle checks and user-confirmed Waveshare physical validation; Arduino Verify and upload/boot are recorded as passed. PR #39 remains open, not merged. The next boundary is Weather-owned view state and renderers.  
+**Service/application modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h` and `src/apps/weather/WeatherViewState.h`  
+**Source checkpoint:** branch `phase1/14-weather-view-state` based on PR #39 merge `3c613363f3b57bebe4245350cc57a3d6aa7a52d6`  
+**Extraction status:** PRs #37–#39 are merged and validated. PR #39 WeatherApp shell is hardware-validated. PR #40 moves persistent tab, metric/list/graph offset and forecast-mode state into WeatherViewState; its C++11 host tests pass. Arduino IDE Verify, upload/boot and Waveshare physical regression for PR #40 remain pending. Renderer and detailed touch-policy ownership remain in the sketch.  
 **Review date:** 2026-11-13
 
 ---
@@ -180,6 +180,8 @@ flowchart TD
 The ten-minute interval is `WeatherApp::DefaultRefreshIntervalMs = 600000UL`. `WeatherApp` assigns its refresh timestamp **before** the two fetch operations begin, preserving the previous cadence. If a refresh takes long enough to cross another interval boundary, the next update can find the refresh due again; there is no separate refresh-complete timestamp. `weatherDashboard.ino` now delegates recurring work to `weatherApp.update()` and retains only the device-level 30 ms loop pacing.
 
 The loop is not a fixed-rate real-time scheduler. The nominal 30 ms delay is reached only after touch processing, time checks, rendering and any network activity have returned.
+
+Persistent Weather presentation state is now stored in `WeatherViewState`: the active main-tab index, metric-card offset, forecast-list offset, graph hour/pixel offsets and List/Graph mode. The sketch currently uses temporary reference aliases with the former global names, so renderer and gesture call sites keep their existing control flow. Canonical tab-reset and forecast-mode-switch rules are methods on the state object. Contact/drag candidates, transient drag pixels, hit-testing, suppression and animation timing remain touch/view interaction policy in the sketch.
 
 ## 5. Touch and interaction data flow
 
@@ -504,7 +506,7 @@ The runtime trace makes the following dependencies explicit:
 | Weather adapter functions in the sketch own Wi-Fi checks and UI decisions; `WeatherDataService` owns current/forecast requests, JSON parsing and pagination | Data retrieval is now a domain service, while network-interface lifecycle and presentation remain outside it |
 | Location functions write global coordinates and display-name fields | Location is a platform capability, but currently has no fix object, source/freshness metadata or service boundary |
 | Time API and header functions own system-clock updates | The clock is device-wide, while forecast time formatting also uses provider-local offset state |
-| Screen renderers read global weather / forecast state | View code cannot be cleanly reused with independent app data models |
+| Screen renderers read Weather data aliases and `WeatherViewState` values | Persistent tab/offset/mode ownership is now isolated, but rendering still depends on sketch globals and display resources |
 | Weather rendering can fetch an icon | Rendering has a network side effect and may block |
 | Touch functions mutate scroll state and call renderers | Input recognition, interaction state and view rendering are tightly coupled |
 | Tab transition temporarily swaps global `gfx` | Render target ownership is implicit and globally mutable |

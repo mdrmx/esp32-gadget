@@ -17,6 +17,7 @@
 #include "src/services/LocationService.h"
 #include "src/services/WeatherDataService.h"
 #include "src/apps/weather/WeatherApp.h"
+#include "src/apps/weather/WeatherViewState.h"
 
 // The service owns these models. Temporary references keep the existing
 // Weather renderers readable while data ownership moves out of the sketch.
@@ -26,6 +27,18 @@ WeatherForecastData& weatherForecastData = weatherDataService.forecast();
 
 // Owns Weather application startup, update cadence and coordination.
 WeatherApp weatherApp;
+
+// Owns persistent Weather view selection and scroll/display state.
+WeatherViewState weatherViewState;
+
+// Temporary sketch-facing references preserve the existing renderer and input
+// code while ownership of these values moves into WeatherViewState.
+int& currentTab = weatherViewState.currentTab;
+int& weatherMetricOffset = weatherViewState.weatherMetricOffset;
+int& forecastOffset = weatherViewState.forecastOffset;
+int& forecastGraphOffset = weatherViewState.forecastGraphOffset;
+int& forecastGraphScrollPixels = weatherViewState.forecastGraphScrollPixels;
+bool& forecastGraphView = weatherViewState.forecastGraphView;
 
 // =====================================================
 // CONFIGURATION
@@ -206,7 +219,6 @@ const int WEATHER_METRIC_ROW_STEP = 59;
 const int SCROLL_OVERSCROLL_MAX_PX = 20;
 const int SCROLL_OVERSCROLL_RESISTANCE_DIVISOR = 3;
 const int WEATHER_METRIC_ROW_TOP = 2;
-int weatherMetricOffset = 0;
 
 // Keep three 44 px list cards with 4 px gaps visible through y=212.
 // Controls are 32 px tall, with a 2 px gap below the header and above the List
@@ -240,14 +252,9 @@ const int FORECAST_CONTROL_TAP_SLOP_PX = 40;
 // Limit full-viewport bitmap transfers during fast finger drags.
 const unsigned long FORECAST_DRAG_RENDER_INTERVAL_MS = 50UL;
 
-int forecastOffset = 0;
-int forecastGraphOffset = 0; // First hour currently nearest the left edge.
-int forecastGraphScrollPixels = 0;
-bool forecastGraphView = false;
 uint8_t forecastControlTouch = 0; // 3=list, 4=graph.
 int forecastControlStartX = 0;
 int forecastControlStartY = 0;
-int currentTab = 0;
 
 // =====================================================
 // TEXT HELPERS
@@ -1464,11 +1471,8 @@ void handleForecastControlTap(uint8_t control) {
   // List and Graph are separate views of the hourly forecast. Switching
   // between them always starts at the first hour rather than carrying across
   // the other view's scroll position.
-  forecastOffset = 0;
-  forecastGraphOffset = 0;
-  forecastGraphScrollPixels = 0;
+  weatherViewState.selectForecastMode(control == 4);
   forecastGraphDragCurrentScroll = 0;
-  forecastGraphView = control == 4;
 
   drawForecast();
   // Prevent a selector tap from being reinterpreted as a controller swipe.
@@ -1581,10 +1585,7 @@ void drawForecast() {
 // This keeps each screen predictable when revisiting it, rather than restoring
 // the previous scroll position from the last visit.
 void resetScrollableViewPositions() {
-  weatherMetricOffset = 0;
-  forecastOffset = 0;
-  forecastGraphOffset = 0;
-  forecastGraphScrollPixels = 0;
+  weatherViewState.resetScrollablePositions();
 
   // Keep the transient pixel positions in sync with their canonical offsets.
   metricsDragCurrentScroll = 0;

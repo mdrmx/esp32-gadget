@@ -170,7 +170,7 @@ The wrapper supports root-CA configuration before request initialisation, but PR
 - [x] Confirm current weather is fetched before hourly forecast; no concurrent requests are introduced.
 
 
-## PR #39 — WeatherApp application shell (validated; awaiting merge)
+## PR #39 — WeatherApp application shell (merged and hardware-validated)
 
 `WeatherApp` coordinates the application lifecycle while the sketch retains all current view, render and input implementations. The shell is injected with fixed function pointers and has no Arduino, networking, display or concrete Weather-model dependencies. Startup remains current weather then forecast; scheduled refresh remains synchronous, every ten minutes, and redraws the active tab. The device loop retains its 30 ms pacing delay.
 
@@ -189,7 +189,27 @@ The wrapper supports root-CA configuration before request initialisation, but PR
 - [x] Confirm the 10-minute refresh redraws whichever Weather tab is active.
 - [x] Confirm offline demo mode still starts and runs without network calls.
 
-The user confirms the PR #39 physical validation checks passed on the Waveshare hardware. Arduino Verify, upload/boot and all physical regression checks in this section are therefore recorded as passed. Exact build-size and memory figures were not supplied.
+The user confirms the PR #39 physical validation checks passed on the Waveshare hardware. Arduino Verify, upload/boot and all physical regression checks in this section are therefore recorded as passed. PR #39 merged at `3c613363f3b57bebe4245350cc57a3d6aa7a52d6`; exact build-size and memory figures were not supplied.
+
+## PR #40 — WeatherViewState extraction (host-tested; hardware validation pending)
+
+`WeatherViewState` owns the active tab, canonical Weather metric and forecast scroll offsets, and List/Graph mode. The sketch keeps temporary references for compatibility; drag/contact state, gesture policy, animations and renderers remain unchanged in the sketch.
+
+- [x] Compile the standalone state test with C++11, `-Wall -Wextra -Werror -pedantic`.
+- [x] Confirm default state is Weather tab, first metric/hour, and List mode.
+- [x] Confirm main-tab reset clears metric/list/graph offsets while preserving the selected tab and forecast mode.
+- [x] Confirm selecting Graph resets list and graph offsets and selects Graph mode.
+- [x] Confirm selecting List resets list and graph offsets and selects List mode.
+- [x] Run `sh scripts/test-weather-view-state.sh`; host test reports `WeatherViewState tests passed.`
+- [ ] Arduino IDE Verify using Arduino IDE 2.3.10, ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN.
+- [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
+- [ ] Confirm startup, Weather/Forecast drawing and active-tab refresh remain unchanged.
+- [ ] Confirm metric-card scrolling, forecast-list drag/gesture scrolling and graph drag/scroll remain unchanged.
+- [ ] Confirm switching the main tab resets canonical scroll positions while retaining the selected List/Graph forecast mode.
+- [ ] Confirm List/Graph selector taps still reset forecast position to the first hour and update only the selected presentation.
+- [ ] Confirm the ten-minute refresh and offline demo mode remain unchanged.
+
+Host tests have passed, but Arduino IDE Verify, upload/boot and physical Waveshare regression have not yet been performed for PR #40. Do not mark the hardware checks as passed until they are run on this revision; no build-size or memory figures are recorded.
 
 ## 5. Clock and location
 
