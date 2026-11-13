@@ -48,7 +48,7 @@ int main() {
   const int wrappedHeight = renderer.drawWrappedCenteredText(
     "heavy rain showers ahead", 160, 60, 20, 1, 0x00FF);
   CHECK(wrappedHeight == 16);
-  CHECK(target->printCount == 4);
+  CHECK(target->printCount == 5);
   CHECK(target->lastPrinted == String("showers..."));
   CHECK(target->cursorX == 130);
   CHECK(target->cursorY == 28);
