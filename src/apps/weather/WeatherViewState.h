@@ -5,7 +5,7 @@
 // exercised in a small host-side C++ test.
 class WeatherViewState {
 public:
-  int currentTab;
+  int currentTab; // Existing index convention: 0 = Weather, 1 = Forecast.
   int weatherMetricOffset;
   int forecastOffset;
   // First forecast hour currently nearest the left edge of the graph.
