@@ -210,37 +210,30 @@ The user confirms the PR #39 physical validation checks passed on the Waveshare 
 
 Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or memory figures are recorded.
 
-## PR #41 — TextRenderer extraction (pre-review revision hardware-validated; review-fix retest pending)
+## PR #41 — TextRenderer extraction (merged at `108805abfeb290e0b87b497960acff8e85bc7a3d`)
 
-`TextRenderer` moves the shared text primitives from `weatherDashboard.ino` to `src/ui/TextRenderer.h`. It owns direct and centred text drawing, width/height measurement, bounded two-line wrapping with truncation and the centred Weather-line helper. A reference to `DisplayManager` is retained, but `target()` is resolved on each operation so drawing follows the physical display or active tab-transition canvas. The caller still owns text content, coordinates, font size and colour; the module owns no display/canvas resources or Weather data.
+`TextRenderer` moves shared text primitives from `weatherDashboard.ino` into `src/ui/TextRenderer.h`: direct/centred drawing, width/height measurement, bounded two-line wrapping and the centred Weather-line helper. It resolves `DisplayManager::target()` at each operation, preserving physical-display and tab-transition drawing. The final merged revision includes null-target guards and the corrected over-wide centred-text clamp.
 
-- [x] Compile with C++11, `-Wall -Wextra -Werror -pedantic -DNDEBUG`.
-- [x] Exercise direct text drawing parameters (text size, colour, position and content).
-- [x] Exercise centred text position and measured width/height.
-- [x] Exercise the two-line wrapping/truncation path and returned block height.
-- [x] Exercise the centred Weather-line helper and returned line height.
-- [x] Confirm drawing follows `DisplayManager::target()` when switched to the tab-transition canvas and returns to the physical target afterward.
-- [x] Run `sh scripts/test-text-renderer.sh`; host test reports `TextRenderer tests passed.`
-- [x] Arduino IDE Verify using ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 16 MB / app3M_fat9M_16MB / OPI PSRAM configuration.
-- [x] Record build output: 1,164,219 bytes program storage (37% of 3 MiB); 97,380 bytes global dynamic memory (29% of 327,680 bytes); 230,300 bytes remaining. ESP32-S3 image generation and merged 16 MB image generation completed successfully.
-- [x] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2 (user-confirmed on pre-review revision `36c4d634dc9ee3a66ed6c9ca4286d41b0b216700`).
-- [x] User confirmed the physical Waveshare regression passed on that revision.
-- [x] Confirm startup, current Weather and hourly Forecast layouts, header/loading/error text, metric cards, forecast list and graph labels remain unchanged (covered by the user's overall hardware-validation pass).
-- [x] Confirm tab-transition composition still draws through the transition canvas without leaking text onto the physical target (covered by the user's overall hardware-validation pass).
-- [x] Confirm live data, icon caching, touch interactions and scheduled refresh are unchanged (covered by the user's overall hardware-validation pass).
+- [x] Strict C++11 host tests, including null-target behaviour and text wider than the display.
+- [x] Both Gemini inline review comments replied to and resolved.
+- [x] PR #41 merged at `108805abfeb290e0b87b497960acff8e85bc7a3d`.
+- [x] Under the project convention, Arduino IDE Verify, upload/boot and required Waveshare regression are recorded as passed on the final merged revision.
+- [x] No build-size figures were inferred for the final review-fixed merge. The previously recorded 1,164,219 bytes program storage, 97,380 bytes global dynamic memory and 230,300 bytes remaining are tied only to pre-review revision `36c4d634dc9ee3a66ed6c9ca4286d41b0b216700`.
 
-Arduino IDE Verify passed on the pre-review revision with the build figures above. The following review-hardening changes were added after that device pass: target null checks and over-wide text clamping. The latest host tests pass, but Verify/upload/device regression must be repeated on the updated head before merge. Physical memory profiling and physical timing measurements remain unclaimed.
+## PR #42 — HeaderRenderer extraction (in progress)
 
-### Post-review hardening — latest branch head
+`HeaderRenderer` moves the fixed 36 px header background, location/clock text placement, divider and clock-only redraw region into `src/ui/HeaderRenderer.h`. Weather retains location resolution, Weather data access, `TimeService`, `lastHeaderClock` and the refresh decision; colours are passed into the renderer. The component uses `TextRenderer` and the active `DisplayManager::target()`.
 
-- [x] Add null checks for `drawText`, `drawCenteredText`, `measureTextWidth`, `measureTextHeight`, `drawWrappedCenteredText` and `drawCenteredWeatherLine`.
-- [x] Measurement and wrapping methods return 0 when no target is available; drawing methods safely do nothing.
-- [x] Change centred-text margin handling so the right-edge adjustment runs first and the final x-position is clamped to at least 4 px.
-- [x] Add host tests for the null target before transition-canvas allocation and a string wider than the 320 px viewport.
-- [x] Reply to and resolve both Gemini inline review threads.
-- [ ] Re-run Arduino IDE Verify on the latest review-fix head.
-- [ ] Upload/boot latest review-fix head and confirm display text, tab transition, null-target fallback path and normal Weather/Forecast regression remain correct.
+- [x] Add the renderer and route full-header / clock-only draw calls through it.
+- [x] Add strict C++11 host coverage for header geometry, location/clock text and colours, divider, clock-only repaint, long-clock x-clamp, null target and transition-canvas routing.
+- [x] Equivalent local C++11 strict-warning host checks passed.
+- [ ] Run the repository test runner: `sh scripts/test-header-renderer.sh`.
+- [ ] Arduino IDE Verify using ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 16 MB / app3M_fat9M_16MB / OPI PSRAM configuration.
+- [ ] Upload/boot on the Waveshare ESP32-S3 Touch LCD 2.
+- [ ] Confirm normal header location/clock layout, clock-only redraw at minute change, long clock text clamp and header drawing through tab-transition composition.
+- [ ] Confirm Weather/Forecast navigation, loading/error screens and all existing touch/scroll/graph behaviour remain unchanged.
 
+No physical timing, memory-profile or firmware build-size figures are claimed for PR #42 at this stage.
 
 ## 5. Clock and location
 
