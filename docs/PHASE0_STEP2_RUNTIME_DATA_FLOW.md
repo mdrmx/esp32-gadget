@@ -7,7 +7,7 @@
 **Primary runtime entry point:** `weatherDashboard.ino`  
 **Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h` and `src/ui/TextRenderer.h`  
 **Source checkpoint:** branch `phase1/15-text-renderer` based on PR #40 merge `266ef646022353dd57bb552fc17a7ba523ad8708`  
-**Extraction status:** PR #40 WeatherViewState is merged after user-confirmed Waveshare physical regression; by project convention Verify and upload/boot are recorded as passed. PR #41 extracts shared text drawing, measurement and wrapping into TextRenderer; its C++11 host tests pass. Arduino IDE Verify and Waveshare physical regression for PR #41 remain pending. View-specific Weather/Forecast/graph drawing and detailed touch-policy ownership remain in the sketch.  
+**Extraction status:** PR #40 WeatherViewState is merged after user-confirmed Waveshare physical regression; by project convention Verify and upload/boot are recorded as passed. PR #41 extracts shared text drawing, measurement and wrapping into TextRenderer; its C++11 host tests pass. Arduino IDE Verify passes (1,164,219 bytes program storage (37% of 3 MiB); 97,380 bytes global dynamic memory (29% of 327,680 bytes); 230,300 bytes remaining. ESP32-S3 image generation and merged 16 MB image generation completed successfully.); upload/boot and Waveshare physical regression remain pending. View-specific Weather/Forecast/graph drawing and detailed touch-policy ownership remain in the sketch.  
 **Review date:** 2026-11-13
 
 ---
