@@ -7,7 +7,7 @@
 **Primary runtime entry point:** `weatherDashboard.ino`  
 **Service/application modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, and branch `phase1/13-weather-app-shell` adds `src/apps/weather/WeatherApp.h`  
 **Source checkpoint:** branch `phase1/13-weather-app-shell` based on PR #38 merge `716670c118cec37488cd895117d533a69c31d407`  
-**Extraction status:** PRs #37 and #38 merged and validated. PR #39 introduces the WeatherApp lifecycle shell; C++11 host lifecycle checks passed. Arduino Verify/upload/physical regression for the unmerged PR #39 branch remain pending. The next subsequent boundary is Weather-owned view state and renderers.  
+**Extraction status:** PRs #37 and #38 merged and validated. PR #39 WeatherApp lifecycle shell has passed C++11 host lifecycle checks and user-confirmed Waveshare physical validation; Arduino Verify and upload/boot are recorded as passed. PR #39 remains open, not merged. The next boundary is Weather-owned view state and renderers.  
 **Review date:** 2026-11-13
 
 ---
