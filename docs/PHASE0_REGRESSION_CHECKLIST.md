@@ -221,13 +221,14 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 - [x] Exercise the centred Weather-line helper and returned line height.
 - [x] Confirm drawing follows `DisplayManager::target()` when switched to the tab-transition canvas and returns to the physical target afterward.
 - [x] Run `sh scripts/test-text-renderer.sh`; host test reports `TextRenderer tests passed.`
-- [ ] Arduino IDE Verify using Arduino IDE 2.3.10, ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN.
+- [x] Arduino IDE Verify using ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 16 MB / app3M_fat9M_16MB / OPI PSRAM configuration.
+- [x] Record build output: 1,164,219 bytes program storage (37% of 3 MiB); 97,380 bytes global dynamic memory (29% of 327,680 bytes); 230,300 bytes remaining. ESP32-S3 image generation and merged 16 MB image generation completed successfully.
 - [ ] Upload and boot on the Waveshare ESP32-S3 Touch LCD 2.
 - [ ] Confirm startup, current Weather and hourly Forecast layouts, header/loading/error text, metric cards, forecast list and graph labels remain unchanged.
 - [ ] Confirm tab-transition composition still draws through the transition canvas without leaking text onto the physical target.
 - [ ] Confirm live data, icon caching, touch interactions and scheduled refresh are unchanged.
 
-No firmware build-size, memory or physical timing figures are recorded for PR #41.
+Arduino IDE Verify passed with the build figures above. Upload/boot, physical memory profiling and physical timing checks remain outstanding for PR #41.
 
 ## 5. Clock and location
 
