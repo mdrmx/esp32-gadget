@@ -16,12 +16,16 @@
 #include "src/services/TimeService.h"
 #include "src/services/LocationService.h"
 #include "src/services/WeatherDataService.h"
+#include "src/apps/weather/WeatherApp.h"
 
 // The service owns these models. Temporary references keep the existing
 // Weather renderers readable while data ownership moves out of the sketch.
 WeatherDataService weatherDataService;
 WeatherCurrentData& weatherCurrentData = weatherDataService.current();
 WeatherForecastData& weatherForecastData = weatherDataService.forecast();
+
+// Owns Weather application startup, update cadence and coordination.
+WeatherApp weatherApp;
 
 // =====================================================
 // CONFIGURATION
@@ -51,7 +55,6 @@ float locationLon = -2.2426f;
 // fallback. Keep it separate from the weather provider's station name.
 String locationDisplayName = "";
 bool locationCoordinatesResolved = false;
-const unsigned long UPDATE_INTERVAL = 600000UL;
 
 // =====================================================
 // TIME SERVICE
@@ -63,8 +66,7 @@ TimeService timeService;
 LocationService locationService;
 LocationService::LocationFix currentLocationFix = {};
 
-// Header refresh cadence and last-drawn text are Weather presentation state.
-unsigned long lastClockCheckMs = 0;
+// Header redraw cache remains Weather presentation state.
 String lastHeaderClock = "";
 
 // =====================================================
@@ -185,7 +187,6 @@ bool& forecastAvailable = weatherForecastData.available;
 int& forecastCount = weatherForecastData.count;
 ForecastItem* const forecast = weatherForecastData.items;
 
-unsigned long lastUpdate = 0;
 
 bool loadDemoWeatherData();
 
@@ -2619,6 +2620,61 @@ bool fetchForecast() {
 }
 
 // =====================================================
+// WEATHER APPLICATION ADAPTERS
+// =====================================================
+
+// These adapters keep the first WeatherApp boundary independent from Arduino
+// APIs and the existing global renderers. Subsequent slices can replace them
+// with explicit app-owned views and state without changing the platform loop.
+void weatherAppProcessInput() {
+  pollTouch();
+}
+
+void weatherAppSyncTime() {
+  maybeSyncTimeFromAPI();
+}
+
+void weatherAppRefreshClock() {
+  refreshHeaderClock();
+}
+
+uint32_t weatherAppMillisNow() {
+  return (uint32_t)millis();
+}
+
+bool weatherAppFetchCurrentWeather() {
+  return fetchWeather();
+}
+
+bool weatherAppFetchForecast() {
+  return fetchForecast();
+}
+
+bool weatherAppWeatherAvailable() {
+  return weatherAvailable;
+}
+
+int weatherAppActiveTab() {
+  return currentTab;
+}
+
+void weatherAppDrawWeather() {
+  drawWeather();
+}
+
+void weatherAppDrawForecast() {
+  drawForecast();
+}
+
+void weatherAppDrawError(const char* message) {
+  drawError(String(message));
+}
+
+void weatherAppRefreshStarted() {
+  DEBUG_PRINTLN("Refreshing weather and forecast...");
+}
+
+// =====================================================
 // SETUP
 // =====================================================
 
@@ -2746,13 +2802,24 @@ void setup() {
     }
   }
 #endif
-  fetchWeather();
-  fetchForecast();
+  WeatherApp::Hooks weatherHooks;
+  weatherHooks.processInput = weatherAppProcessInput;
+  weatherHooks.syncTime = weatherAppSyncTime;
+  weatherHooks.refreshClock = weatherAppRefreshClock;
+  weatherHooks.millisNow = weatherAppMillisNow;
+  weatherHooks.fetchCurrentWeather = weatherAppFetchCurrentWeather;
+  weatherHooks.fetchForecast = weatherAppFetchForecast;
+  weatherHooks.weatherAvailable = weatherAppWeatherAvailable;
+  weatherHooks.activeTab = weatherAppActiveTab;
+  weatherHooks.drawWeather = weatherAppDrawWeather;
+  weatherHooks.drawForecast = weatherAppDrawForecast;
+  weatherHooks.drawError = weatherAppDrawError;
+  weatherHooks.refreshStarted = weatherAppRefreshStarted;
 
-  if (weatherAvailable) drawWeather();
-  else drawError("Weather unavailable");
-
-  lastUpdate = millis();
+  if (!weatherApp.begin(weatherHooks)) {
+    Serial.println("Weather application failed to start: incomplete hooks or already active.");
+    while (true) delay(1000);
+  }
 }
 
 // =====================================================
@@ -2760,24 +2827,6 @@ void setup() {
 // =====================================================
 
 void loop() {
-  pollTouch();
-  maybeSyncTimeFromAPI();
-
-  if (millis() - lastClockCheckMs >= 1000UL) {
-    lastClockCheckMs = millis();
-    refreshHeaderClock();
-  }
-
-  if (millis() - lastUpdate >= UPDATE_INTERVAL) {
-    lastUpdate = millis();
-    DEBUG_PRINTLN("Refreshing weather and forecast...");
-    bool currentOK = fetchWeather();
-    fetchForecast();
-
-    if (currentTab == 1) drawForecast();
-    else if (currentOK || weatherAvailable) drawWeather();
-    else drawError("Refresh failed");
-  }
-
+  weatherApp.update();
   delay(30);
 }
