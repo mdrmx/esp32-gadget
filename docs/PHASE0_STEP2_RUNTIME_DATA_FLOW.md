@@ -5,8 +5,8 @@
 **Related inventory:** [Phase 0, Step 1 — Code inventory](PHASE0_STEP1_CODE_INVENTORY.md)  
 **Repository:** `mdrmx/esp32-gadget`  
 **Primary runtime entry point:** `weatherDashboard.ino`  
-**Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h` and `src/ui/TextRenderer.h`; the in-progress PR #42 branch adds `src/ui/HeaderRenderer.h`.  
-**Source checkpoint:** `main` at PR #41 merge `108805abfeb290e0b87b497960acff8e85bc7a3d`; in-progress extension on `phase1/16-header-renderer`.  
+**Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h` and `src/ui/TextRenderer.h`; the validated PR #42 branch adds `src/ui/HeaderRenderer.h` (awaiting merge).  
+**Source checkpoint:** `main` at PR #41 merge `108805abfeb290e0b87b497960acff8e85bc7a3d`; validated extension awaiting merge on `phase1/16-header-renderer`.  
 **Extraction status:** PR #40 WeatherViewState and PR #41 TextRenderer are merged. PR #41 includes null-target guards and corrected over-wide centred-text clamping; strict C++11 host tests passed. By project convention, its final merge is treated as having passed Arduino Verify, upload/boot and Waveshare regression. The recorded build figures (1,164,219 bytes program storage; 97,380 bytes global dynamic memory; 230,300 bytes remaining) belong only to PR #41's pre-review revision. PR #42 moves fixed header/clock drawing into HeaderRenderer while retaining location/time data and redraw-cache policy in Weather; local strict C++11 host smoke checks passed. Arduino IDE compilation and upload/flash have passed on the current PR head (1,164,667 bytes program storage; 97,396 bytes global dynamic memory; 230,284 bytes remaining), with flash hashes verified and a final board hard reset. The user confirmed successful application boot and complete Waveshare physical regression on 2026-11-13, with header/clock, transition, Weather/Forecast, loading/error and all touch/scroll/graph behaviour preserved. The user ran both `sh scripts/test-header-renderer.sh` and `sh scripts/test-text-renderer.sh` successfully; the respective output was `HeaderRenderer tests passed.` and `TextRenderer tests passed.` View-specific Weather/Forecast/graph drawing and detailed touch-policy ownership remain in the sketch.  
 **Review date:** 2026-11-13
 
@@ -16,7 +16,7 @@
 
 This document completes Phase 0, Step 2: trace how the existing firmware behaves at runtime and how input, application state, network responses and rendering connect.
 
-The trace follows the merged Weather sketch and extracted services through PR #41; PR #42's header-renderer integration is an in-progress extension on its feature branch. It covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
+The trace follows the merged Weather sketch and extracted services through PR #41; PR #42's HeaderRenderer implementation is complete and validated on its feature branch, awaiting merge. It covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
 
 This is a **static source-level runtime map**. It does not claim that the firmware was compiled, profiled, or tested on the physical Waveshare board during this step. Timing values below are configured timeout / scheduling values in the source, not measured network latency or observed responsiveness.
 
