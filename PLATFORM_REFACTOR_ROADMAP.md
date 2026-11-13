@@ -673,7 +673,8 @@ PR #33 merged at the commit recorded above. Its scope remains limited to shared 
 - **Sketch integration:** `weatherDashboard.ino` supplies fixed function-pointer adapters for its existing `pollTouch()`, TimeService synchronisation, header clock, fetch methods, active tab and draw functions. `setup()` still performs platform display/touch/time setup and live location resolution before calling `WeatherApp::begin()`; `loop()` delegates to `WeatherApp::update()` then retains the existing 30 ms pacing delay.
 - **Ownership deliberately not moved yet:** current tab, Weather metric/list/graph state, individual renderers, canvas/display resources, asset cache, input policies and domain service implementations remain in the sketch/platform modules. This is a shell and composition boundary, not the full WeatherApp extraction.
 - **Embedded constraints:** static function pointers only; no `std::function`, dynamic callback allocation, async work or new dependencies. Current-weather then forecast order and the existing synchronous refresh behaviour are retained.
-- **Host checks:** C++11 host lifecycle test passed for missing-hook rejection, startup call order, clock cadence, scheduled refresh, forecast-tab redraw and shutdown.
+- **Review follow-ups:** clock refresh timing now starts from the timestamp recorded after initial render (avoids an immediate redundant clock check); the error-render adapter safely handles a null message with an `Unknown error` fallback. Both inline review threads were replied to and resolved.
+- **Host checks:** C++11 host lifecycle test passed for missing-hook rejection, startup call order, one-second clock cadence, scheduled refresh, forecast-tab redraw and shutdown.
 - **Validation still required:** Arduino IDE Verify using the established Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12, upload/boot, live Weather/Forecast and touch regression, and offline demo smoke test. This branch is not yet merged.
 
 
