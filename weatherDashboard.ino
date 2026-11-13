@@ -11,6 +11,7 @@
 #include "src/input/GestureRecognizer.h"
 #include "src/input/InteractionArbiter.h"
 #include "src/ui/ScrollController.h"
+#include "src/ui/TextRenderer.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
 #include "src/services/TimeService.h"
@@ -88,6 +89,7 @@ String lastHeaderClock = "";
 
 // Owns the physical display, render target, dimensions and off-screen buffers.
 DisplayManager displayManager;
+TextRenderer textRenderer(displayManager);
 
 // =====================================================
 // TOUCH
@@ -256,135 +258,6 @@ uint8_t forecastControlTouch = 0; // 3=list, 4=graph.
 int forecastControlStartX = 0;
 int forecastControlStartY = 0;
 
-// =====================================================
-// TEXT HELPERS
-// =====================================================
-
-void drawText(const String& text, int x, int y, uint8_t size, uint16_t colour) {
-  displayManager.target()->setTextSize(size);
-  displayManager.target()->setTextColor(colour);
-  displayManager.target()->setCursor(x, y);
-  displayManager.target()->print(text);
-}
-
-void drawCenteredText(const String& text, int y, uint8_t size, uint16_t colour) {
-  displayManager.target()->setTextSize(size);
-  displayManager.target()->setTextColor(colour);
-
-  int16_t x1, y1;
-  uint16_t w, h;
-  displayManager.target()->getTextBounds(text.c_str(), 0, y, &x1, &y1, &w, &h);
-
-  int x = (displayManager.width() - (int)w) / 2;
-  if (x < 4) x = 4;
-  if (x + (int)w > displayManager.width() - 4) x = displayManager.width() - 4 - w;
-
-  displayManager.target()->setCursor(x, y);
-  displayManager.target()->print(text);
-}
-
-int measureTextWidth(const String& text, uint8_t size) {
-  displayManager.target()->setTextSize(size);
-  int16_t x1, y1;
-  uint16_t w, h;
-  displayManager.target()->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &w, &h);
-  return (int)w;
-}
-
-int measureTextHeight(const String& text, uint8_t size) {
-  displayManager.target()->setTextSize(size);
-  int16_t x1, y1;
-  uint16_t w, h;
-  displayManager.target()->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &w, &h);
-  return (int)h;
-}
-
-// Wrap the description to the weather column and centre each line around
-// centreX. Returns the rendered block height so following data can be placed
-// relative to its actual line count.
-int drawWrappedCenteredText(
-  const String& text,
-  int centreX,
-  int maxWidth,
-  int topY,
-  uint8_t size,
-  uint16_t colour
-) {
-  String lines[2];
-  int lineCount = 0;
-  String currentLine;
-  int wordStart = 0;
-
-  while (wordStart < (int)text.length()) {
-    while (wordStart < (int)text.length() && text[wordStart] == ' ') {
-      wordStart++;
-    }
-    if (wordStart >= (int)text.length()) break;
-
-    int wordEnd = text.indexOf(' ', wordStart);
-    if (wordEnd < 0) wordEnd = text.length();
-    String word = text.substring(wordStart, wordEnd);
-    wordStart = wordEnd + 1;
-
-    String candidate = currentLine.length() ? currentLine + " " + word : word;
-    if (measureTextWidth(candidate, size) <= maxWidth) {
-      currentLine = candidate;
-    } else if (lineCount == 0 && currentLine.length() > 0) {
-      lines[lineCount++] = currentLine;
-      currentLine = word;
-    } else if (lineCount == 1) {
-      // There is no room for another line; shorten the second line neatly.
-      String shortened = currentLine;
-      while (shortened.length() > 0 &&
-             measureTextWidth(shortened + "...", size) > maxWidth) {
-        int lastSpace = shortened.lastIndexOf(' ');
-        if (lastSpace >= 0) {
-          shortened = shortened.substring(0, lastSpace);
-        } else {
-          shortened = shortened.substring(0, shortened.length() - 1);
-        }
-      }
-      currentLine = shortened + "...";
-      break;
-    } else {
-      currentLine = word;
-    }
-  }
-
-  if (lineCount < 2 && currentLine.length() > 0) {
-    lines[lineCount++] = currentLine;
-  }
-  if (lineCount == 0) return 0;
-
-  displayManager.target()->setTextSize(size);
-  displayManager.target()->setTextColor(colour);
-  int lineHeight = measureTextHeight(lines[0], size);
-  if (lineHeight <= 0) lineHeight = 8 * size;
-
-  for (int i = 0; i < lineCount; i++) {
-    int width = measureTextWidth(lines[i], size);
-    drawText(lines[i], centreX - width / 2, topY + i * lineHeight, size, colour);
-  }
-
-  return lineCount * lineHeight;
-}
-
-// Draw one line centred around centreX and return its measured height.
-int drawCenteredWeatherLine(
-  const String& text,
-  int centreX,
-  int y,
-  uint8_t size,
-  uint16_t colour
-) {
-  displayManager.target()->setTextSize(size);
-  int16_t x1, y1;
-  uint16_t width, height;
-  displayManager.target()->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &width, &height);
-  drawText(text, centreX - (int)width / 2, y, size, colour);
-  return height > 0 ? (int)height : 8 * size;
-}
-
 // Report the actual heap region of an Arduino_Canvas framebuffer.
 // Arduino_GFX currently allocates its ESP32 canvas buffer with aligned_alloc(),
 // which does not explicitly request PSRAM; inspect the returned pointer instead.
@@ -460,7 +333,7 @@ void drawHeaderClockOnly(const String& clockText) {
   if (x < displayManager.width() - 70) {
     x = displayManager.width() - 70;
   }
-  drawText(clockText, x, 10, 2, ACCENT);
+  textRenderer.drawText(clockText, x, 10, 2, ACCENT);
   lastHeaderClock = clockText;
 }
 
@@ -496,7 +369,7 @@ void drawHeader() {
   displayManager.target()->fillRect(0, 0, displayManager.width(), 36, PANEL);
 
   String locationLabel = getHeaderLocationText();
-  drawText(locationLabel, 10, 10, 2, UI_WHITE);
+  textRenderer.drawText(locationLabel, 10, 10, 2, UI_WHITE);
 
   String clockText = timeService.headerClockText();
   displayManager.target()->setTextSize(2);
@@ -507,7 +380,7 @@ void drawHeader() {
   if (x < displayManager.width() - 70) {
     x = displayManager.width() - 70;
   }
-  drawText(clockText, x, 10, 2, ACCENT);
+  textRenderer.drawText(clockText, x, 10, 2, ACCENT);
   lastHeaderClock = clockText;
 
   displayManager.target()->drawFastHLine(0, 36, displayManager.width(), ACCENT);
@@ -526,16 +399,16 @@ void drawTabIndicator() {
 void drawLoading(const String& message) {
   displayManager.target()->fillScreen(BG);
   drawHeader();
-  drawCenteredText("OpenWeatherMap", 83, 2, ACCENT);
-  drawCenteredText(message, 119, 1, UI_WHITE);
+  textRenderer.drawCenteredText("OpenWeatherMap", 83, 2, ACCENT);
+  textRenderer.drawCenteredText(message, 119, 1, UI_WHITE);
 }
 
 void drawError(const String& message) {
   displayManager.target()->fillScreen(BG);
   drawHeader();
-  drawCenteredText("WEATHER ERROR", 82, 2, ERROR_COLOUR);
-  drawCenteredText(message, 117, 1, UI_WHITE);
-  drawCenteredText("Will retry automatically", 143, 1, MUTED);
+  textRenderer.drawCenteredText("WEATHER ERROR", 82, 2, ERROR_COLOUR);
+  textRenderer.drawCenteredText(message, 117, 1, UI_WHITE);
+  textRenderer.drawCenteredText("Will retry automatically", 143, 1, MUTED);
 }
 
 // =====================================================
@@ -1013,7 +886,7 @@ void drawWeather() {
   int iconHeight = drawOpenWeatherIcon(46, contentY);
   if (iconHeight > 0) contentY += iconHeight + iconDescriptionGap;
 
-  int descriptionHeight = drawWrappedCenteredText(
+  int descriptionHeight = textRenderer.drawWrappedCenteredText(
     weatherDescription,
     contentCentreX,
     descriptionMaxWidth,
@@ -1023,7 +896,7 @@ void drawWeather() {
   contentY += descriptionHeight + descriptionTemperatureGap;
 
   String temperatureText = String(temperature, 1) + " C";
-  int temperatureHeight = drawCenteredWeatherLine(
+  int temperatureHeight = textRenderer.drawCenteredWeatherLine(
     temperatureText,
     contentCentreX,
     contentY,
@@ -1032,7 +905,7 @@ void drawWeather() {
   contentY += temperatureHeight + temperatureFeelsGap;
 
   String feelsText = "Feels " + String(feelsLike, 1) + " C";
-  drawCenteredWeatherLine(
+  textRenderer.drawCenteredWeatherLine(
     feelsText,
     contentCentreX,
     contentY,
@@ -1215,8 +1088,8 @@ void drawForecastModeSelector() {
   } else {
     displayManager.target()->fillRoundRect(181, 41, 67, 24, 5, UI_WHITE);
   }
-  drawText("LIST", 201, 50, 1, forecastGraphView ? MUTED : BG);
-  drawText("GRAPH", 265, 50, 1, forecastGraphView ? BG : MUTED);
+  textRenderer.drawText("LIST", 201, 50, 1, forecastGraphView ? MUTED : BG);
+  textRenderer.drawText("GRAPH", 265, 50, 1, forecastGraphView ? BG : MUTED);
 }
 
 void drawForecastControls() {
@@ -1230,7 +1103,7 @@ void drawForecastControls() {
     BG);
 
   if (!forecastGraphView) {
-    drawText("HOURLY", 8, 50, 1, UI_WHITE);
+    textRenderer.drawText("HOURLY", 8, 50, 1, UI_WHITE);
   }
 
   drawForecastModeSelector();
@@ -1562,7 +1435,7 @@ void drawForecast() {
   drawHeader();
 
   if (!forecastAvailable || forecastCount == 0) {
-    drawCenteredText(forecastError.length() ? forecastError : "No hourly data", 100, 1, MUTED);
+    textRenderer.drawCenteredText(forecastError.length() ? forecastError : "No hourly data", 100, 1, MUTED);
     drawForecastControls();
     drawForecastFooter();
     return;
