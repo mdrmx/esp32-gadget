@@ -12,6 +12,7 @@
 #include "src/input/InteractionArbiter.h"
 #include "src/ui/ScrollController.h"
 #include "src/ui/TextRenderer.h"
+#include "src/ui/HeaderRenderer.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
 #include "src/services/TimeService.h"
@@ -90,6 +91,7 @@ String lastHeaderClock = "";
 // Owns the physical display, render target, dimensions and off-screen buffers.
 DisplayManager displayManager;
 TextRenderer textRenderer(displayManager);
+HeaderRenderer headerRenderer(displayManager, textRenderer);
 
 // =====================================================
 // TOUCH
@@ -322,18 +324,7 @@ String getHeaderLocationText() {
 }
 
 void drawHeaderClockOnly(const String& clockText) {
-  displayManager.target()->fillRect(displayManager.width() - 78, 0, 78, 36, PANEL);
-
-  displayManager.target()->setTextSize(2);
-  displayManager.target()->setTextColor(ACCENT);
-  int16_t x1, y1;
-  uint16_t w, h;
-  displayManager.target()->getTextBounds(clockText.c_str(), 0, 10, &x1, &y1, &w, &h);
-  int x = displayManager.width() - 10 - (int)w;
-  if (x < displayManager.width() - 70) {
-    x = displayManager.width() - 70;
-  }
-  textRenderer.drawText(clockText, x, 10, 2, ACCENT);
+  headerRenderer.drawClockOnly(clockText, PANEL, ACCENT);
   lastHeaderClock = clockText;
 }
 
@@ -366,24 +357,10 @@ void maybeSyncTimeFromAPI() {
 // =====================================================
 
 void drawHeader() {
-  displayManager.target()->fillRect(0, 0, displayManager.width(), 36, PANEL);
-
-  String locationLabel = getHeaderLocationText();
-  textRenderer.drawText(locationLabel, 10, 10, 2, UI_WHITE);
-
-  String clockText = timeService.headerClockText();
-  displayManager.target()->setTextSize(2);
-  int16_t x1, y1;
-  uint16_t w, h;
-  displayManager.target()->getTextBounds(clockText.c_str(), 0, 10, &x1, &y1, &w, &h);
-  int x = displayManager.width() - 10 - (int)w;
-  if (x < displayManager.width() - 70) {
-    x = displayManager.width() - 70;
-  }
-  textRenderer.drawText(clockText, x, 10, 2, ACCENT);
+  const String clockText = timeService.headerClockText();
+  headerRenderer.draw(
+    getHeaderLocationText(), clockText, PANEL, UI_WHITE, ACCENT);
   lastHeaderClock = clockText;
-
-  displayManager.target()->drawFastHLine(0, 36, displayManager.width(), ACCENT);
 }
 
 void drawTabIndicator() {
