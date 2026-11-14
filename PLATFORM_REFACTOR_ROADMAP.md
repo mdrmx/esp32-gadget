@@ -605,7 +605,7 @@ The user ran all three repository suites successfully: `sh scripts/test-status-s
 - **PR #22 / #24 / #25:** permanent Step 4 audit, handover refresh and Phase 0 memory/profile documentation are merged.
 - **PR #23 / #26:** temporary diagnostics and Arduino source-layout spike were closed without merging; reusable results are recorded in Phase 0 docs.
 - **Phase 0:** complete. Extended fault-path, animation and touch-to-visible-response checks remain documented follow-ups.
-- **Phase 1:** in progress. PRs #27–#44 are merged and validated. PR #44 adds `StatusScreenRenderer` for loading/error screen composition. All three repository renderer host suites passed; the user confirmed firmware compilation/upload, successful physical Waveshare tests and preservation of all interactions. No PR #44 build-size or memory figures were supplied.
+- **Phase 1:** in progress. PRs #27–#44 are merged and validated. PR #45 is in progress on `phase1/18-forecast-list-item-renderer`, extracting hourly forecast list-card rendering and clipped edge cards. Its host test/runner are authored; execution, Arduino Verify/upload and physical Waveshare regression remain pending.
 - **PR #30 scope/result:** `src/input/GestureCode.h` defines the typed CST816 values and a `constexpr` decoder. The existing `0x00`–`0x04` mapping and `Unknown` fallback are unchanged. The user reports running and testing the latest code with all gestures intact.
 - **PR #31 scope (at merge):** `src/input/GestureRecognizer.h` converts a raw `TouchSample` into `GestureObservation`: raw gesture value, typed `GestureCode`, raw-register transition flag/previous value, and touch-present/start/release flags. At that stage, Weather still owned contact arbitration and metric/list/graph drag behaviour. PR #32 now extracts only the active-owner latch; hit-testing and view-specific interaction policy remain in the sketch.
 - **PR #32 result:** [merged pull request](https://github.com/mdrmx/esp32-gadget/pull/32), merge commit `343eb7ed0120d947990cab48cec0c688177f4ec5`. Arduino Verify passed (1,149,179 bytes program storage; 97,212 bytes global dynamic memory); upload/boot and physical interaction regression were confirmed passed by the user.
@@ -743,7 +743,7 @@ When resuming work after a context reset:
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
-| 1 | Project structure and shared foundations | In progress — PRs #27–#44 merged and validated; next: select an isolated Weather/Forecast rendering extraction |
+| 1 | Project structure and shared foundations | In progress — PRs #27–#44 merged and validated; PR #45 extracts hourly forecast list-card rendering |
 | 2 | Wi-Fi management and shared connectivity | Not started |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
