@@ -229,7 +229,6 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 - [x] User ran `sh scripts/test-text-renderer.sh` after the shared graphics stub change; output: `TextRenderer tests passed.`
 - [x] Equivalent local C++11 strict-warning host checks passed.
 - [x] User ran `sh scripts/test-header-renderer.sh`; output: `HeaderRenderer tests passed.`
-- [x] PR #42 merged at `ba92b8b53da8457caa18bb454f53c0d51ca6687a` on 2026-11-14.
 - [x] Arduino IDE compile / Verify succeeded on the current PR #42 head using ESP32 core 3.3.12 and FQBN `esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`.
 - [x] Build output: 1,164,667 bytes program storage (37% of 3 MiB); 97,396 bytes global dynamic memory (29% of 327,680 bytes); 230,284 bytes remaining. ESP32-S3 image and merged 16 MB flash image generated successfully.
 - [x] Upload/flash completed on `/dev/cu.usbmodem101`; written-data hashes verified and final hard reset completed.
@@ -241,7 +240,7 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 Arduino build, upload/flash, both repository host tests and the complete physical regression are recorded as passed. No physical timing or runtime memory-profile measurements are claimed.
 
 
-## PR #44 — StatusScreenRenderer extraction (merged)
+## PR #44 — StatusScreenRenderer extraction (merged at `4a567bef43a07a8f50ecd9deb434c67051104b70`)
 
 `StatusScreenRenderer` moves only the Weather loading/error screen composition into `src/ui/StatusScreenRenderer.h`. Weather continues to select status messages, manage Wi-Fi and data outcomes, resolve the header location, read `TimeService`, maintain the clock redraw cache and supply theme colours. The renderer composes the background, existing header and status text using the active `DisplayManager::target()`.
 
@@ -255,7 +254,7 @@ Arduino build, upload/flash, both repository host tests and the complete physica
 - [x] User confirmed firmware compilation and upload succeeded.
 - [x] User confirmed all physical Waveshare tests passed and all existing interactions are preserved.
 
-PR #44 merged at `4a567bef43a07a8f50ecd9deb434c67051104b70`. No build-size or memory figures were supplied for this firmware revision.
+PR #44 is merged at `4a567bef43a07a8f50ecd9deb434c67051104b70`. All three repository renderer suites passed; the user confirmed firmware compilation and upload succeeded, all physical Waveshare tests passed and all existing interactions were preserved. No build-size or memory figures were supplied for this firmware revision.
 
 ## 5. Clock and location
 
