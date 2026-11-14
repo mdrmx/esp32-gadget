@@ -162,7 +162,6 @@ public:
   uint16_t lastFillCircleColour = 0;
   int drawFastVLineCount = 0;
   int drawLineCount = 0;
-  uint16_t lastLineColour = 0;
 
 protected:
   Arduino_GFX(int width = 320, int height = 240)
