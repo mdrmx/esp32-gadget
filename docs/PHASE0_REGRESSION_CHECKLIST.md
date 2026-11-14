@@ -240,7 +240,7 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 Arduino build, upload/flash, both repository host tests and the complete physical regression are recorded as passed. No physical timing or runtime memory-profile measurements are claimed.
 
 
-## PR #44 — StatusScreenRenderer extraction (open; validation pending)
+## PR #44 — StatusScreenRenderer extraction (validation passed; awaiting merge)
 
 `StatusScreenRenderer` moves only the Weather loading/error screen composition into `src/ui/StatusScreenRenderer.h`. Weather continues to select status messages, manage Wi-Fi and data outcomes, resolve the header location, read `TimeService`, maintain the clock redraw cache and supply theme colours. The renderer composes the background, existing header and status text using the active `DisplayManager::target()`.
 
@@ -248,13 +248,13 @@ Arduino build, upload/flash, both repository host tests and the complete physica
 - [x] Route `drawLoading()` and `drawError()` through the new renderer without moving status/message policy out of Weather.
 - [x] Add strict C++11 host coverage for loading/error layout, geometry, text sizes/colours, null-target no-op and transition-canvas routing.
 - [x] Add `sh scripts/test-status-screen-renderer.sh`.
-- [x] Local strict C++11 compatibility-harness compile/test passed; this is not a substitute for running the repository script on the development checkout.
-- [ ] Run `sh scripts/test-status-screen-renderer.sh` on the development checkout.
-- [ ] Re-run `sh scripts/test-header-renderer.sh` and `sh scripts/test-text-renderer.sh` after the shared graphics-stub extension.
-- [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 FQBN / ESP32 core 3.3.12 configuration.
-- [ ] Upload/boot and physical Waveshare regression for startup/loading, Wi-Fi-unavailable/error, current weather, forecast, header/clock, transitions, touch, scrolling and graph behaviour.
+- [x] User ran `sh scripts/test-status-screen-renderer.sh`; output: `StatusScreenRenderer tests passed.`
+- [x] User ran `sh scripts/test-header-renderer.sh`; output: `HeaderRenderer tests passed.`
+- [x] User ran `sh scripts/test-text-renderer.sh`; output: `TextRenderer tests passed.`
+- [x] User confirmed firmware compilation and upload succeeded.
+- [x] User confirmed all physical Waveshare tests passed and all existing interactions are preserved.
 
-No firmware build, memory or physical-device validation result is recorded for PR #44 yet.
+PR #44 is fully validated and awaits merge. No build-size or memory figures were supplied for this firmware revision.
 
 ## 5. Clock and location
 
