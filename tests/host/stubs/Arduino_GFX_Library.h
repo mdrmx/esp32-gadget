@@ -68,6 +68,37 @@ public:
     lastLineColour = colour;
   }
 
+  void fillRoundRect(
+    int16_t x,
+    int16_t y,
+    int16_t width,
+    int16_t height,
+    int16_t radius,
+    uint16_t colour
+  ) {
+    ++fillRoundRectCount;
+    lastFillRoundRectX = x;
+    lastFillRoundRectY = y;
+    lastFillRoundRectWidth = width;
+    lastFillRoundRectHeight = height;
+    lastFillRoundRectRadius = radius;
+    lastFillRoundRectColour = colour;
+  }
+
+  void fillCircle(int16_t, int16_t, int16_t, uint16_t colour) {
+    ++fillCircleCount;
+    lastFillCircleColour = colour;
+  }
+
+  void drawFastVLine(int16_t, int16_t, int16_t, uint16_t) {
+    ++drawFastVLineCount;
+  }
+
+  void drawLine(int16_t, int16_t, int16_t, int16_t, uint16_t colour) {
+    ++drawLineCount;
+    lastLineColour = colour;
+  }
+
   void getTextBounds(
     const char* text,
     int16_t x,
@@ -117,6 +148,20 @@ public:
   int lastLineX = 0;
   int lastLineY = 0;
   int lastLineWidth = 0;
+  uint16_t lastLineColour = 0;
+
+  int fillRoundRectCount = 0;
+  int lastFillRoundRectX = 0;
+  int lastFillRoundRectY = 0;
+  int lastFillRoundRectWidth = 0;
+  int lastFillRoundRectHeight = 0;
+  int lastFillRoundRectRadius = 0;
+  uint16_t lastFillRoundRectColour = 0;
+
+  int fillCircleCount = 0;
+  uint16_t lastFillCircleColour = 0;
+  int drawFastVLineCount = 0;
+  int drawLineCount = 0;
   uint16_t lastLineColour = 0;
 
 protected:
