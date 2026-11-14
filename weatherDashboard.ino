@@ -1074,8 +1074,10 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     // icons still fit on the display, so clip against the screen rather than
     // hiding them just because they cross the inner plot boundary.
     if (x >= 8 && x <= displayManager.width() - 8) {
-      drawMiniWeatherIcon(
-        target, forecast[index].description, x - 8,
+      forecastListItemRenderer.drawConditionIcon(
+        target,
+        forecast[index].description,
+        x - 8,
         originY + 2 + FORECAST_GRAPH_VERTICAL_SHIFT);
     }
 
