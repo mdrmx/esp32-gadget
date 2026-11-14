@@ -14,6 +14,7 @@
 #include "src/ui/TextRenderer.h"
 #include "src/ui/HeaderRenderer.h"
 #include "src/ui/StatusScreenRenderer.h"
+#include "src/ui/ForecastListItemRenderer.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
 #include "src/services/TimeService.h"
@@ -181,6 +182,12 @@ const StatusScreenRenderer::Colours STATUS_SCREEN_COLOURS = {
   BG, PANEL, UI_WHITE, ACCENT, UI_WHITE, ERROR_COLOUR, MUTED
 };
 
+const ForecastListItemRenderer::Colours FORECAST_LIST_ITEM_COLOURS = {
+  PANEL, UI_WHITE, UI_YELLOW, MUTED, ACCENT
+};
+ForecastListItemRenderer forecastListItemRenderer(
+  displayManager, FORECAST_LIST_ITEM_COLOURS);
+
 // =====================================================
 // WEATHER DATA
 // =====================================================
@@ -245,7 +252,7 @@ const int TAB_TRANSITION_FOOTER_HEIGHT = 12;
 
 const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 8;
 const int FORECAST_ROW_STEP = 48;
-const int FORECAST_CARD_HEIGHT = 44;
+const int FORECAST_CARD_HEIGHT = ForecastListItemRenderer::CARD_HEIGHT;
 const int FORECAST_GRAPH_POINTS = 6;
 const int FORECAST_GRAPH_POINT_SPACING = 56;
 const unsigned long FORECAST_GRAPH_HOLD_MS = 220UL;
@@ -910,156 +917,31 @@ String forecastCompactTime(int index) {
   return label;
 }
 
-// Small vector weather symbols keep hourly rows compact without downloading and
-// caching a separate PNG for every forecast condition.
-void drawMiniWeatherIcon(
-  Arduino_GFX* target,
-  const String& condition,
-  int x,
-  int y
-) {
-  const bool clear = condition.indexOf("Clear") >= 0;
-  const bool rain = condition.indexOf("Rain") >= 0 ||
-                    condition.indexOf("Drizzle") >= 0;
-  const bool snow = condition.indexOf("Snow") >= 0;
-  const bool thunder = condition.indexOf("Thunder") >= 0;
-  const bool mist = condition.indexOf("Mist") >= 0 ||
-                    condition.indexOf("Fog") >= 0 ||
-                    condition.indexOf("Haze") >= 0;
-
-  if (clear) {
-    target->fillCircle(x + 8, y + 7, 4, UI_YELLOW);
-    target->drawFastHLine(x + 1, y + 7, 3, UI_YELLOW);
-    target->drawFastHLine(x + 12, y + 7, 3, UI_YELLOW);
-    target->drawFastVLine(x + 8, y, 3, UI_YELLOW);
-    target->drawFastVLine(x + 8, y + 11, 3, UI_YELLOW);
-    target->drawLine(x + 3, y + 2, x + 5, y + 4, UI_YELLOW);
-    target->drawLine(x + 11, y + 10, x + 13, y + 12, UI_YELLOW);
-    target->drawLine(x + 11, y + 4, x + 13, y + 2, UI_YELLOW);
-    target->drawLine(x + 3, y + 12, x + 5, y + 10, UI_YELLOW);
-    return;
-  }
-
-  if (mist) {
-    target->drawFastHLine(x + 1, y + 4, 14, MUTED);
-    target->drawFastHLine(x, y + 8, 15, UI_WHITE);
-    target->drawFastHLine(x + 2, y + 12, 12, MUTED);
-    return;
-  }
-
-  // The cloud is shared by cloudy, rain, snow and thunderstorm conditions.
-  target->fillCircle(x + 5, y + 8, 3, UI_WHITE);
-  target->fillCircle(x + 9, y + 5, 4, UI_WHITE);
-  target->fillCircle(x + 13, y + 8, 3, UI_WHITE);
-  target->fillRect(x + 4, y + 7, 10, 5, UI_WHITE);
-
-  if (thunder) {
-    target->drawLine(x + 9, y + 10, x + 6, y + 14, UI_YELLOW);
-    target->drawLine(x + 6, y + 14, x + 9, y + 14, UI_YELLOW);
-    target->drawLine(x + 9, y + 14, x + 7, y + 17, UI_YELLOW);
-  } else if (snow) {
-    target->drawFastVLine(x + 6, y + 13, 4, ACCENT);
-    target->drawFastHLine(x + 4, y + 14, 4, ACCENT);
-    target->drawFastHLine(x + 9, y + 15, 4, ACCENT);
-  } else if (rain) {
-    target->drawLine(x + 5, y + 13, x + 3, y + 16, ACCENT);
-    target->drawLine(x + 10, y + 13, x + 8, y + 16, ACCENT);
-    target->drawLine(x + 14, y + 13, x + 12, y + 16, ACCENT);
-  }
+ForecastListItemRenderer::Item forecastListRenderItem(int index) {
+  return {
+    forecastCompactTime(index),
+    forecast[index].description,
+    forecast[index].temp,
+    forecast[index].feelsLike,
+    forecast[index].rainProbability
+  };
 }
 
 void drawForecastItem(Arduino_GFX* target, int index, int y) {
-  target->fillRoundRect(
-    4, y, displayManager.width() - 8, FORECAST_CARD_HEIGHT, 4, PANEL);
-
-  // Four concise fields fit on the small display: time, condition icon,
-  // temperature, feels-like temperature, and probability of precipitation.
-  target->setTextSize(1);
-  target->setTextColor(UI_WHITE);
-  target->setCursor(10, y + 18);
-  target->print(forecastCompactTime(index));
-
-  drawMiniWeatherIcon(target, forecast[index].description, 48, y + 13);
-
-  String temp = String((int)round(forecast[index].temp)) + "C";
-  target->setTextSize(2);
-  target->setTextColor(UI_YELLOW);
-  target->setCursor(72, y + 14);
-  target->print(temp);
-
-  String feelsText = "FL " +
-    String((int)round(forecast[index].feelsLike)) + "C";
-  target->setTextSize(1);
-  target->setTextColor(MUTED);
-  target->setCursor(145, y + 18);
-  target->print(feelsText);
-
-  const int rainPercent = constrain(
-    (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
-  String rainText = "POP " + String(rainPercent) + "%";
-  int16_t x1, y1;
-  uint16_t w, h;
-  target->getTextBounds(rainText.c_str(), 0, 0, &x1, &y1, &w, &h);
-  target->setTextColor(UI_WHITE);
-  target->setCursor(displayManager.width() - 10 - (int)w, y + 18);
-  target->print(rainText);
+  forecastListItemRenderer.draw(
+    target, forecastListRenderItem(index), y);
 }
 
 // Draw a forecast card into the viewport canvas while explicitly clipping
 // edge rows. Avoid passing negative coordinates to rounded-rectangle or text
 // primitives, but keep the visible slice of each card moving smoothly.
 void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
-  const int cardTop = y - FORECAST_VIEWPORT_TOP;
-  const int cardBottom = cardTop + FORECAST_CARD_HEIGHT;
-  const int clippedTop = max(0, cardTop);
-  const int clippedBottom = min(FORECAST_VIEWPORT_HEIGHT, cardBottom);
-  if (clippedTop >= clippedBottom) return;
-
-  if (cardTop >= 0 && cardBottom <= FORECAST_VIEWPORT_HEIGHT) {
-    drawForecastItem(target, index, cardTop);
-    return;
-  }
-
-  // Partial edge rows get a clipped body and only fields wholly inside the
-  // viewport are drawn. Never pass negative/off-panel Y values to primitives.
-  target->fillRect(4, clippedTop, displayManager.width() - 8,
-                   clippedBottom - clippedTop, PANEL);
-
-  const int fieldY = cardTop + 18;
-  if (fieldY >= 0 && fieldY + 8 <= FORECAST_VIEWPORT_HEIGHT) {
-    target->setTextSize(1);
-    target->setTextColor(UI_WHITE);
-    target->setCursor(10, fieldY);
-    target->print(forecastCompactTime(index));
-
-    String feelsText = "FL " +
-      String((int)round(forecast[index].feelsLike)) + "C";
-    target->setTextColor(MUTED);
-    target->setCursor(145, fieldY);
-    target->print(feelsText);
-
-    const int rainPercent = constrain(
-      (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
-    String rainText = "POP " + String(rainPercent) + "%";
-    int16_t x1, y1;
-    uint16_t w, h;
-    target->getTextBounds(rainText.c_str(), 0, 0, &x1, &y1, &w, &h);
-    target->setTextColor(UI_WHITE);
-    target->setCursor(displayManager.width() - 10 - (int)w, fieldY);
-    target->print(rainText);
-  }
-
-  if (cardTop + 13 >= 0 &&
-      cardTop + 31 <= FORECAST_VIEWPORT_HEIGHT) {
-    drawMiniWeatherIcon(
-      target, forecast[index].description, 48, cardTop + 13);
-
-    String temp = String((int)round(forecast[index].temp)) + "C";
-    target->setTextSize(2);
-    target->setTextColor(UI_YELLOW);
-    target->setCursor(72, cardTop + 14);
-    target->print(temp);
-  }
+  forecastListItemRenderer.drawClipped(
+    target,
+    forecastListRenderItem(index),
+    y,
+    FORECAST_VIEWPORT_TOP,
+    FORECAST_VIEWPORT_HEIGHT);
 }
 
 void drawForecastModeSelector() {
@@ -1192,8 +1074,10 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     // icons still fit on the display, so clip against the screen rather than
     // hiding them just because they cross the inner plot boundary.
     if (x >= 8 && x <= displayManager.width() - 8) {
-      drawMiniWeatherIcon(
-        target, forecast[index].description, x - 8,
+      forecastListItemRenderer.drawConditionIcon(
+        target,
+        forecast[index].description,
+        x - 8,
         originY + 2 + FORECAST_GRAPH_VERTICAL_SHIFT);
     }
 

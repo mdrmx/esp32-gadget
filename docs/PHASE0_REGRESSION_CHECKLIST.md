@@ -256,6 +256,19 @@ Arduino build, upload/flash, both repository host tests and the complete physica
 
 PR #44 is merged at `4a567bef43a07a8f50ecd9deb434c67051104b70`. All three repository renderer suites passed; the user confirmed firmware compilation and upload succeeded, all physical Waveshare tests passed and all existing interactions were preserved. No build-size or memory figures were supplied for this firmware revision.
 
+## PR #45 — ForecastListItemRenderer extraction (in progress)
+
+`ForecastListItemRenderer` moves hourly forecast list-card composition, compact vector condition icons, precipitation percentage formatting/clamping and clipped edge-card drawing into `src/ui/ForecastListItemRenderer.h`. Weather retains forecast data selection, compact time formatting, list/graph selection, viewport placement, scroll state, canvas lifecycle and screen composition.
+
+- [ ] Run `sh scripts/test-forecast-list-item-renderer.sh` with strict C++11 warnings.
+- [ ] Arduino IDE Verify on the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration and ESP32 core 3.3.12.
+- [ ] Upload and confirm successful boot.
+- [ ] Physically check forecast List mode: time, condition icons (clear/cloud/rain/snow/thunder/mist), temperature, feels-like and precipitation labels.
+- [ ] Check first/last partially visible cards, vertical scrolling, overscroll/snap, List/Graph switching and tab transitions.
+- [ ] Confirm Graph mode, Weather screen, loading/error screens and all touch interactions remain unchanged.
+
+No host-test execution, Arduino build/upload or physical validation is claimed yet. No build-size or memory figures are available for this branch.
+
 ## 5. Clock and location
 
 | Check | Procedure | Pass condition | Status |
