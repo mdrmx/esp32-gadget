@@ -240,6 +240,23 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 
 Arduino build, upload/flash, both repository host tests and the complete physical regression are recorded as passed. No physical timing or runtime memory-profile measurements are claimed.
 
+
+## PR #44 — StatusScreenRenderer extraction (merged)
+
+`StatusScreenRenderer` moves only the Weather loading/error screen composition into `src/ui/StatusScreenRenderer.h`. Weather continues to select status messages, manage Wi-Fi and data outcomes, resolve the header location, read `TimeService`, maintain the clock redraw cache and supply theme colours. The renderer composes the background, existing header and status text using the active `DisplayManager::target()`.
+
+- [x] Add `StatusScreenRenderer` with explicit location/clock strings and a supplied colour palette.
+- [x] Route `drawLoading()` and `drawError()` through the new renderer without moving status/message policy out of Weather.
+- [x] Add strict C++11 host coverage for loading/error layout, geometry, text sizes/colours, null-target no-op and transition-canvas routing.
+- [x] Add `sh scripts/test-status-screen-renderer.sh`.
+- [x] User ran `sh scripts/test-status-screen-renderer.sh`; output: `StatusScreenRenderer tests passed.`
+- [x] User ran `sh scripts/test-header-renderer.sh`; output: `HeaderRenderer tests passed.`
+- [x] User ran `sh scripts/test-text-renderer.sh`; output: `TextRenderer tests passed.`
+- [x] User confirmed firmware compilation and upload succeeded.
+- [x] User confirmed all physical Waveshare tests passed and all existing interactions are preserved.
+
+PR #44 merged at `4a567bef43a07a8f50ecd9deb434c67051104b70`. No build-size or memory figures were supplied for this firmware revision.
+
 ## 5. Clock and location
 
 | Check | Procedure | Pass condition | Status |
