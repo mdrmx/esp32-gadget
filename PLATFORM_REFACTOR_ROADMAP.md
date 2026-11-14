@@ -1,8 +1,8 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.28  
-**Last reviewed:** 2026-11-13  
+**Version:** 4.29  
+**Last reviewed:** 2026-11-14  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
 **Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#41 are merged and validated. PR #41 (`phase1/15-text-renderer`) merged at `108805abfeb290e0b87b497960acff8e85bc7a3d`; its final merge includes the null-target and over-wide-text review fixes. Under the project's merge convention, Arduino Verify, upload/boot and Waveshare regression are treated as passed for the merged revision. The previously recorded build figures apply only to pre-review revision `36c4d634dc9ee3a66ed6c9ca4286d41b0b216700`; no build-size figures are available for the final merged head. PR #42 (`phase1/16-header-renderer`) implements and fully validates the fixed Weather header layout/drawing in `src/ui/HeaderRenderer.h`; it is awaiting merge. The sketch retains location resolution, TimeService access, clock caching and refresh policy. Arduino IDE compilation and upload/flash passed on the current PR #42 head using ESP32 core 3.3.12 and the recorded 16 MB / OPI PSRAM board configuration: 1,164,667 bytes program storage (37% of 3 MiB), 97,396 bytes global dynamic memory (29% of 327,680 bytes), 230,284 bytes remaining. The merged 16 MB image was generated, upload completed, all written-data hashes verified, and the board was hard-reset. The user confirmed successful board boot and complete Waveshare physical validation on 2026-11-13: header layout, clock redraw, transition composition, Weather/Forecast, loading/error and all touch/scroll/graph behaviour are preserved. Both repository host runners now pass: `sh scripts/test-header-renderer.sh` reports `HeaderRenderer tests passed.` and `sh scripts/test-text-renderer.sh` reports `TextRenderer tests passed.`
@@ -585,7 +585,7 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ## 10. Handover instructions for future development sessions
 
-### Current handover — 2026-11-13 (PR #41 merged; PR #42 fully validated)
+### Current handover — 2026-11-14 (PR #41 merged; PR #42 fully validated and awaiting merge)
 
 Recheck GitHub before acting. PR #41 merged at `108805abfeb290e0b87b497960acff8e85bc7a3d`. The final merge includes the Gemini review fixes: null-target guards for each public TextRenderer operation and right-edge-then-left-clamp handling for over-wide centred text. Its strict C++11 host tests pass. Under the project convention, the merge records Arduino Verify, upload/boot and required Waveshare regression as passed for the final merged revision. The recorded build figures belong only to pre-review revision `36c4d634dc9ee3a66ed6c9ca4286d41b0b216700`; do not attribute them to the final merge. PR #42 is open on `phase1/16-header-renderer`; the fixed header and clock-only drawing now live in `src/ui/HeaderRenderer.h`, with Weather retaining data/time/cache policy. A local C++11 host compile of its focused checks passed. Arduino IDE compilation and upload/flash passed on the current head with 1,164,667 bytes program storage, 97,396 bytes global dynamic memory and 230,284 bytes remaining; the 16 MB image was generated, flash hashes verified and the board hard-reset. The user confirmed successful application boot and full physical validation on 2026-11-13; header layout, clock updates, tab transitions and all Weather/Forecast and touch/scroll/graph behaviour are preserved. Both repository host scripts now pass (`HeaderRenderer tests passed.` and `TextRenderer tests passed.`), alongside Arduino build/flash and full user-confirmed physical regression.
 
