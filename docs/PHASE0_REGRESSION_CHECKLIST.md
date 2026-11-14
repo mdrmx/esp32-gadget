@@ -220,7 +220,7 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 - [x] Under the project convention, Arduino IDE Verify, upload/boot and required Waveshare regression are recorded as passed on the final merged revision.
 - [x] No build-size figures were inferred for the final review-fixed merge. The previously recorded 1,164,219 bytes program storage, 97,380 bytes global dynamic memory and 230,300 bytes remaining are tied only to pre-review revision `36c4d634dc9ee3a66ed6c9ca4286d41b0b216700`.
 
-## PR #42 — HeaderRenderer extraction (validation passed; awaiting merge)
+## PR #42 — HeaderRenderer extraction (merged at `ba92b8b53da8457caa18bb454f53c0d51ca6687a`)
 
 `HeaderRenderer` moves the fixed 36 px header background, location/clock text placement, divider and clock-only redraw region into `src/ui/HeaderRenderer.h`. Weather retains location resolution, Weather data access, `TimeService`, `lastHeaderClock` and the refresh decision; colours are passed into the renderer. The component uses `TextRenderer` and the active `DisplayManager::target()`.
 
@@ -229,6 +229,7 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 - [x] User ran `sh scripts/test-text-renderer.sh` after the shared graphics stub change; output: `TextRenderer tests passed.`
 - [x] Equivalent local C++11 strict-warning host checks passed.
 - [x] User ran `sh scripts/test-header-renderer.sh`; output: `HeaderRenderer tests passed.`
+- [x] PR #42 merged at `ba92b8b53da8457caa18bb454f53c0d51ca6687a` on 2026-11-14.
 - [x] Arduino IDE compile / Verify succeeded on the current PR #42 head using ESP32 core 3.3.12 and FQBN `esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`.
 - [x] Build output: 1,164,667 bytes program storage (37% of 3 MiB); 97,396 bytes global dynamic memory (29% of 327,680 bytes); 230,284 bytes remaining. ESP32-S3 image and merged 16 MB flash image generated successfully.
 - [x] Upload/flash completed on `/dev/cu.usbmodem101`; written-data hashes verified and final hard reset completed.
