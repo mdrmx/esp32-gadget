@@ -220,7 +220,7 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 - [x] Under the project convention, Arduino IDE Verify, upload/boot and required Waveshare regression are recorded as passed on the final merged revision.
 - [x] No build-size figures were inferred for the final review-fixed merge. The previously recorded 1,164,219 bytes program storage, 97,380 bytes global dynamic memory and 230,300 bytes remaining are tied only to pre-review revision `36c4d634dc9ee3a66ed6c9ca4286d41b0b216700`.
 
-## PR #42 — HeaderRenderer extraction (validation passed; awaiting merge)
+## PR #42 — HeaderRenderer extraction (merged at `ba92b8b53da8457caa18bb454f53c0d51ca6687a`)
 
 `HeaderRenderer` moves the fixed 36 px header background, location/clock text placement, divider and clock-only redraw region into `src/ui/HeaderRenderer.h`. Weather retains location resolution, Weather data access, `TimeService`, `lastHeaderClock` and the refresh decision; colours are passed into the renderer. The component uses `TextRenderer` and the active `DisplayManager::target()`.
 
@@ -238,6 +238,23 @@ Merged at `266ef646022353dd57bb552fc17a7ba523ad8708`. No firmware build-size or 
 - [x] Confirm Weather/Forecast navigation, loading/error screens and all existing touch/scroll/graph behaviour remain unchanged; user reports everything is preserved.
 
 Arduino build, upload/flash, both repository host tests and the complete physical regression are recorded as passed. No physical timing or runtime memory-profile measurements are claimed.
+
+
+## PR #44 — StatusScreenRenderer extraction (validation passed; awaiting merge)
+
+`StatusScreenRenderer` moves only the Weather loading/error screen composition into `src/ui/StatusScreenRenderer.h`. Weather continues to select status messages, manage Wi-Fi and data outcomes, resolve the header location, read `TimeService`, maintain the clock redraw cache and supply theme colours. The renderer composes the background, existing header and status text using the active `DisplayManager::target()`.
+
+- [x] Add `StatusScreenRenderer` with explicit location/clock strings and a supplied colour palette.
+- [x] Route `drawLoading()` and `drawError()` through the new renderer without moving status/message policy out of Weather.
+- [x] Add strict C++11 host coverage for loading/error layout, geometry, text sizes/colours, null-target no-op and transition-canvas routing.
+- [x] Add `sh scripts/test-status-screen-renderer.sh`.
+- [x] User ran `sh scripts/test-status-screen-renderer.sh`; output: `StatusScreenRenderer tests passed.`
+- [x] User ran `sh scripts/test-header-renderer.sh`; output: `HeaderRenderer tests passed.`
+- [x] User ran `sh scripts/test-text-renderer.sh`; output: `TextRenderer tests passed.`
+- [x] User confirmed firmware compilation and upload succeeded.
+- [x] User confirmed all physical Waveshare tests passed and all existing interactions are preserved.
+
+PR #44 is fully validated and awaits merge. No build-size or memory figures were supplied for this firmware revision.
 
 ## 5. Clock and location
 

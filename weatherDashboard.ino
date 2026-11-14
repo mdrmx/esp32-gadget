@@ -13,6 +13,7 @@
 #include "src/ui/ScrollController.h"
 #include "src/ui/TextRenderer.h"
 #include "src/ui/HeaderRenderer.h"
+#include "src/ui/StatusScreenRenderer.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
 #include "src/services/TimeService.h"
@@ -92,6 +93,8 @@ String lastHeaderClock = "";
 DisplayManager displayManager;
 TextRenderer textRenderer(displayManager);
 HeaderRenderer headerRenderer(displayManager, textRenderer);
+StatusScreenRenderer statusScreenRenderer(
+  displayManager, headerRenderer, textRenderer);
 
 // =====================================================
 // TOUCH
@@ -173,6 +176,10 @@ const uint16_t ACCENT = 0x5DDF;
 const uint16_t UI_YELLOW = 0xFEA0;
 const uint16_t UI_GREEN = 0x7E8A;
 const uint16_t ERROR_COLOUR = 0xF986;
+
+const StatusScreenRenderer::Colours STATUS_SCREEN_COLOURS = {
+  BG, PANEL, UI_WHITE, ACCENT, UI_WHITE, ERROR_COLOUR, MUTED
+};
 
 // =====================================================
 // WEATHER DATA
@@ -374,18 +381,17 @@ void drawTabIndicator() {
 // =====================================================
 
 void drawLoading(const String& message) {
-  displayManager.target()->fillScreen(BG);
-  drawHeader();
-  textRenderer.drawCenteredText("OpenWeatherMap", 83, 2, ACCENT);
-  textRenderer.drawCenteredText(message, 119, 1, UI_WHITE);
+  const String clockText = timeService.headerClockText();
+  statusScreenRenderer.drawLoading(
+    getHeaderLocationText(), clockText, message, STATUS_SCREEN_COLOURS);
+  lastHeaderClock = clockText;
 }
 
 void drawError(const String& message) {
-  displayManager.target()->fillScreen(BG);
-  drawHeader();
-  textRenderer.drawCenteredText("WEATHER ERROR", 82, 2, ERROR_COLOUR);
-  textRenderer.drawCenteredText(message, 117, 1, UI_WHITE);
-  textRenderer.drawCenteredText("Will retry automatically", 143, 1, MUTED);
+  const String clockText = timeService.headerClockText();
+  statusScreenRenderer.drawError(
+    getHeaderLocationText(), clockText, message, STATUS_SCREEN_COLOURS);
+  lastHeaderClock = clockText;
 }
 
 // =====================================================
@@ -2354,8 +2360,9 @@ bool connectWiFi() {
 // WEATHER DATA SERVICE ADAPTERS
 // =====================================================
 
-// Keep Wi-Fi lifecycle and all loading/error UI in the Weather sketch.
-// WeatherDataService receives only the selected location and API key.
+// Keep Wi-Fi lifecycle and status/message selection in the Weather sketch.
+// StatusScreenRenderer owns the presentation; WeatherDataService receives
+// only the selected location and API key.
 bool fetchWeather() {
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();

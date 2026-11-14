@@ -35,6 +35,11 @@ public:
     ++printCount;
   }
 
+  void fillScreen(uint16_t colour) {
+    ++fillScreenCount;
+    lastFillScreenColour = colour;
+  }
+
   void fillRect(
     int16_t x,
     int16_t y,
@@ -97,6 +102,9 @@ public:
   int printedY[MAX_RECORDED_PRINTS] = {};
   uint8_t printedSize[MAX_RECORDED_PRINTS] = {};
   uint16_t printedColour[MAX_RECORDED_PRINTS] = {};
+
+  int fillScreenCount = 0;
+  uint16_t lastFillScreenColour = 0;
 
   int fillRectCount = 0;
   int lastFillRectX = 0;
