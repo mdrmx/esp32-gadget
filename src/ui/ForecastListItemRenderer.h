@@ -78,6 +78,16 @@ public:
     target->print(rainText);
   }
 
+  void drawConditionIcon(
+    Arduino_GFX* target,
+    const String& condition,
+    int x,
+    int y
+  ) const {
+    if (target == nullptr) return;
+    drawMiniWeatherIcon(target, condition, x, y);
+  }
+
   void drawClipped(
     Arduino_GFX* target,
     const Item& item,
