@@ -2360,8 +2360,9 @@ bool connectWiFi() {
 // WEATHER DATA SERVICE ADAPTERS
 // =====================================================
 
-// Keep Wi-Fi lifecycle and all loading/error UI in the Weather sketch.
-// WeatherDataService receives only the selected location and API key.
+// Keep Wi-Fi lifecycle and status/message selection in the Weather sketch.
+// StatusScreenRenderer owns the presentation; WeatherDataService receives
+// only the selected location and API key.
 bool fetchWeather() {
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();
