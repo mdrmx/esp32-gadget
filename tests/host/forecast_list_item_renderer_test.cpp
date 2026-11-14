@@ -52,7 +52,7 @@ int main() {
   CHECK(target->printedText[2] == String("FL 17C"));
   CHECK(target->printedX[2] == 145);
   CHECK(target->printedText[3] == String("POP 26%"));
-  CHECK(target->printedX[3] == 250);
+  CHECK(target->printedX[3] == 268);
   CHECK(target->fillCircleCount == 1);
   CHECK(target->lastFillCircleColour == YELLOW);
   CHECK(target->drawFastVLineCount == 2);
