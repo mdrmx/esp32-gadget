@@ -43,6 +43,8 @@ int main() {
 
   WeatherAssetCache cache;
   CHECK(!cache.contains("01d"));
+  CHECK(!cache.contains("01d-extra"));
+  CHECK(!cache.contains("01dX"));
 
   size_t length = 123;
   CHECK(cache.get("01d", &length) == nullptr);
