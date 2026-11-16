@@ -281,7 +281,7 @@ The strict C++11 host runner, Arduino IDE Verify, upload/flash, boot and complet
 
 No firmware build-size or memory figures are claimed for the PR #46 revision.
 
-## PR #47 — WeatherConditionsRenderer extraction (in progress)
+## PR #47 — WeatherConditionsRenderer extraction (merged at `f983535c52adeaa3cf9e303960bb8c92af5545a6`)
 
 `WeatherConditionsRenderer` moves the current-weather description/temperature/feels-like text layout into `src/ui/WeatherConditionsRenderer.h`. It receives already-formatted strings, the measured icon height and the three text colours. It owns the existing wrapped description layout and the responsive vertical placement of the temperature and feels-like lines through `TextRenderer`. Weather keeps metric data selection, provider icon loading/cache/decode, header, metric viewport, scrolling, canvas lifecycle and screen/footer composition.
 
@@ -289,13 +289,26 @@ No firmware build-size or memory figures are claimed for the PR #46 revision.
 - [x] Route the existing `drawWeather()` conditions stack through the renderer without moving icon loading, data formatting, metric panel or tab-indicator work.
 - [x] Add strict C++11 host coverage for icon-present layout, one-line description, two-line wrapping, missing-icon layout, null-target no-op and transition-canvas routing.
 - [x] Add `sh scripts/test-weather-conditions-renderer.sh`.
-- [ ] Run `sh scripts/test-weather-conditions-renderer.sh` with strict C++11 warnings.
-- [ ] Arduino IDE Verify on the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration and ESP32 core 3.3.12.
-- [ ] Upload and confirm successful boot.
-- [ ] Physically verify one-line and wrapped descriptions, normal and unavailable icon cases, temperature/feels-like positioning, metric-card viewport, Weather/Forecast navigation, touch/scroll/graph interactions and tab transitions remain unchanged.
-- [ ] Confirm full Weather screen composition and provider icon cache behaviour remain unchanged.
+- [x] Run `sh scripts/test-weather-conditions-renderer.sh` with strict C++11 warnings; user confirmed the host test passed.
+- [x] Arduino IDE Verify on the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration and ESP32 core 3.3.12.
+- [x] Upload and confirm successful boot.
+- [x] Physical Waveshare regression passed, including the Weather conditions layout and preservation of Weather/Forecast, touch, scroll, graph and tab-transition behaviour (user-confirmed).
+- [x] Confirm full Weather screen composition and provider icon cache behaviour remain unchanged.
 
-Firmware verification, upload/boot and physical Waveshare validation are still pending for PR #47. No build-size or memory figures are available for this branch.
+Firmware verification, upload/boot and physical Waveshare validation passed for PR #47. No build-size or memory figures are claimed for that revision.
+
+## PR #48 — WeatherAssetCache extraction (validated; ready for review, not merged)
+
+`WeatherAssetCache` owns the single current-weather icon code and PNG buffer, including validation, replacement and freeing. The sketch downloads and prepares a missing asset through the optional WeatherApp pre-render hook after data retrieval; `drawOpenWeatherIcon()` performs only cache lookup and PNG decode/display. A cache miss during drawing uses the safe no-icon fallback and does not initiate HTTP.
+
+- [x] Strict C++11 host suites passed on the latest review-fixed branch: `sh scripts/test-weather-asset-cache.sh` and `sh scripts/test-weather-app-asset-preparation.sh`.
+- [x] Cache tests cover valid/invalid identity, PNG validation, replacement and ownership; WeatherApp tests cover startup/refresh ordering, unavailable data, optional-hook compatibility and skipping preparation during Forecast refresh.
+- [x] Gemini review follow-ups addressed; both inline review threads resolved.
+- [x] Arduino IDE Verify passed using ESP32 core 3.3.12 and esptool 5.3.1 on the recorded ESP32-S3 16 MB / OPI PSRAM FQBN.
+- [x] Build output: 1,166,523 bytes program storage (37% of 3,145,728 bytes); 97,428 bytes global dynamic memory (29%), leaving 230,252 bytes.
+- [x] Firmware upload/boot and full physical Waveshare regression passed, user-confirmed 2026-11-16; existing Weather/Forecast behaviour and interactions were preserved.
+
+The PR is fully validated and ready for review. It remains open and unmerged.
 
 ## 5. Clock and location
 
@@ -315,9 +328,9 @@ Firmware verification, upload/boot and physical Waveshare validation are still p
 | Current-weather request | Trigger or wait for a live refresh | Weather data updates or the existing error/stale-data path remains usable | Healthy request measured |
 | Hourly forecast request | Trigger or wait for forecast refresh | Paginated hourly data loads, up to the configured capacity | Healthy two-page request measured |
 | Combined refresh | Exercise current weather followed by forecast | Both data sets update and the active view redraws | Measured; see Step 4 / memory profile |
-| Cached icon | Redraw Weather with the current icon already cached, including during a tab transition | The cache entry is reused; drawing performs no HTTP request or download-buffer allocation | PR #48 validation pending |
-| Icon cache miss | Cause the current-weather icon code to change during a live refresh | The pre-render asset hook downloads and validates the PNG before screen drawing; the cache replaces the previous buffer and the icon decodes correctly | PR #48 validation pending |
-| Failed/missing icon | Simulate a failed icon download or a cache miss while drawing | The screen uses the no-icon fallback; drawing does not retry HTTP and the next preparation pass can retry | PR #48 validation pending |
+| Cached icon | Redraw Weather with the current icon already cached, including during a tab transition | The cache entry is reused; drawing performs no HTTP request or download-buffer allocation | PR #48 hardware regression passed (user-confirmed 2026-11-16) |
+| Icon cache miss | Cause the current-weather icon code to change during a live refresh | The pre-render asset hook downloads and validates the PNG before screen drawing; the cache replaces the previous buffer and the icon decodes correctly | PR #48 hardware regression passed (user-confirmed 2026-11-16) |
+| Failed/missing icon | Simulate a failed icon download or a cache miss while drawing | The screen uses the no-icon fallback; drawing does not retry HTTP and the next preparation pass can retry | PR #48 hardware regression passed (user-confirmed 2026-11-16) |
 | HTTP failure | Cause a controlled request failure without exposing credentials | Error/stale-data state is clear; input recovers after the operation | Pending |
 | Wi-Fi unavailable at startup | Boot with the access point unavailable | UI reaches a defined fallback/error state and can recover when network returns | Pending |
 | Wi-Fi loss while running | Disconnect the access point during normal use | UI remains recoverable and reconnect behaviour is understood | Pending |
