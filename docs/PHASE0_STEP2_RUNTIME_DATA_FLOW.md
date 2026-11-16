@@ -7,7 +7,7 @@
 **Primary runtime entry point:** `weatherDashboard.ino`  
 **Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h`, `src/apps/weather/WeatherAssetCache.h` (PR #48), `src/ui/TextRenderer.h`, `src/ui/HeaderRenderer.h`, `src/ui/StatusScreenRenderer.h` (PR #44), `src/ui/ForecastListItemRenderer.h` (PR #45), `src/ui/WeatherMetricCardRenderer.h` (PR #46) and `src/ui/WeatherConditionsRenderer.h` (merged in PR #47).
 **Source checkpoint:** firmware baseline `main` at PR #47 merge `f983535c52adeaa3cf9e303960bb8c92af5545a6`; current asset-cache extraction branch `phase1/21-weather-asset-cache`.
-**Extraction status:** PR #47's `WeatherConditionsRenderer` is merged and hardware-validated. PR #48 adds the in-progress `WeatherAssetCache` owner and a pre-render asset-preparation hook in `WeatherApp`; the current branch moves the icon HTTPS request out of the Weather drawing path while retaining PNG decoding and display drawing on the active render target.
+**Extraction status:** PR #47's `WeatherConditionsRenderer` is merged and hardware-validated. PR #48 adds the `WeatherAssetCache` owner and a pre-render asset-preparation hook in `WeatherApp`; the branch has passed strict C++11 host tests, Arduino IDE Verify, upload/boot and physical Waveshare regression (user-confirmed 2026-11-16) and is ready for review, but is not yet merged into `main`. The branch moves the icon HTTPS request out of the Weather drawing path while retaining PNG decoding and display drawing on the active render target.
 
 **Review date:** 2026-11-16
 
@@ -17,7 +17,7 @@
 
 This document completes Phase 0, Step 2: trace how the existing firmware behaves at runtime and how input, application state, network responses and rendering connect.
 
-The trace follows the merged Weather sketch and extracted services through PR #47. PR #48 is an in-progress branch change that adds `WeatherAssetCache` and moves icon download into a pre-render preparation hook; it is not part of the current `main` runtime checkpoint. The map covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
+The trace follows the merged Weather sketch and extracted services through PR #47. PR #48 is a validated but unmerged branch change that adds `WeatherAssetCache` and moves icon download into a pre-render preparation hook; it is not part of the current `main` runtime checkpoint. The map covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
 
 This is a **static source-level runtime map**. It does not claim that the firmware was compiled, profiled, or tested on the physical Waveshare board during this step. Timing values below are configured timeout / scheduling values in the source, not measured network latency or observed responsiveness.
 
@@ -319,7 +319,7 @@ The current-condition text stack is delegated to the merged `WeatherConditionsRe
 
 **PR #48 asset-cache change:** `WeatherApp` now calls an optional `prepareWeatherAssets` hook after current-weather and forecast retrieval and before rendering the selected view. The sketch's `prepareWeatherIconAsset()` uses the existing synchronous `HttpRequestClient` transport to populate `WeatherAssetCache`; the cache owns the icon code and allocated PNG buffer. `drawOpenWeatherIcon()` only reads a matching cached entry and passes it to PNGdec. A miss or failed download returns zero icon height and leaves the safe no-icon layout in place; a later preparation pass can retry. PNG line callbacks draw through `DisplayManager::target()`, including the tab-transition canvas.
 
-Consequently, drawing the Weather screen can initiate network I/O and block the caller. A tab transition that composes the Weather screen can also encounter this path if the icon is not already cached.
+Consequently, the Weather drawing path no longer initiates network I/O. A cache-miss download can still block, but it occurs in the explicit pre-render preparation step before the selected Weather screen is drawn; tab-transition composition only reads and decodes the cached asset.
 
 ### 6.2 Weather metric viewport
 
