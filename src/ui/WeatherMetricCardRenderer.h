@@ -36,8 +36,8 @@ public:
 
     const int localY = y - viewportTop;
     const int cardBottom = localY + CARD_HEIGHT;
-    const int clippedTop = std::max(0, localY);
-    const int clippedBottom = std::min(viewportHeight, cardBottom);
+    const int clippedTop = (std::max)(0, localY);
+    const int clippedBottom = (std::min)(viewportHeight, cardBottom);
     if (clippedTop >= clippedBottom) return;
 
     const uint8_t valueSize = value.length() <= 6 ? 2 : 1;
