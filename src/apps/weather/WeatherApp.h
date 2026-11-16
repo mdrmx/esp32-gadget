@@ -77,7 +77,7 @@ class WeatherApp {
 
     hooks_.fetchCurrentWeather();
     hooks_.fetchForecast();
-    prepareWeatherAssetsIfAvailable();
+    prepareWeatherAssetsIfAvailable(View::Weather);
 
     if (hooks_.weatherAvailable()) {
       hooks_.drawWeather();
@@ -120,9 +120,10 @@ class WeatherApp {
 
       const bool currentOk = hooks_.fetchCurrentWeather();
       hooks_.fetchForecast();
-      prepareWeatherAssetsIfAvailable();
+      const View selectedView = hooks_.activeView();
+      prepareWeatherAssetsIfAvailable(selectedView);
 
-      if (hooks_.activeView() == View::Forecast) {
+      if (selectedView == View::Forecast) {
         hooks_.drawForecast();
       } else if (currentOk || hooks_.weatherAvailable()) {
         hooks_.drawWeather();
@@ -148,8 +149,9 @@ class WeatherApp {
   }
 
  private:
-  void prepareWeatherAssetsIfAvailable() {
-    if (hooks_.prepareWeatherAssets != nullptr &&
+  void prepareWeatherAssetsIfAvailable(View selectedView) {
+    if (selectedView == View::Weather &&
+        hooks_.prepareWeatherAssets != nullptr &&
         hooks_.weatherAvailable()) {
       hooks_.prepareWeatherAssets();
     }
