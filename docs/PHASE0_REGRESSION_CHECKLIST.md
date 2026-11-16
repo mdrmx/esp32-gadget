@@ -315,8 +315,9 @@ Firmware verification, upload/boot and physical Waveshare validation are still p
 | Current-weather request | Trigger or wait for a live refresh | Weather data updates or the existing error/stale-data path remains usable | Healthy request measured |
 | Hourly forecast request | Trigger or wait for forecast refresh | Paginated hourly data loads, up to the configured capacity | Healthy two-page request measured |
 | Combined refresh | Exercise current weather followed by forecast | Both data sets update and the active view redraws | Measured; see Step 4 / memory profile |
-| Cached icon | Redraw Weather with the current icon already cached | No network download is initiated for the same cached asset | Observed cache-hit path |
-| Icon cache miss | Cause a new valid icon to be requested | PNG downloads, cache updates and rendering completes | One forced cache miss measured |
+| Cached icon | Redraw Weather with the current icon already cached, including during a tab transition | The cache entry is reused; drawing performs no HTTP request or download-buffer allocation | PR #48 validation pending |
+| Icon cache miss | Cause the current-weather icon code to change during a live refresh | The pre-render asset hook downloads and validates the PNG before screen drawing; the cache replaces the previous buffer and the icon decodes correctly | PR #48 validation pending |
+| Failed/missing icon | Simulate a failed icon download or a cache miss while drawing | The screen uses the no-icon fallback; drawing does not retry HTTP and the next preparation pass can retry | PR #48 validation pending |
 | HTTP failure | Cause a controlled request failure without exposing credentials | Error/stale-data state is clear; input recovers after the operation | Pending |
 | Wi-Fi unavailable at startup | Boot with the access point unavailable | UI reaches a defined fallback/error state and can recover when network returns | Pending |
 | Wi-Fi loss while running | Disconnect the access point during normal use | UI remains recoverable and reconnect behaviour is understood | Pending |
