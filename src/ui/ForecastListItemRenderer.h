@@ -1,7 +1,8 @@
 #pragma once
 
 #include <Arduino.h>
-#include <math.h>
+#include <algorithm>
+#include <cmath>
 #include "../hardware/DisplayManager.h"
 
 // Draws one hourly forecast list card (including its compact vector icon) and
@@ -53,14 +54,14 @@ public:
     drawMiniWeatherIcon(target, item.description, 48, y + 13);
 
     const String temperatureText =
-      String((int)round(item.temperature)) + "C";
+      String((int)std::round(item.temperature)) + "C";
     target->setTextSize(2);
     target->setTextColor(colours_.temperature);
     target->setCursor(72, y + 14);
     target->print(temperatureText);
 
     const String feelsText =
-      "FL " + String((int)round(item.feelsLike)) + "C";
+      "FL " + String((int)std::round(item.feelsLike)) + "C";
     target->setTextSize(1);
     target->setTextColor(colours_.muted);
     target->setCursor(145, y + 18);
@@ -99,8 +100,8 @@ public:
 
     const int cardTop = y - viewportTop;
     const int cardBottom = cardTop + CARD_HEIGHT;
-    const int clippedTop = max(0, cardTop);
-    const int clippedBottom = min(viewportHeight, cardBottom);
+    const int clippedTop = std::max(0, cardTop);
+    const int clippedBottom = std::min(viewportHeight, cardBottom);
     if (clippedTop >= clippedBottom) return;
 
     if (cardTop >= 0 && cardBottom <= viewportHeight) {
@@ -123,7 +124,7 @@ public:
       target->print(item.time);
 
       const String feelsText =
-        "FL " + String((int)round(item.feelsLike)) + "C";
+        "FL " + String((int)std::round(item.feelsLike)) + "C";
       target->setTextColor(colours_.muted);
       target->setCursor(145, fieldY);
       target->print(feelsText);
@@ -145,7 +146,7 @@ public:
         target, item.description, 48, cardTop + 13);
 
       const String temperatureText =
-        String((int)round(item.temperature)) + "C";
+        String((int)std::round(item.temperature)) + "C";
       target->setTextSize(2);
       target->setTextColor(colours_.temperature);
       target->setCursor(72, cardTop + 14);
@@ -155,7 +156,7 @@ public:
 
 private:
   static int rainPercent(float probability) {
-    int percent = (int)round(probability * 100.0f);
+    int percent = (int)std::round(probability * 100.0f);
     if (percent < 0) return 0;
     if (percent > 100) return 100;
     return percent;
