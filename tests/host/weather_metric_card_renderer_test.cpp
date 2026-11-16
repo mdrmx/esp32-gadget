@@ -1,7 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <Arduino.h>
+#include <Arduino_GFX_Library.h>
+
+// Simulate Arduino variants that expose function-like min/max macros. The
+// renderer must remain safe when included after those macros are defined.
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#define max(a, b) (((a) > (b)) ? (a) : (b))
 #include "../../src/ui/WeatherMetricCardRenderer.h"
+#undef min
+#undef max
 
 static void check(bool condition, const char* expression, int line) {
   if (!condition) {
