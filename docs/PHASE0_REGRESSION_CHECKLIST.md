@@ -277,14 +277,14 @@ The strict C++11 host runner, Arduino IDE Verify, upload/flash, boot and complet
 - [x] Route the existing metric-card draw helper through the new renderer without moving data selection/formatting or panel rendering policy.
 - [x] Add strict C++11 host coverage for full-card geometry, label/value typography and placement, long-value sizing, top/bottom partial clipping, offscreen no-op and null-target handling.
 - [x] Add `sh scripts/test-weather-metric-card-renderer.sh`.
-- [ ] Run `sh scripts/test-weather-metric-card-renderer.sh` using strict C++11 warnings.
+- [x] Run `sh scripts/test-weather-metric-card-renderer.sh` using strict C++11 warnings; focused local C++11 runs passed with both GCC and Clang using the repository Arduino/GFX host stubs.
 - [ ] Arduino IDE Verify on the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration and ESP32 core 3.3.12.
 - [ ] Upload and confirm successful boot.
 - [ ] Physically check all eight metric cards, short and long values, unavailable-data placeholders, top/bottom clipping, metric scrolling/overscroll/snap and tab transitions.
 - [ ] Confirm Weather/Forecast navigation, Forecast List/Graph rendering and all existing touch interactions remain unchanged.
 - [ ] Confirm the off-screen metrics canvas path and direct-render fallback both preserve their existing composition and clipping behaviour.
 
-Arduino Verify, upload/boot and physical regression remain pending. No build-size or memory figures are available for this branch.
+The focused strict C++11 host test passed locally with both GCC and Clang using the repository host stubs. Arduino Verify, upload/boot and physical regression remain pending. No build-size or memory figures are available for this branch.
 
 ## 5. Clock and location
 
