@@ -16,6 +16,7 @@
 #include "src/ui/StatusScreenRenderer.h"
 #include "src/ui/ForecastListItemRenderer.h"
 #include "src/ui/WeatherMetricCardRenderer.h"
+#include "src/ui/WeatherConditionsRenderer.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
 #include "src/services/TimeService.h"
@@ -94,6 +95,7 @@ String lastHeaderClock = "";
 // Owns the physical display, render target, dimensions and off-screen buffers.
 DisplayManager displayManager;
 TextRenderer textRenderer(displayManager);
+WeatherConditionsRenderer weatherConditionsRenderer(textRenderer);
 HeaderRenderer headerRenderer(displayManager, textRenderer);
 StatusScreenRenderer statusScreenRenderer(
   displayManager, headerRenderer, textRenderer);
@@ -194,6 +196,10 @@ const WeatherMetricCardRenderer::Colours WEATHER_METRIC_CARD_COLOURS = {
 };
 WeatherMetricCardRenderer weatherMetricCardRenderer(
   WEATHER_METRIC_CARD_COLOURS);
+
+const WeatherConditionsRenderer::Colours WEATHER_CONDITIONS_COLOURS = {
+  MUTED, UI_YELLOW, MUTED
+};
 
 // =====================================================
 // WEATHER DATA
@@ -811,47 +817,15 @@ void drawWeather() {
   displayManager.target()->fillScreen(BG);
   drawHeader();
 
-  // Lay out the weather stack from top to bottom. Each element's measured
-  // height determines where the next element begins, so a wrapped description
-  // moves the temperature and feels-like value down without overlapping.
-  const int contentCentreX = 96;
-  const int descriptionMaxWidth = 176;
-
-  // Adjust these gaps independently (all values are pixels).
-  const int iconDescriptionGap = -7;
-  const int descriptionTemperatureGap = 10;
-  const int temperatureFeelsGap = 8;
-
-  int contentY = 37;
-
-  int iconHeight = drawOpenWeatherIcon(46, contentY);
-  if (iconHeight > 0) contentY += iconHeight + iconDescriptionGap;
-
-  int descriptionHeight = textRenderer.drawWrappedCenteredText(
+  // Keep provider icon loading and decoding in the Weather sketch. The
+  // conditions renderer receives its measured height and composes only text.
+  const int iconHeight = drawOpenWeatherIcon(46, 37);
+  weatherConditionsRenderer.draw(
     weatherDescription,
-    contentCentreX,
-    descriptionMaxWidth,
-    contentY,
-    2,
-    MUTED);
-  contentY += descriptionHeight + descriptionTemperatureGap;
-
-  String temperatureText = String(temperature, 1) + " C";
-  int temperatureHeight = textRenderer.drawCenteredWeatherLine(
-    temperatureText,
-    contentCentreX,
-    contentY,
-    2,
-    UI_YELLOW);
-  contentY += temperatureHeight + temperatureFeelsGap;
-
-  String feelsText = "Feels " + String(feelsLike, 1) + " C";
-  textRenderer.drawCenteredWeatherLine(
-    feelsText,
-    contentCentreX,
-    contentY,
-    1,
-    MUTED);
+    String(temperature, 1) + " C",
+    "Feels " + String(feelsLike, 1) + " C",
+    iconHeight,
+    WEATHER_CONDITIONS_COLOURS);
 
   drawWeatherMetricsPanel(weatherMetricOffset, 0);
   drawTabIndicator();

@@ -34,6 +34,7 @@ This is a manual physical-device checklist. The repository currently has no chec
 |---|---|---|
 | Current Weather screen | Boot into Weather or return from Forecast | Location/header, current conditions, icon and metric cards render |
 | Metric content | Check all available metric values and labels | Values are aligned, readable and clipped within the intended panel |
+| Weather conditions stack | Check one-line and wrapped descriptions, a normal icon and a missing/failed icon | Temperature and feels-like lines move with the measured description height and do not overlap |
 | Metric vertical drag | Drag the metric panel vertically | Cards scroll without unintended tab navigation |
 | Metric boundaries | Drag to both ends and release | Scroll stays within limits; elastic overscroll and snap behaviour remain consistent |
 | Forecast list | Open Forecast in list mode | Hourly entries render with time, conditions, temperature/feels-like and precipitation probability |
@@ -269,22 +270,32 @@ PR #44 is merged at `4a567bef43a07a8f50ecd9deb434c67051104b70`. All three reposi
 
 The strict C++11 host runner, Arduino IDE Verify, upload/flash, boot and complete physical Waveshare regression all passed (user-confirmed 2026-11-16). Build figures for tested firmware code revision `5a916276049bc5e84a0e1ac759b0e5bee2fd3c0e`: 1,165,831 bytes program storage (37% of 3 MiB application partition); 97,420 bytes global dynamic memory (29%), leaving 230,260 bytes. Flash data hashes verified; board hard-reset. All existing interactions were preserved.
 
-## PR #46 — WeatherMetricCardRenderer extraction (in progress)
+## PR #46 — WeatherMetricCardRenderer extraction (merged at `f760713ac496fd3db57f55ccd7763f6b98fb92cd`)
 
 `WeatherMetricCardRenderer` moves the composition of one Weather metric card into `src/ui/WeatherMetricCardRenderer.h`: panel background, label and value drawing, responsive value text size/centering, and partial edge-card clipping. Weather retains metric label/value selection and formatting, visible-row selection, panel geometry, scroll/animation policy, canvas lifecycle, transition composition and the direct-render fallback.
 
-- [x] Add `WeatherMetricCardRenderer` with an explicit three-colour palette and viewport bounds supplied by Weather.
-- [x] Route the existing metric-card draw helper through the new renderer without moving data selection/formatting or panel rendering policy.
-- [x] Add strict C++11 host coverage for full-card geometry, label/value typography and placement, long-value sizing, top/bottom partial clipping, offscreen no-op and null-target handling.
-- [x] Add `sh scripts/test-weather-metric-card-renderer.sh`.
-- [x] Run `sh scripts/test-weather-metric-card-renderer.sh` using strict C++11 warnings; focused local runs passed with both GCC and Clang using the repository Arduino/GFX host stubs, including a simulated function-like `min`/`max` macro collision.
+- [x] Strict C++11 host suite passed; focused runs passed with GCC and Clang, including Arduino `min` / `max` macro-collision coverage.
+- [x] User confirmed Arduino IDE Verify, upload/boot and complete physical Waveshare regression passed.
+- [x] User confirmed all existing interactions were preserved, including Weather/Forecast navigation and metric/forecast/graph interactions.
+- [x] PR #46 merged into `main` at `f760713ac496fd3db57f55ccd7763f6b98fb92cd`.
+
+No firmware build-size or memory figures are claimed for the PR #46 revision.
+
+## PR #47 — WeatherConditionsRenderer extraction (in progress)
+
+`WeatherConditionsRenderer` moves the current-weather description/temperature/feels-like text layout into `src/ui/WeatherConditionsRenderer.h`. It receives already-formatted strings, the measured icon height and the three text colours. It owns the existing wrapped description layout and the responsive vertical placement of the temperature and feels-like lines through `TextRenderer`. Weather keeps metric data selection, provider icon loading/cache/decode, header, metric viewport, scrolling, canvas lifecycle and screen/footer composition.
+
+- [x] Add the renderer with explicit text colours and a measured icon-height input.
+- [x] Route the existing `drawWeather()` conditions stack through the renderer without moving icon loading, data formatting, metric panel or tab-indicator work.
+- [x] Add strict C++11 host coverage for icon-present layout, one-line description, two-line wrapping, missing-icon layout, null-target no-op and transition-canvas routing.
+- [x] Add `sh scripts/test-weather-conditions-renderer.sh`.
+- [ ] Run `sh scripts/test-weather-conditions-renderer.sh` with strict C++11 warnings.
 - [ ] Arduino IDE Verify on the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration and ESP32 core 3.3.12.
 - [ ] Upload and confirm successful boot.
-- [ ] Physically check all eight metric cards, short and long values, unavailable-data placeholders, top/bottom clipping, metric scrolling/overscroll/snap and tab transitions.
-- [ ] Confirm Weather/Forecast navigation, Forecast List/Graph rendering and all existing touch interactions remain unchanged.
-- [ ] Confirm the off-screen metrics canvas path and direct-render fallback both preserve their existing composition and clipping behaviour.
+- [ ] Physically verify one-line and wrapped descriptions, normal and unavailable icon cases, temperature/feels-like positioning, metric-card viewport, Weather/Forecast navigation, touch/scroll/graph interactions and tab transitions remain unchanged.
+- [ ] Confirm full Weather screen composition and provider icon cache behaviour remain unchanged.
 
-The focused strict C++11 host test passed locally with both GCC and Clang using the repository host stubs. Arduino Verify, upload/boot and physical regression remain pending. No build-size or memory figures are available for this branch.
+Firmware verification, upload/boot and physical Waveshare validation are still pending for PR #47. No build-size or memory figures are available for this branch.
 
 ## 5. Clock and location
 
