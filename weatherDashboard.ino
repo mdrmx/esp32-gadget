@@ -287,7 +287,6 @@ const int FORECAST_CONTROL_TOP = 38;
 const int FORECAST_CONTROL_BOTTOM = 70;
 const int FORECAST_CONTROL_HIT_TOP = 36;
 const int FORECAST_CONTROL_HIT_BOTTOM = 72;
-const int FORECAST_GRAPH_VERTICAL_SHIFT = 12;
 // Generous movement tolerance keeps taps reliable while still allowing a
 // deliberate horizontal tab swipe to cancel a control press.
 const int FORECAST_CONTROL_TAP_SLOP_PX = 40;
