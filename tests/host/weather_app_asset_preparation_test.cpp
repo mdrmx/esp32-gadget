@@ -108,7 +108,7 @@ int main() {
   if (strcmp(events, "ISXWFR") != 0) {
     fprintf(
       stderr,
-      "FAIL: Forecast refresh order was %s, expected ISXWFR\\n",
+      "FAIL: Forecast refresh order was %s, expected ISXWFR\n",
       events);
     return EXIT_FAILURE;
   }
@@ -122,7 +122,7 @@ int main() {
   view = WeatherApp::View::Weather;
   clockMs = 200;
   if (!weatherRefreshApp.begin(makeHooks(true))) {
-    fprintf(stderr, "FAIL: Weather refresh app begin\\n");
+    fprintf(stderr, "FAIL: Weather refresh app begin\n");
     return EXIT_FAILURE;
   }
 
@@ -133,7 +133,7 @@ int main() {
   if (strcmp(events, "ISXWFAD") != 0) {
     fprintf(
       stderr,
-      "FAIL: Weather refresh order was %s, expected ISXWFAD\\n",
+      "FAIL: Weather refresh order was %s, expected ISXWFAD\n",
       events);
     return EXIT_FAILURE;
   }
