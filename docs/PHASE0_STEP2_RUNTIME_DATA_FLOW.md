@@ -473,7 +473,7 @@ Other intentional blocking work includes:
 
 - A time-sync check inside `loop()` can perform HTTPS work and delay subsequent touch samples.
 - A Weather refresh performs current conditions and forecast retrieval serially. The forecast may require multiple paginated HTTP requests.
-- On the PR #48 branch, icon downloads and heap allocation occur in the explicit WeatherApp pre-render asset-preparation hook after data retrieval. `drawWeather()` is limited to a matching cache lookup plus PNG decode/display and uses the no-icon fallback on a miss.
+- On the PR #48 branch, icon downloads and heap allocation occur in the explicit WeatherApp pre-render asset-preparation hook after data retrieval, and only when the Weather view is selected. `drawWeather()` is limited to a matching cache lookup plus PNG decode/display and uses the no-icon fallback on a miss.
 - `connectWiFi()` draws UI as a side effect, while fetch functions also draw loading / error / stale-data states. Network and presentation responsibilities are mixed.
 - Touch handlers call renderers and animation functions directly; some of those paths include explicit delays.
 - The loop's 30 ms delay does not bound touch latency because the work before it is not time-bounded by the loop itself.
