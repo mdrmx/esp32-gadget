@@ -26,6 +26,8 @@ class WeatherApp {
 
     bool (*fetchCurrentWeather)();
     void (*fetchForecast)();
+    // Optional pre-render hook for assets needed by the selected Weather view.
+    void (*prepareWeatherAssets)();
     bool (*weatherAvailable)();
     View (*activeView)();
 
@@ -41,6 +43,7 @@ class WeatherApp {
           millisNow(nullptr),
           fetchCurrentWeather(nullptr),
           fetchForecast(nullptr),
+          prepareWeatherAssets(nullptr),
           weatherAvailable(nullptr),
           activeView(nullptr),
           drawWeather(nullptr),
@@ -74,6 +77,7 @@ class WeatherApp {
 
     hooks_.fetchCurrentWeather();
     hooks_.fetchForecast();
+    prepareWeatherAssetsIfAvailable();
 
     if (hooks_.weatherAvailable()) {
       hooks_.drawWeather();
@@ -116,6 +120,7 @@ class WeatherApp {
 
       const bool currentOk = hooks_.fetchCurrentWeather();
       hooks_.fetchForecast();
+      prepareWeatherAssetsIfAvailable();
 
       if (hooks_.activeView() == View::Forecast) {
         hooks_.drawForecast();
@@ -143,6 +148,13 @@ class WeatherApp {
   }
 
  private:
+  void prepareWeatherAssetsIfAvailable() {
+    if (hooks_.prepareWeatherAssets != nullptr &&
+        hooks_.weatherAvailable()) {
+      hooks_.prepareWeatherAssets();
+    }
+  }
+
   Hooks hooks_;
   uint32_t refreshIntervalMs_;
   uint32_t clockRefreshIntervalMs_;
