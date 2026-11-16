@@ -5,9 +5,9 @@
 **Related inventory:** [Phase 0, Step 1 — Code inventory](PHASE0_STEP1_CODE_INVENTORY.md)  
 **Repository:** `mdrmx/esp32-gadget`  
 **Primary runtime entry point:** `weatherDashboard.ino`  
-**Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h`, `src/apps/weather/WeatherAssetCache.h` (PR #48), `src/ui/TextRenderer.h`, `src/ui/HeaderRenderer.h`, `src/ui/StatusScreenRenderer.h` (PR #44), `src/ui/ForecastListItemRenderer.h` (PR #45), `src/ui/WeatherMetricCardRenderer.h` (PR #46) and `src/ui/WeatherConditionsRenderer.h` (merged in PR #47).
-**Source checkpoint:** firmware baseline `main` at PR #47 merge `f983535c52adeaa3cf9e303960bb8c92af5545a6`; current asset-cache extraction branch `phase1/21-weather-asset-cache`.
-**Extraction status:** PR #47's `WeatherConditionsRenderer` is merged and hardware-validated. PR #48 adds the `WeatherAssetCache` owner and a pre-render asset-preparation hook in `WeatherApp`; the branch has passed strict C++11 host tests, Arduino IDE Verify, upload/boot and physical Waveshare regression (user-confirmed 2026-11-16) and is ready for review, but is not yet merged into `main`. The branch moves the icon HTTPS request out of the Weather drawing path while retaining PNG decoding and display drawing on the active render target.
+**Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h`, `src/apps/weather/WeatherAssetCache.h` (merged in PR #48), `src/ui/ForecastGraphRenderer.h` (PR #49), `src/ui/TextRenderer.h`, `src/ui/HeaderRenderer.h`, `src/ui/StatusScreenRenderer.h` (PR #44), `src/ui/ForecastListItemRenderer.h` (PR #45), `src/ui/WeatherMetricCardRenderer.h` (PR #46) and `src/ui/WeatherConditionsRenderer.h` (merged in PR #47).
+**Source checkpoint:** firmware baseline `main` at PR #48 merge `e59a8e508670959e99115c33dbff38c200503e9a`; current graph-renderer extraction branch `phase1/22-forecast-graph-renderer`.
+**Extraction status:** PR #47's `WeatherConditionsRenderer` and PR #48's `WeatherAssetCache` are merged and hardware-validated. PR #49 adds `ForecastGraphRenderer` on `phase1/22-forecast-graph-renderer`; it moves graph visuals out of the sketch while leaving Weather data access, scroll state/clamping, gestures, animation and canvas lifecycle in Weather. PR #49 is not yet part of the current `main` runtime checkpoint.
 
 **Review date:** 2026-11-16
 
@@ -17,7 +17,7 @@
 
 This document completes Phase 0, Step 2: trace how the existing firmware behaves at runtime and how input, application state, network responses and rendering connect.
 
-The trace follows the merged Weather sketch and extracted services through PR #47. PR #48 is a validated but unmerged branch change that adds `WeatherAssetCache` and moves icon download into a pre-render preparation hook; it is not part of the current `main` runtime checkpoint. The map covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
+The trace follows the merged Weather sketch and extracted services through PR #48, including the asset-cache owner and pre-render icon preparation hook. PR #49 is an in-progress, unmerged branch change that extracts only Forecast Graph visual drawing; its callback reads existing Weather forecast records, while Weather continues to own graph interaction, scroll/clamping, animation, canvas lifecycle and full-screen composition. The map covers startup, repeating `loop()`, touch sample decoding, drag ownership, gesture dispatch, screen rendering, network requests, location resolution and time synchronisation.
 
 This is a **static source-level runtime map**. It does not claim that the firmware was compiled, profiled, or tested on the physical Waveshare board during this step. Timing values below are configured timeout / scheduling values in the source, not measured network latency or observed responsiveness.
 
@@ -473,7 +473,7 @@ Other intentional blocking work includes:
 
 - A time-sync check inside `loop()` can perform HTTPS work and delay subsequent touch samples.
 - A Weather refresh performs current conditions and forecast retrieval serially. The forecast may require multiple paginated HTTP requests.
-- On the PR #48 branch, icon downloads and heap allocation occur in the explicit WeatherApp pre-render asset-preparation hook after data retrieval, and only when the Weather view is selected. `drawWeather()` is limited to a matching cache lookup plus PNG decode/display and uses the no-icon fallback on a miss.
+- On `main` after PR #48, icon downloads and heap allocation occur in the explicit WeatherApp pre-render asset-preparation hook after data retrieval, and only when the Weather view is selected. `drawWeather()` is limited to a matching cache lookup plus PNG decode/display and uses the no-icon fallback on a miss.
 - `connectWiFi()` draws UI as a side effect, while fetch functions also draw loading / error / stale-data states. Network and presentation responsibilities are mixed.
 - Touch handlers call renderers and animation functions directly; some of those paths include explicit delays.
 - The loop's 30 ms delay does not bound touch latency because the work before it is not time-bounded by the loop itself.
