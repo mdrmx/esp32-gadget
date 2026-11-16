@@ -24,6 +24,7 @@
 #include "src/services/WeatherDataService.h"
 #include "src/apps/weather/WeatherApp.h"
 #include "src/apps/weather/WeatherViewState.h"
+#include "src/apps/weather/WeatherAssetCache.h"
 
 // The service owns these models. Temporary references keep the existing
 // Weather renderers readable while data ownership moves out of the sketch.
@@ -33,6 +34,9 @@ WeatherForecastData& weatherForecastData = weatherDataService.forecast();
 
 // Owns Weather application startup, update cadence and coordination.
 WeatherApp weatherApp;
+
+// Owns the single cached provider icon buffer and its identity.
+WeatherAssetCache weatherAssetCache;
 
 // Owns persistent Weather view selection and scroll/display state.
 WeatherViewState weatherViewState;
@@ -421,9 +425,6 @@ void drawError(const String& message) {
 // =====================================================
 
 PNG weatherPngDecoder;
-uint8_t* weatherIconPngData = nullptr;
-size_t weatherIconPngLength = 0;
-String cachedWeatherIconCode = "";
 
 struct WeatherPngDrawContext {
   int x;
@@ -454,21 +455,33 @@ int drawWeatherPngLine(PNGDRAW* pDraw) {
   return 1;
 }
 
-bool loadOpenWeatherIconPNG() {
-#if USE_DEMO_WEATHER_DATA
-  return false;  // Keep demo mode completely offline.
-#endif
-  if (weatherIcon.length() != 3) {
-    DEBUG_PRINTF("Invalid OpenWeather icon code: %s\n", weatherIcon.c_str());
+// This transport adapter downloads bytes only. WeatherApp calls the asset
+// preparation step after data retrieval and before selecting a screen to draw.
+bool downloadOpenWeatherIconPNG(
+  const String& iconCode,
+  uint8_t** downloadedData,
+  size_t* downloadedLength
+) {
+  if (downloadedData == nullptr || downloadedLength == nullptr) {
     return false;
   }
 
-  if (weatherIconPngData != nullptr && weatherIconPngLength > 0 && cachedWeatherIconCode == weatherIcon) {
-    return true;
+  *downloadedData = nullptr;
+  *downloadedLength = 0;
+
+#if USE_DEMO_WEATHER_DATA
+  (void)iconCode;
+  return false;  // Keep demo mode completely offline.
+#endif
+
+  if (iconCode.length() != WeatherAssetCache::IconCodeLength) {
+    DEBUG_PRINTF("Invalid OpenWeather icon code: %s\n", iconCode.c_str());
+    return false;
   }
 
-String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
-  DEBUG_PRINTF("Downloading OpenWeather icon %s\n", weatherIcon.c_str());
+  String url =
+    "https://openweathermap.org/img/wn/" + iconCode + "@2x.png";
+  DEBUG_PRINTF("Downloading OpenWeather icon %s\n", iconCode.c_str());
 
   HttpRequestClient http;
   if (!http.begin(
@@ -479,7 +492,6 @@ String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   }
 
   int status = http.get();
-
   if (status != HTTP_CODE_OK) {
     DEBUG_PRINTF("OpenWeather icon HTTP status: %d\n", status);
     http.end();
@@ -487,7 +499,8 @@ String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   }
 
   int contentLength = http.getSize();
-  if (contentLength <= 8 || contentLength > 20000) {
+  if (contentLength < WeatherAssetCache::MinPngBytes ||
+      contentLength > WeatherAssetCache::MaxPngBytes) {
     DEBUG_PRINTF("Unexpected OpenWeather icon size: %d bytes\n", contentLength);
     http.end();
     return false;
@@ -511,12 +524,14 @@ String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
   size_t bytesRead = 0;
   unsigned long startedAt = millis();
 
-  while (bytesRead < (size_t)contentLength && millis() - startedAt < 8000UL) {
+  while (bytesRead < (size_t)contentLength &&
+         millis() - startedAt < 8000UL) {
     int available = stream->available();
 
     if (available > 0) {
       size_t remaining = (size_t)contentLength - bytesRead;
-      size_t toRead = (size_t)available < remaining ? (size_t)available : remaining;
+      size_t toRead =
+        (size_t)available < remaining ? (size_t)available : remaining;
       int count = stream->readBytes(newData + bytesRead, toRead);
       if (count > 0) {
         bytesRead += (size_t)count;
@@ -530,39 +545,74 @@ String url = "https://openweathermap.org/img/wn/" + weatherIcon + "@2x.png";
 
   http.end();
 
-  if (bytesRead != (size_t)contentLength || newData[0] != 0x89 || newData[1] != 0x50 || newData[2] != 0x4E || newData[3] != 0x47) {
+  if (bytesRead != (size_t)contentLength) {
     DEBUG_PRINTF(
-      "OpenWeather icon download incomplete/invalid: %u of %d bytes\n",
+      "OpenWeather icon download incomplete: %u of %d bytes\n",
       (unsigned)bytesRead,
       contentLength);
     free(newData);
     return false;
   }
 
-  if (weatherIconPngData != nullptr) {
-    free(weatherIconPngData);
-  }
-
-  weatherIconPngData = newData;
-  weatherIconPngLength = bytesRead;
-  cachedWeatherIconCode = weatherIcon;
-
-  DEBUG_PRINTF(
-    "Cached OpenWeather icon %s (%u bytes)\n",
-    cachedWeatherIconCode.c_str(),
-    (unsigned)weatherIconPngLength);
-
+  *downloadedData = newData;
+  *downloadedLength = bytesRead;
   return true;
 }
 
+bool prepareWeatherIconAsset() {
+#if USE_DEMO_WEATHER_DATA
+  return false;
+#endif
+
+  if (weatherIcon.length() != WeatherAssetCache::IconCodeLength) {
+    DEBUG_PRINTF("Invalid OpenWeather icon code: %s\n", weatherIcon.c_str());
+    return false;
+  }
+
+  if (weatherAssetCache.contains(weatherIcon.c_str())) {
+    return true;
+  }
+
+  // Do not attempt a request from the display path or while Wi-Fi is down.
+  if (WiFi.status() != WL_CONNECTED) {
+    DEBUG_PRINTLN("Skipping OpenWeather icon preparation: Wi-Fi unavailable");
+    return false;
+  }
+
+  uint8_t* downloadedData = nullptr;
+  size_t downloadedLength = 0;
+  if (!downloadOpenWeatherIconPNG(
+        weatherIcon, &downloadedData, &downloadedLength)) {
+    return false;
+  }
+
+  if (!weatherAssetCache.store(
+        weatherIcon.c_str(), downloadedData, downloadedLength)) {
+    DEBUG_PRINTLN("OpenWeather icon response was not a valid PNG asset");
+    free(downloadedData);
+    return false;
+  }
+
+  DEBUG_PRINTF(
+    "Cached OpenWeather icon %s (%u bytes)\n",
+    weatherIcon.c_str(),
+    (unsigned)downloadedLength);
+  return true;
+}
+
+// Drawing reads only an already-prepared cache entry. It never starts HTTP,
+// allocates a download buffer or changes cache ownership.
 int drawOpenWeatherIcon(int x, int y) {
-  if (!loadOpenWeatherIconPNG()) {
+  size_t iconLength = 0;
+  uint8_t* iconData = weatherAssetCache.get(
+    weatherIcon.c_str(), &iconLength);
+  if (iconData == nullptr || iconLength == 0) {
     return 0;
   }
 
   int openResult = weatherPngDecoder.openRAM(
-    weatherIconPngData,
-    (int)weatherIconPngLength,
+    iconData,
+    (int)iconLength,
     drawWeatherPngLine);
 
   if (openResult != PNG_SUCCESS) {
@@ -2317,6 +2367,12 @@ void weatherAppFetchForecast() {
   (void)fetchForecast();
 }
 
+void weatherAppPrepareWeatherAssets() {
+  if (weatherAvailable) {
+    (void)prepareWeatherIconAsset();
+  }
+}
+
 bool weatherAppWeatherAvailable() {
   return weatherAvailable;
 }
@@ -2478,6 +2534,7 @@ void setup() {
   weatherHooks.millisNow = weatherAppMillisNow;
   weatherHooks.fetchCurrentWeather = weatherAppFetchCurrentWeather;
   weatherHooks.fetchForecast = weatherAppFetchForecast;
+  weatherHooks.prepareWeatherAssets = weatherAppPrepareWeatherAssets;
   weatherHooks.weatherAvailable = weatherAppWeatherAvailable;
   weatherHooks.activeView = weatherAppActiveView;
   weatherHooks.drawWeather = weatherAppDrawWeather;
