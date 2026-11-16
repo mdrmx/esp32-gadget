@@ -15,6 +15,7 @@
 #include "src/ui/HeaderRenderer.h"
 #include "src/ui/StatusScreenRenderer.h"
 #include "src/ui/ForecastListItemRenderer.h"
+#include "src/ui/ForecastGraphRenderer.h"
 #include "src/ui/WeatherMetricCardRenderer.h"
 #include "src/ui/WeatherConditionsRenderer.h"
 #include "src/hardware/DisplayManager.h"
@@ -194,6 +195,12 @@ const ForecastListItemRenderer::Colours FORECAST_LIST_ITEM_COLOURS = {
 };
 ForecastListItemRenderer forecastListItemRenderer(
   displayManager, FORECAST_LIST_ITEM_COLOURS);
+
+const ForecastGraphRenderer::Colours FORECAST_GRAPH_COLOURS = {
+  PANEL, UI_YELLOW, UI_WHITE, UI_WHITE, MUTED, ACCENT
+};
+ForecastGraphRenderer forecastGraphRenderer(
+  forecastListItemRenderer, FORECAST_GRAPH_COLOURS);
 
 const WeatherMetricCardRenderer::Colours WEATHER_METRIC_CARD_COLOURS = {
   PANEL, MUTED, ACCENT
@@ -962,143 +969,43 @@ void syncForecastGraphOffsetFromScroll() {
     maxOffset);
 }
 
-void drawForecastGraph(Arduino_GFX* target, int originY) {
-  if (forecastCount <= 0) return;
+bool readForecastGraphItem(
+  const void* context,
+  int index,
+  ForecastGraphRenderer::Item& item
+) {
+  if (context == nullptr || index < 0) return false;
+  const WeatherForecastData* data =
+    static_cast<const WeatherForecastData*>(context);
+  if (index >= data->count) return false;
 
-  const int left = 23;
-  const int right = displayManager.width() - 17;
-  const int plotWidth = right - left;
-  const int pointSpacing = FORECAST_GRAPH_POINT_SPACING;
+  const ForecastItem& source = data->items[index];
+  item.timeText = &source.timeText;
+  item.description = &source.description;
+  item.temperature = source.temp;
+  item.rainProbability = source.rainProbability;
+  return true;
+}
+
+void drawForecastGraph(Arduino_GFX* target, int originY) {
+  if (target == nullptr || forecastCount <= 0) return;
+
+  // Weather owns the current pixel offset and elastic-scroll policy. The
+  // renderer receives the resulting position and owns only chart composition.
   const int maxScroll = maxForecastGraphScrollPixels();
   const int scroll = ScrollController::clampElasticPosition(
     forecastGraphScrollPixels,
     maxScroll,
     SCROLL_OVERSCROLL_MAX_PX);
-  const int visibleScroll = max(0, scroll);
 
-  // Use the visible hours plus their neighbours to keep a consistent vertical
-  // scale while the finger moves between hourly positions.
-  const int rangeStart = constrain(
-    visibleScroll / pointSpacing, 0, max(0, forecastCount - 1));
-  const int rangeEnd = min(
-    forecastCount, rangeStart + FORECAST_GRAPH_POINTS + 1);
-
-  float minTemp = forecast[rangeStart].temp;
-  float maxTemp = forecast[rangeStart].temp;
-  for (int i = rangeStart + 1; i < rangeEnd; i++) {
-    minTemp = min(minTemp, forecast[i].temp);
-    maxTemp = max(maxTemp, forecast[i].temp);
-  }
-  minTemp -= 1.0f;
-  maxTemp += 1.0f;
-
-  const int plotTop = 37 + FORECAST_GRAPH_VERTICAL_SHIFT;
-  const int plotBottom = 89 + FORECAST_GRAPH_VERTICAL_SHIFT;
-  const int plotHeight = plotBottom - plotTop;
-  const uint16_t gridColour = PANEL;
-  target->drawFastHLine(left, originY + plotTop, plotWidth, gridColour);
-  target->drawFastHLine(
-    left, originY + (plotTop + plotBottom) / 2, plotWidth, gridColour);
-  target->drawFastHLine(left, originY + plotBottom, plotWidth, gridColour);
-
-  // Draw one point per forecast hour at a fixed horizontal spacing. This lets
-  // the chart follow the finger pixel-for-pixel rather than jumping by pages.
-  const int firstIndex = max(0, visibleScroll / pointSpacing - 1);
-  const int lastIndex = min(
-    forecastCount, (visibleScroll + plotWidth) / pointSpacing + 2);
-
-  int previousX = 0;
-  int previousY = 0;
-  bool hasPrevious = false;
-  for (int index = firstIndex; index < lastIndex; index++) {
-    const int x = left + index * pointSpacing - scroll;
-    const float ratio = (forecast[index].temp - minTemp) /
-                        (maxTemp - minTemp);
-    const int y = plotBottom - (int)round(ratio * plotHeight);
-
-    if (hasPrevious && previousX <= right && x >= left) {
-      int lineStartX = previousX;
-      int lineStartY = previousY;
-      int lineEndX = x;
-      int lineEndY = y;
-      const int dx = x - previousX;
-      if (dx > 0) {
-        if (lineStartX < left) {
-          lineStartY = previousY +
-            (y - previousY) * (left - previousX) / dx;
-          lineStartX = left;
-        }
-        if (lineEndX > right) {
-          lineEndY = previousY +
-            (y - previousY) * (right - previousX) / dx;
-          lineEndX = right;
-        }
-        if (lineStartX <= lineEndX) {
-          target->drawLine(
-            lineStartX, originY + lineStartY,
-            lineEndX, originY + lineEndY, UI_YELLOW);
-        }
-      }
-    }
-
-    if (x >= left && x <= right) {
-      target->fillCircle(x, originY + y, 2, UI_WHITE);
-    }
-
-    // The first and sixth visible points sit close to the plot edges. Their
-    // icons still fit on the display, so clip against the screen rather than
-    // hiding them just because they cross the inner plot boundary.
-    if (x >= 8 && x <= displayManager.width() - 8) {
-      forecastListItemRenderer.drawConditionIcon(
-        target,
-        forecast[index].description,
-        x - 8,
-        originY + 2 + FORECAST_GRAPH_VERTICAL_SHIFT);
-    }
-
-    String tempText = String((int)round(forecast[index].temp)) + "C";
-    int16_t x1, y1;
-    uint16_t w, h;
-    target->setTextSize(1);
-    target->getTextBounds(tempText.c_str(), 0, 0, &x1, &y1, &w, &h);
-    if (x - (int)w / 2 >= 2 &&
-        x + ((int)w + 1) / 2 <= displayManager.width() - 2) {
-      target->setTextColor(UI_WHITE);
-      target->setCursor(x - (int)w / 2, originY + y - 10);
-      target->print(tempText);
-    }
-
-    String timeLabel = forecastCompactTime(index);
-    target->getTextBounds(timeLabel.c_str(), 0, 0, &x1, &y1, &w, &h);
-    if (x - (int)w / 2 >= 2 &&
-        x + ((int)w + 1) / 2 <= displayManager.width() - 2) {
-      target->setTextColor(MUTED);
-      target->setCursor(
-        x - (int)w / 2,
-        originY + 99 + FORECAST_GRAPH_VERTICAL_SHIFT);
-      target->print(timeLabel);
-    }
-
-    const int rainPercent = constrain(
-      (int)round(forecast[index].rainProbability * 100.0f), 0, 100);
-    const int barHeight = (rainPercent * 18) / 100;
-    if (x >= 3 && x <= displayManager.width() - 3) {
-      target->fillRect(
-        x - 3, originY + 139 - barHeight, 6, max(1, barHeight), ACCENT);
-    }
-    String rainLabel = String(rainPercent) + "%";
-    target->getTextBounds(rainLabel.c_str(), 0, 0, &x1, &y1, &w, &h);
-    if (x - (int)w / 2 >= 2 &&
-        x + ((int)w + 1) / 2 <= displayManager.width() - 2) {
-      target->setTextColor(UI_WHITE);
-      target->setCursor(x - (int)w / 2, originY + 143);
-      target->print(rainLabel);
-    }
-
-    previousX = x;
-    previousY = y;
-    hasPrevious = true;
-  }
+  forecastGraphRenderer.draw(
+    target,
+    displayManager.width(),
+    originY,
+    forecastCount,
+    scroll,
+    &weatherForecastData,
+    readForecastGraphItem);
 }
 
 // Copy only the graph body from the existing canvas. The 8-pixel source crop
