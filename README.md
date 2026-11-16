@@ -13,7 +13,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 
 ### Current work
 
-- [ ] **PR #48 — Weather asset-cache boundary** on `phase1/21-weather-asset-cache`: extract `WeatherAssetCache` ownership and remove icon HTTPS/download work from `drawWeather()`. The cache host suite passed, and the initial WeatherApp suite passed; rerun the WeatherApp suite after the new Forecast-refresh gating assertion. Arduino Verify and physical validation remain pending.
+- [ ] **PR #48 — Weather asset-cache boundary** on `phase1/21-weather-asset-cache`: extract `WeatherAssetCache` ownership and remove icon HTTPS/download work from `drawWeather()`. Both initial host suites passed; rerun both scripts after the latest cache-validation and view-gating review refinements. Arduino Verify and physical validation remain pending.
 
 ### Phase 1 sequence
 
@@ -28,7 +28,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 
 ### Validation gate for each extraction
 
-- [ ] Focused strict C++11 host tests pass for the current head (cache suite passed; rerun WeatherApp suite after its added view-gating assertion).
+- [ ] Focused strict C++11 host tests pass for the current head (rerun both scripts after the latest review refinements).
 - [ ] Arduino IDE Verify passes on the recorded Waveshare ESP32-S3 configuration.
 - [ ] Firmware uploads and boots on the device.
 - [ ] Physical Weather, Forecast, icon-cache, touch, scrolling, graph and tab-transition regression passes.
