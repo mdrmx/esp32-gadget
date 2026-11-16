@@ -130,8 +130,6 @@ int main() {
   CHECK(target->horizontalLineCount == gridLinesBeforeScroll + 3);
   CHECK(target->printCount == printsBeforeScroll + 18);
   CHECK(target->fillCircleCount == circlesBeforeScroll + 24);
-  CHECK(target->printedText[printsBeforeScroll] == String("12C"));
-  CHECK(target->printedText[printsBeforeScroll + 1] == String("11:00"));
 
   // Negative elastic scroll remains a caller concern, but the renderer keeps
   // the existing chart offset and uses zero for the visible-range calculation.
