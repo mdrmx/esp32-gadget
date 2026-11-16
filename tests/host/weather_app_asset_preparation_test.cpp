@@ -105,15 +105,40 @@ int main() {
   view = WeatherApp::View::Forecast;
   clockMs = 151;
   refreshApp.update();
-  if (strcmp(events, "ISXWFAR") != 0) {
+  if (strcmp(events, "ISXWFR") != 0) {
     fprintf(
       stderr,
-      "FAIL: refresh order was %s, expected ISXWFAR\n",
+      "FAIL: Forecast refresh order was %s, expected ISXWFR\\n",
       events);
     return EXIT_FAILURE;
   }
 
   refreshApp.end();
+  clearEvents();
+
+  // Asset preparation is skipped when a refresh leaves the app on Forecast.
+  WeatherApp weatherRefreshApp(50, 1000);
+  available = true;
+  view = WeatherApp::View::Weather;
+  clockMs = 200;
+  if (!weatherRefreshApp.begin(makeHooks(true))) {
+    fprintf(stderr, "FAIL: Weather refresh app begin\\n");
+    return EXIT_FAILURE;
+  }
+
+  clearEvents();
+  view = WeatherApp::View::Weather;
+  clockMs = 251;
+  weatherRefreshApp.update();
+  if (strcmp(events, "ISXWFAD") != 0) {
+    fprintf(
+      stderr,
+      "FAIL: Weather refresh order was %s, expected ISXWFAD\\n",
+      events);
+    return EXIT_FAILURE;
+  }
+
+  weatherRefreshApp.end();
   clearEvents();
 
   // The new preparation hook is optional, preserving existing WeatherApp
