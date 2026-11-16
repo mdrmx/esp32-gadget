@@ -15,6 +15,7 @@
 #include "src/ui/HeaderRenderer.h"
 #include "src/ui/StatusScreenRenderer.h"
 #include "src/ui/ForecastListItemRenderer.h"
+#include "src/ui/WeatherMetricCardRenderer.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
 #include "src/services/TimeService.h"
@@ -188,6 +189,12 @@ const ForecastListItemRenderer::Colours FORECAST_LIST_ITEM_COLOURS = {
 ForecastListItemRenderer forecastListItemRenderer(
   displayManager, FORECAST_LIST_ITEM_COLOURS);
 
+const WeatherMetricCardRenderer::Colours WEATHER_METRIC_CARD_COLOURS = {
+  PANEL, MUTED, ACCENT
+};
+WeatherMetricCardRenderer weatherMetricCardRenderer(
+  WEATHER_METRIC_CARD_COLOURS);
+
 // =====================================================
 // WEATHER DATA
 // =====================================================
@@ -230,7 +237,7 @@ const int WEATHER_METRIC_PANEL_TOP = 47;
 const int WEATHER_METRIC_PANEL_HEIGHT = 177;
 const int WEATHER_METRIC_PANEL_BOTTOM =
   WEATHER_METRIC_PANEL_TOP + WEATHER_METRIC_PANEL_HEIGHT;
-const int WEATHER_METRIC_CARD_HEIGHT = 54;
+const int WEATHER_METRIC_CARD_HEIGHT = WeatherMetricCardRenderer::CARD_HEIGHT;
 const int WEATHER_METRIC_ROW_STEP = 59;
 // Shared elastic-scroll tuning for metric cards and hourly forecast.
 // Keep the overscroll cap below half a row step, so release snaps to the boundary.
@@ -629,9 +636,8 @@ String weatherMetricValue(int index) {
   }
 }
 
-// Draw a metric card while respecting the vertical clipping bounds of its
-// panel. viewportTop is zero for the small metrics canvas and the panel's
-// screen Y when rendering directly to the LCD or full-screen transition canvas.
+// Weather selects and formats the metric; the renderer owns card drawing
+// and clipping. Viewport geometry remains supplied by the calling layout code.
 void drawWeatherMetricItem(
   Arduino_GFX* target,
   int index,
@@ -640,70 +646,15 @@ void drawWeatherMetricItem(
   int panelWidth,
   int viewportTop
 ) {
-  const int localY = y - viewportTop;
-  const int cardBottom = localY + WEATHER_METRIC_CARD_HEIGHT;
-  const int clippedTop = max(0, localY);
-  const int clippedBottom = min(WEATHER_METRIC_PANEL_HEIGHT, cardBottom);
-  if (clippedTop >= clippedBottom) return;
-
-  String label = weatherMetricLabel(index);
-  String value = weatherMetricValue(index);
-  const uint8_t valueSize = value.length() <= 6 ? 2 : 1;
-  int16_t x1, y1;
-  uint16_t w, h;
-
-  if (localY >= 0 && cardBottom <= WEATHER_METRIC_PANEL_HEIGHT) {
-    target->fillRoundRect(
-      x + 2,
-      viewportTop + localY,
-      panelWidth - 4,
-      WEATHER_METRIC_CARD_HEIGHT,
-      6,
-      PANEL);
-
-    target->setTextSize(1);
-    target->setTextColor(MUTED);
-    target->setCursor(x + 9, viewportTop + localY + 7);
-    target->print(label);
-
-    target->setTextSize(valueSize);
-    target->setTextColor(ACCENT);
-    target->getTextBounds(value.c_str(), 0, 0, &x1, &y1, &w, &h);
-    const int valueX = x + (panelWidth - (int)w) / 2;
-    const int valueY = viewportTop + localY +
-      (valueSize == 2 ? 23 : 28);
-    target->setCursor(valueX, valueY);
-    target->print(value);
-    return;
-  }
-
-  // Partial edge cards use a clipped rectangular slice, as the forecast cards
-  // do. Never send negative/off-panel Y coordinates to Arduino_GFX primitives.
-  target->fillRect(
-    x + 2,
-    viewportTop + clippedTop,
-    panelWidth - 4,
-    clippedBottom - clippedTop,
-    PANEL);
-
-  const int labelLocalY = localY + 7;
-  if (labelLocalY >= 0 && labelLocalY + 8 <= WEATHER_METRIC_PANEL_HEIGHT) {
-    target->setTextSize(1);
-    target->setTextColor(MUTED);
-    target->setCursor(x + 9, viewportTop + labelLocalY);
-    target->print(label);
-  }
-
-  target->setTextSize(valueSize);
-  target->getTextBounds(value.c_str(), 0, 0, &x1, &y1, &w, &h);
-  const int valueLocalY = localY + (valueSize == 2 ? 23 : 28);
-  if (valueLocalY >= 0 &&
-      valueLocalY + (int)h <= WEATHER_METRIC_PANEL_HEIGHT) {
-    const int valueX = x + (panelWidth - (int)w) / 2;
-    target->setTextColor(ACCENT);
-    target->setCursor(valueX, viewportTop + valueLocalY);
-    target->print(value);
-  }
+  weatherMetricCardRenderer.draw(
+    target,
+    weatherMetricLabel(index),
+    weatherMetricValue(index),
+    x,
+    y,
+    panelWidth,
+    viewportTop,
+    WEATHER_METRIC_PANEL_HEIGHT);
 }
 
 // Render the metrics panel into a small off-screen buffer, then transfer the
