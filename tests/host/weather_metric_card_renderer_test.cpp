@@ -101,7 +101,7 @@ int main() {
   const int roundRectsBeforeOutside = target.fillRoundRectCount;
   const int printsBeforeOutside = target.printCount;
   renderer.draw(
-    &target, "UV INDEX", "3.2", 192, 0, 118, 47, 177);
+    &target, "UV INDEX", "3.2", 192, -20, 118, 47, 177);
   renderer.draw(
     &target, "UV INDEX", "3.2", 192, 230, 118, 47, 177);
   renderer.draw(
