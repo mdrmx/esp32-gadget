@@ -9,7 +9,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 ### Current work
 
 - [x] **PR #46 — Weather metric-card renderer:** merged into `main` at `f760713ac496fd3db57f55ccd7763f6b98fb92cd`. Host tests and user-confirmed Waveshare hardware regression passed; existing interactions were preserved.
-- [ ] **PR #47 — Weather conditions renderer:** isolate the responsive description / temperature / feels-like text stack in `src/ui/WeatherConditionsRenderer.h`. Host test and Arduino / hardware validation are pending on `phase1/20-weather-conditions-renderer`.
+- [ ] **[PR #47 — Weather conditions renderer](https://github.com/mdrmx/esp32-gadget/pull/47) (draft):** isolate the responsive description / temperature / feels-like text stack in `src/ui/WeatherConditionsRenderer.h`. Host test and Arduino / hardware validation are pending on `phase1/20-weather-conditions-renderer`.
 
 ### Renderer extraction sequence
 
