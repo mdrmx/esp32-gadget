@@ -9,11 +9,9 @@
 // validation, byte-buffer ownership and replacement/freeing.
 class WeatherAssetCache {
  public:
-  enum {
-    IconCodeLength = 3,
-    MinPngBytes = 9,
-    MaxPngBytes = 20000
-  };
+  static constexpr size_t IconCodeLength = 3;
+  static constexpr size_t MinPngBytes = 9;
+  static constexpr size_t MaxPngBytes = 20000;
 
   WeatherAssetCache()
       : data_(nullptr), length_(0), code_() {}
@@ -115,7 +113,7 @@ class WeatherAssetCache {
     return code_[0] == iconCode[0] &&
            code_[1] == iconCode[1] &&
            code_[2] == iconCode[2] &&
-           code_[3] == '\0';
+           iconCode[3] == '\0';
   }
 
   uint8_t* data_;
