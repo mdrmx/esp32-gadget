@@ -256,6 +256,19 @@ Arduino build, upload/flash, both repository host tests and the complete physica
 
 PR #44 is merged at `4a567bef43a07a8f50ecd9deb434c67051104b70`. All three repository renderer suites passed; the user confirmed firmware compilation and upload succeeded, all physical Waveshare tests passed and all existing interactions were preserved. No build-size or memory figures were supplied for this firmware revision.
 
+## PR #45 — ForecastListItemRenderer extraction (validated; awaiting merge)
+
+`ForecastListItemRenderer` moves hourly forecast list-card composition, compact vector condition icons, precipitation percentage formatting/clamping and clipped edge-card drawing into `src/ui/ForecastListItemRenderer.h`. Weather retains forecast data selection, compact time formatting, list/graph selection, viewport placement, scroll state, canvas lifecycle and screen composition.
+
+- [x] Run `sh scripts/test-forecast-list-item-renderer.sh` with strict C++11 warnings; user confirmed `ForecastListItemRenderer tests passed.` on macOS (2026-11-16).
+- [x] Arduino IDE Verify passed on the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration and ESP32 core 3.3.12 (2026-11-16).
+- [x] Upload completed; flash data hashes verified; board hard-reset and successful boot confirmed (2026-11-16).
+- [x] Physical forecast List mode regression passed: time, condition icons (clear/cloud/rain/snow/thunder/mist), temperature, feels-like and precipitation labels.
+- [x] First/last partially visible cards, vertical scrolling, overscroll/snap, List/Graph switching and tab transitions passed physical regression.
+- [x] Graph mode, Weather screen, loading/error screens and all touch interactions remain unchanged; user confirmed all existing interactions were preserved.
+
+The strict C++11 host runner, Arduino IDE Verify, upload/flash, boot and complete physical Waveshare regression all passed (user-confirmed 2026-11-16). Build figures for tested firmware code revision `5a916276049bc5e84a0e1ac759b0e5bee2fd3c0e`: 1,165,831 bytes program storage (37% of 3 MiB application partition); 97,420 bytes global dynamic memory (29%), leaving 230,260 bytes. Flash data hashes verified; board hard-reset. All existing interactions were preserved.
+
 ## 5. Clock and location
 
 | Check | Procedure | Pass condition | Status |

@@ -9,6 +9,7 @@ class String {
 public:
   String() = default;
   String(const char* value) : value_(value != nullptr ? value : "") {}
+  String(int value) : value_(std::to_string(value)) {}
   String(const std::string& value) : value_(value) {}
 
   unsigned int length() const {
@@ -20,6 +21,13 @@ public:
   }
 
   int indexOf(char value, int start = 0) const {
+    if (start < 0) start = 0;
+    const size_t found = value_.find(value, static_cast<size_t>(start));
+    return found == std::string::npos ? -1 : static_cast<int>(found);
+  }
+
+  int indexOf(const char* value, int start = 0) const {
+    if (value == nullptr) return -1;
     if (start < 0) start = 0;
     const size_t found = value_.find(value, static_cast<size_t>(start));
     return found == std::string::npos ? -1 : static_cast<int>(found);
