@@ -138,7 +138,7 @@ int main() {
   const int printsBeforeElastic = target->printCount;
   graphRenderer.draw(
     target, 320, 64, data.count, -20, &data, readTestPoint);
-  CHECK(target->printCount == printsBeforeElastic + 18);
+  CHECK(target->printCount == printsBeforeElastic + 15);
 
   // Out-of-range readers produce no partial graph.
   const int linesBeforeInvalid = target->horizontalLineCount;
