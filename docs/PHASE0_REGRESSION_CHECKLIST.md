@@ -318,7 +318,7 @@ PR #48 is merged and fully validated. The following PR extracts only graph drawi
 - [x] Add `ForecastGraphRenderer` with no dependency on WeatherDataService; it receives small point values via a callback and does not copy the forecast array.
 - [x] Keep graph offsets, scroll clamping, gestures, hold/quick-swipe policy, animation, canvas lifecycle and Forecast screen composition in Weather.
 - [x] Add strict C++11 host coverage and `sh scripts/test-forecast-graph-renderer.sh`.
-- [ ] Run `sh scripts/test-forecast-graph-renderer.sh` with strict C++11 warnings.
+- [x] User ran `sh scripts/test-forecast-graph-renderer.sh` with strict C++11 warnings on 2026-11-17; output: `ForecastGraphRenderer tests passed.`
 - [ ] Arduino IDE Verify on the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration and ESP32 core 3.3.12.
 - [ ] Upload and confirm successful boot.
 - [ ] Physically verify graph curve/points, labels, condition icons, rain bars, edge clipping, graph scrolling/overscroll/snap, List/Graph switching, touch/gesture behaviour, tab transitions and canvas fallback.
