@@ -320,9 +320,9 @@ PR #48 is merged and fully validated. The following PR extracts only graph drawi
 - [x] Add strict C++11 host coverage and `sh scripts/test-forecast-graph-renderer.sh`.
 - [x] User ran `sh scripts/test-forecast-graph-renderer.sh` with strict C++11 warnings on 2026-11-17; output: `ForecastGraphRenderer tests passed.`
 - [x] Arduino IDE Verify passed on 2026-11-17 using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration, ESP32 core 3.3.12 and esptool 5.3.1. Build: 1,166,767 bytes program storage (37% of 3,145,728-byte app partition); 97,444 bytes dynamic/global memory (29% of 327,680 bytes), leaving 230,236 bytes.
-- [ ] Upload and confirm successful boot.
-- [ ] Physically verify graph curve/points, labels, condition icons, rain bars, edge clipping, graph scrolling/overscroll/snap, List/Graph switching, touch/gesture behaviour, tab transitions and canvas fallback.
-- [ ] Confirm Weather and Forecast List mode remain unchanged.
+- [x] Firmware uploaded to the Waveshare ESP32-S3 Touch LCD 2 and successful boot confirmed by the user on 2026-11-17.
+- [x] Physical graph curve/points, labels, condition icons, rain bars, edge clipping, graph scrolling/overscroll/snap, List/Graph switching, touch/gesture behaviour, tab transitions and canvas fallback regression passed; user reported all hardware checks working on 2026-11-17.
+- [x] Weather and Forecast List mode and existing interactions remain working, as confirmed by the user on 2026-11-17.
 
 ## 5. Clock and location
 
