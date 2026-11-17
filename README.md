@@ -15,9 +15,9 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 
 - [x] **[PR #48 — Weather asset-cache boundary](https://github.com/mdrmx/esp32-gadget/pull/48):** merged into `main` at `e59a8e508670959e99115c33dbff38c200503e9a`. Both strict C++11 host suites passed, Arduino Verify passed, firmware uploaded and booted, and the complete physical Waveshare regression passed (user-confirmed 2026-11-16).
 
-### Current work
+### Completed candidate — awaiting merge
 
-- [ ] **PR #49 — Forecast graph renderer** on `phase1/22-forecast-graph-renderer`: extract chart drawing into `ForecastGraphRenderer`, leaving forecast data, graph state/clamping, touch/gesture policy, animation and canvas lifecycle in Weather. `sh scripts/test-forecast-graph-renderer.sh` passed (`ForecastGraphRenderer tests passed.`) on 2026-11-17. Arduino IDE Verify also passed on 2026-11-17 with ESP32 core 3.3.12 / esptool 5.3.1: 1,166,767 bytes program storage (37% of the 3 MiB app partition), 97,444 bytes dynamic/global memory (29%), leaving 230,236 bytes. The user confirmed firmware upload/boot and full physical Waveshare graph/List/Weather regression passed on 2026-11-17. PR #49 remains open in draft pending review/readiness.
+- [x] **[PR #49 — Forecast graph renderer](https://github.com/mdrmx/esp32-gadget/pull/49)** on `phase1/22-forecast-graph-renderer`: the `ForecastGraphRenderer` extraction is complete. Weather retains forecast data, graph state/clamping, touch/gesture policy, animation and canvas lifecycle. Strict C++11 host tests, Arduino IDE Verify, firmware upload/boot and full physical Waveshare graph/List/Weather regression all passed on 2026-11-17. Verified build: 1,166,767 bytes program storage (37% of the 3 MiB app partition), 97,444 bytes dynamic/global memory (29%), leaving 230,236 bytes. The PR remains open and in draft, awaiting review/readiness and merge; it is not yet part of `main`.
 
 ### Phase 1 sequence
 
@@ -28,7 +28,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 - [x] Weather metric-card renderer
 - [x] Current Weather conditions composition
 - [x] Weather icon asset-cache ownership and pre-render preparation
-- [ ] Forecast graph renderer
+- [x] Forecast graph renderer — extracted and fully validated on the PR #49 branch
 - [ ] Review any remaining Weather screen composition that still has a useful independent boundary
 
 ### Validation gate for PR #49
