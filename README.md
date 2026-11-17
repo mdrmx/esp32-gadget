@@ -14,10 +14,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 ### Completed on main
 
 - [x] **[PR #48 — Weather asset-cache boundary](https://github.com/mdrmx/esp32-gadget/pull/48):** merged into `main` at `e59a8e508670959e99115c33dbff38c200503e9a`. Both strict C++11 host suites passed, Arduino Verify passed, firmware uploaded and booted, and the complete physical Waveshare regression passed (user-confirmed 2026-11-16).
-
-### Completed candidate — awaiting merge
-
-- [x] **[PR #49 — Forecast graph renderer](https://github.com/mdrmx/esp32-gadget/pull/49)** on `phase1/22-forecast-graph-renderer`: the `ForecastGraphRenderer` extraction is complete. Weather retains forecast data, graph state/clamping, touch/gesture policy, animation and canvas lifecycle. Strict C++11 host tests, Arduino IDE Verify, firmware upload/boot and full physical Waveshare graph/List/Weather regression all passed on 2026-11-17. Verified build: 1,166,767 bytes program storage (37% of the 3 MiB app partition), 97,444 bytes dynamic/global memory (29%), leaving 230,236 bytes. The PR remains open and in draft, awaiting review/readiness and merge; it is not yet part of `main`.
+- [x] **[PR #49 — Forecast graph renderer](https://github.com/mdrmx/esp32-gadget/pull/49):** merged into `main` at `90311b142993465c37c6460b2a79ff56ac136c25`. Strict C++11 host tests, Arduino IDE Verify, firmware upload/boot and full physical Waveshare graph/List/Weather regression passed (user-confirmed 2026-11-17). Verified build: 1,166,767 bytes program storage (37% of the 3 MiB app partition), 97,444 bytes dynamic/global memory (29%), leaving 230,236 bytes. `ForecastGraphRenderer` owns graph visual composition; Weather retains data, scrolling, interaction and canvas lifecycle.
 
 ### Phase 1 sequence
 
@@ -31,7 +28,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 - [x] Forecast graph renderer — extracted and fully validated on the PR #49 branch
 - [ ] Review any remaining Weather screen composition that still has a useful independent boundary
 
-### Validation gate for PR #49
+### PR #49 validation record (all checks passed)
 
 - [x] Focused strict C++11 host test passes (`sh scripts/test-forecast-graph-renderer.sh`; user-confirmed 2026-11-17).
 - [x] Arduino IDE Verify passed on 2026-11-17 using the recorded Waveshare ESP32-S3 configuration (ESP32 core 3.3.12 / esptool 5.3.1); build: 1,166,767 bytes program storage and 97,444 bytes dynamic/global memory, leaving 230,236 bytes.
