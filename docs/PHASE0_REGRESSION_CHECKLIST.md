@@ -297,7 +297,7 @@ No firmware build-size or memory figures are claimed for the PR #46 revision.
 
 Firmware verification, upload/boot and physical Waveshare validation passed for PR #47. No build-size or memory figures are claimed for that revision.
 
-## PR #48 — WeatherAssetCache extraction (validated; ready for review, not merged)
+## PR #48 — WeatherAssetCache extraction (merged at `e59a8e508670959e99115c33dbff38c200503e9a`)
 
 `WeatherAssetCache` owns the single current-weather icon code and PNG buffer, including validation, replacement and freeing. The sketch downloads and prepares a missing asset through the optional WeatherApp pre-render hook after data retrieval; `drawOpenWeatherIcon()` performs only cache lookup and PNG decode/display. A cache miss during drawing uses the safe no-icon fallback and does not initiate HTTP.
 
@@ -308,7 +308,21 @@ Firmware verification, upload/boot and physical Waveshare validation passed for 
 - [x] Build output: 1,166,523 bytes program storage (37% of 3,145,728 bytes); 97,428 bytes global dynamic memory (29%), leaving 230,252 bytes.
 - [x] Firmware upload/boot and full physical Waveshare regression passed, user-confirmed 2026-11-16; existing Weather/Forecast behaviour and interactions were preserved.
 
-The PR is fully validated and ready for review. It remains open and unmerged.
+PR #48 is merged and fully validated. The following PR extracts only graph drawing; graph interaction and scroll policy stay in Weather.
+
+
+## PR #49 — ForecastGraphRenderer extraction (in progress)
+
+`ForecastGraphRenderer` moves only the hourly graph's visual composition into `src/ui/ForecastGraphRenderer.h`: horizontal grid lines, interpolated temperature curve and points, forecast condition icons via the existing list-item renderer, compact time/temperature labels, and precipitation bars/labels. Weather supplies an item-reader callback referencing the existing model and passes the active target, logical display width, origin and already-clamped scroll position.
+
+- [x] Add `ForecastGraphRenderer` with no dependency on WeatherDataService; it receives small point values via a callback and does not copy the forecast array.
+- [x] Keep graph offsets, scroll clamping, gestures, hold/quick-swipe policy, animation, canvas lifecycle and Forecast screen composition in Weather.
+- [x] Add strict C++11 host coverage and `sh scripts/test-forecast-graph-renderer.sh`.
+- [x] User ran `sh scripts/test-forecast-graph-renderer.sh` with strict C++11 warnings on 2026-11-17; output: `ForecastGraphRenderer tests passed.`
+- [x] Arduino IDE Verify passed on 2026-11-17 using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration, ESP32 core 3.3.12 and esptool 5.3.1. Build: 1,166,767 bytes program storage (37% of 3,145,728-byte app partition); 97,444 bytes dynamic/global memory (29% of 327,680 bytes), leaving 230,236 bytes.
+- [x] Firmware uploaded to the Waveshare ESP32-S3 Touch LCD 2 and successful boot confirmed by the user on 2026-11-17.
+- [x] Physical graph curve/points, labels, condition icons, rain bars, edge clipping, graph scrolling/overscroll/snap, List/Graph switching, touch/gesture behaviour, tab transitions and canvas fallback regression passed; user reported all hardware checks working on 2026-11-17.
+- [x] Weather and Forecast List mode and existing interactions remain working, as confirmed by the user on 2026-11-17.
 
 ## 5. Clock and location
 
