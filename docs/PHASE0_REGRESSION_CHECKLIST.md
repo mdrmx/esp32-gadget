@@ -311,7 +311,7 @@ Firmware verification, upload/boot and physical Waveshare validation passed for 
 PR #48 is merged and fully validated. The following PR extracts only graph drawing; graph interaction and scroll policy stay in Weather.
 
 
-## PR #49 — ForecastGraphRenderer extraction (in progress)
+## PR #49 — ForecastGraphRenderer extraction (passed — complete 2026-11-17)
 
 `ForecastGraphRenderer` moves only the hourly graph's visual composition into `src/ui/ForecastGraphRenderer.h`: horizontal grid lines, interpolated temperature curve and points, forecast condition icons via the existing list-item renderer, compact time/temperature labels, and precipitation bars/labels. Weather supplies an item-reader callback referencing the existing model and passes the active target, logical display width, origin and already-clamped scroll position.
 
@@ -323,6 +323,8 @@ PR #48 is merged and fully validated. The following PR extracts only graph drawi
 - [x] Firmware uploaded to the Waveshare ESP32-S3 Touch LCD 2 and successful boot confirmed by the user on 2026-11-17.
 - [x] Physical graph curve/points, labels, condition icons, rain bars, edge clipping, graph scrolling/overscroll/snap, List/Graph switching, touch/gesture behaviour, tab transitions and canvas fallback regression passed; user reported all hardware checks working on 2026-11-17.
 - [x] Weather and Forecast List mode and existing interactions remain working, as confirmed by the user on 2026-11-17.
+
+**PR #49 validation is complete.** The pull request remains open in draft and unmerged; the checklist records the branch firmware's successful validation, not a claim that the candidate has already landed in `main`.
 
 ## 5. Clock and location
 
