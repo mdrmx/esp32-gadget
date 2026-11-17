@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.46  
+**Version:** 4.47  
 **Last reviewed:** 2026-11-17  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -877,5 +877,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-17 — Version 4.43:** User ran `sh scripts/test-forecast-graph-renderer.sh` on `phase1/22-forecast-graph-renderer`; strict C++11 host suite passed (`ForecastGraphRenderer tests passed.`). PR #49 remains in draft.
 - **2026-11-17 — Version 4.44:** The user confirmed Arduino IDE Verify passed on the PR #49 branch using ESP32 core 3.3.12 and esptool 5.3.1 with the recorded ESP32-S3 16 MB / OPI PSRAM FQBN. Build output: 1,166,767 bytes program storage (37% of the 3,145,728-byte app partition), 97,444 bytes dynamic/global memory (29% of 327,680 bytes), leaving 230,236 bytes.
 - **2026-11-17 — Version 4.45:** The user confirmed PR #49 firmware upload/boot and the complete physical Waveshare hardware regression passed. Forecast Graph visuals, scrolling, touch/gesture behaviour, List/Graph navigation and existing Weather/Forecast interactions were reported working. PR #49 remains open, draft and unmerged pending the user's review/readiness decision.
-- **2026-11-17 — Version 4.46:** Recorded PR #49 merge into `main` at `90311b142993465c37c6460b2a79ff56ac136c25`. Updated the Phase 1 status, PR checklist, current handover and latest firmware checkpoint to treat ForecastGraphRenderer as merged and hardware-validated.
+- **2026-11-17 — Version 4.47:** Recorded PR #49 merge into `main` at `90311b142993465c37c6460b2a79ff56ac136c25`. Updated the Phase 1 status, PR checklist, current handover and latest firmware checkpoint to treat ForecastGraphRenderer as merged and hardware-validated.
 - **2026-11-17 — Version 4.46:** Reconciled the Phase 1 roadmap and current handover with the completed PR #49 validation. Marked the ForecastGraphRenderer extraction and all host/build/device validation gates complete, distinguished the validated PR branch from the still-merged PR #48 `main` firmware checkpoint, and set the next task to review remaining Weather screen composition boundaries.
