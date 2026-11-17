@@ -17,7 +17,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 
 ### Current work
 
-- [ ] **PR #49 — Forecast graph renderer** on `phase1/22-forecast-graph-renderer`: extract chart drawing into `ForecastGraphRenderer`, leaving forecast data, graph state/clamping, touch/gesture policy, animation and canvas lifecycle in Weather. `sh scripts/test-forecast-graph-renderer.sh` passed (`ForecastGraphRenderer tests passed.`) on 2026-11-17; Arduino Verify and firmware/hardware validation remain pending.
+- [ ] **PR #49 — Forecast graph renderer** on `phase1/22-forecast-graph-renderer`: extract chart drawing into `ForecastGraphRenderer`, leaving forecast data, graph state/clamping, touch/gesture policy, animation and canvas lifecycle in Weather. `sh scripts/test-forecast-graph-renderer.sh` passed (`ForecastGraphRenderer tests passed.`) on 2026-11-17. Arduino IDE Verify also passed on 2026-11-17 with ESP32 core 3.3.12 / esptool 5.3.1: 1,166,767 bytes program storage (37% of the 3 MiB app partition), 97,444 bytes dynamic/global memory (29%), leaving 230,236 bytes. Firmware upload/boot and physical Waveshare validation remain pending.
 
 ### Phase 1 sequence
 
@@ -34,7 +34,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 ### Validation gate for PR #49
 
 - [x] Focused strict C++11 host test passes (`sh scripts/test-forecast-graph-renderer.sh`; user-confirmed 2026-11-17).
-- [ ] Arduino IDE Verify passes on the recorded Waveshare ESP32-S3 configuration.
+- [x] Arduino IDE Verify passed on 2026-11-17 using the recorded Waveshare ESP32-S3 configuration (ESP32 core 3.3.12 / esptool 5.3.1); build: 1,166,767 bytes program storage and 97,444 bytes dynamic/global memory, leaving 230,236 bytes.
 - [ ] Firmware uploads and boots on the device.
 - [ ] Physical graph/List/Weather, scroll, touch, gesture and tab-transition regression passes.
 - [ ] Existing interactions are preserved and build / memory figures are tied to the tested firmware build.
