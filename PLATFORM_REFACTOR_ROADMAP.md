@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.43  
-**Last reviewed:** 2026-11-16  
+**Version:** 4.44  
+**Last reviewed:** 2026-11-17  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#48 are merged and validated. PR #48 merged into `main` at `e59a8e508670959e99115c33dbff38c200503e9a` after both strict C++11 host suites, Arduino Verify, firmware upload/boot and physical Waveshare regression passed. `WeatherAssetCache` owns the single current-weather icon buffer and cache identity; `WeatherApp` prepares a missing icon after data retrieval and before screen rendering. `drawWeather()` reads only a cached icon and never initiates an HTTPS request. PR #49 (`phase1/22-forecast-graph-renderer`) is the active focused extraction: it moves graph visual drawing into `ForecastGraphRenderer` while retaining data ownership, graph interaction, scroll policy, animation and canvas lifecycle in Weather.
+**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#48 are merged and validated. PR #48 merged into `main` at `e59a8e508670959e99115c33dbff38c200503e9a` after both strict C++11 host suites, Arduino Verify, firmware upload/boot and physical Waveshare regression passed. `WeatherAssetCache` owns the single current-weather icon buffer and cache identity; `WeatherApp` prepares a missing icon after data retrieval and before screen rendering. `drawWeather()` reads only a cached icon and never initiates an HTTPS request. PR #49 (`phase1/22-forecast-graph-renderer`) is the active focused extraction: it moves graph visual drawing into `ForecastGraphRenderer` while retaining data ownership, graph interaction, scroll policy, animation and canvas lifecycle in Weather. The strict C++11 host suite and Arduino IDE Verify both passed on 2026-11-17; the recorded Verify build used 1,166,767 bytes of program storage (37% of the 3 MiB app partition) and 97,444 bytes of dynamic/global memory (29%), leaving 230,236 bytes. Firmware upload/boot and physical Waveshare regression remain pending.
 
 ---
 
@@ -871,4 +871,5 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-16 — Version 4.42:** Recorded PR #48 merge at `e59a8e508670959e99115c33dbff38c200503e9a` after both strict C++11 host suites, Arduino Verify, upload/boot and full physical Waveshare regression passed. Build figures were recorded for that tested build: 1,166,523 bytes program storage, 97,428 bytes global dynamic memory and 230,252 bytes remaining. Started PR #49 on `phase1/22-forecast-graph-renderer`, extracting the visual composition of the Forecast Graph into `src/ui/ForecastGraphRenderer.h`; Weather retains forecast data, graph scroll/clamping, touch/gesture policy, animation, canvas lifecycle and screen composition. Added a strict C++11 host suite and runner; execution, Arduino Verify, upload/boot and physical graph regression remain pending.
 
 
-- **2026-11-17 — Version 4.43:** User ran `sh scripts/test-forecast-graph-renderer.sh` on `phase1/22-forecast-graph-renderer`; strict C++11 host suite passed (`ForecastGraphRenderer tests passed.`). PR #49 remains in draft. Arduino IDE Verify, upload/boot and physical Waveshare regression remain pending.
+- **2026-11-17 — Version 4.43:** User ran `sh scripts/test-forecast-graph-renderer.sh` on `phase1/22-forecast-graph-renderer`; strict C++11 host suite passed (`ForecastGraphRenderer tests passed.`). PR #49 remains in draft.
+- **2026-11-17 — Version 4.44:** The user confirmed Arduino IDE Verify passed on the PR #49 branch using ESP32 core 3.3.12 and esptool 5.3.1 with the recorded ESP32-S3 16 MB / OPI PSRAM FQBN. Build output: 1,166,767 bytes program storage (37% of the 3,145,728-byte app partition), 97,444 bytes dynamic/global memory (29% of 327,680 bytes), leaving 230,236 bytes. Firmware upload/boot and physical Waveshare graph regression remain pending.
