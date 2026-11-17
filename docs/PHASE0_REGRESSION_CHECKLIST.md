@@ -324,7 +324,7 @@ PR #48 is merged and fully validated. The following PR extracts only graph drawi
 - [x] Physical graph curve/points, labels, condition icons, rain bars, edge clipping, graph scrolling/overscroll/snap, List/Graph switching, touch/gesture behaviour, tab transitions and canvas fallback regression passed; user reported all hardware checks working on 2026-11-17.
 - [x] Weather and Forecast List mode and existing interactions remain working, as confirmed by the user on 2026-11-17.
 
-**PR #49 validation is complete.** The pull request remains open in draft and unmerged; the checklist records the branch firmware's successful validation, not a claim that the candidate has already landed in `main`.
+**PR #49 validation is complete and the change is merged into `main` at `90311b142993465c37c6460b2a79ff56ac136c25`.**
 
 ## 5. Clock and location
 
