@@ -17,7 +17,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 
 ### Current work
 
-- [ ] **PR #49 — Forecast graph renderer** on `phase1/22-forecast-graph-renderer`: extract chart drawing into `ForecastGraphRenderer`, leaving forecast data, graph state/clamping, touch/gesture policy, animation and canvas lifecycle in Weather. Focused strict C++11 host tests and a runner are added; execution and firmware/hardware validation are pending.
+- [ ] **PR #49 — Forecast graph renderer** on `phase1/22-forecast-graph-renderer`: extract chart drawing into `ForecastGraphRenderer`, leaving forecast data, graph state/clamping, touch/gesture policy, animation and canvas lifecycle in Weather. `sh scripts/test-forecast-graph-renderer.sh` passed (`ForecastGraphRenderer tests passed.`) on 2026-11-17; Arduino Verify and firmware/hardware validation remain pending.
 
 ### Phase 1 sequence
 
@@ -33,7 +33,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 
 ### Validation gate for PR #49
 
-- [ ] Focused strict C++11 host test passes (`sh scripts/test-forecast-graph-renderer.sh`).
+- [x] Focused strict C++11 host test passes (`sh scripts/test-forecast-graph-renderer.sh`; user-confirmed 2026-11-17).
 - [ ] Arduino IDE Verify passes on the recorded Waveshare ESP32-S3 configuration.
 - [ ] Firmware uploads and boots on the device.
 - [ ] Physical graph/List/Weather, scroll, touch, gesture and tab-transition regression passes.
