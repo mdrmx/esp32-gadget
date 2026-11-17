@@ -973,7 +973,10 @@ bool readForecastGraphItem(
   int index,
   ForecastGraphRenderer::Item& item
 ) {
-  if (context == nullptr || index < 0) return false;
+  if (context == nullptr || index < 0 ||
+      index >= WeatherForecastData::MaxRecords) {
+    return false;
+  }
   const WeatherForecastData* data =
     static_cast<const WeatherForecastData*>(context);
   if (index >= data->count) return false;
