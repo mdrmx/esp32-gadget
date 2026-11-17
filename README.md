@@ -25,7 +25,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 - [x] Weather metric-card renderer
 - [x] Current Weather conditions composition
 - [x] Weather icon asset-cache ownership and pre-render preparation
-- [x] Forecast graph renderer — extracted and fully validated on the PR #49 branch
+- [x] Forecast graph renderer — extracted, fully validated and merged into `main` in PR #49
 - [ ] Review any remaining Weather screen composition that still has a useful independent boundary
 
 ### PR #49 validation record (all checks passed)
