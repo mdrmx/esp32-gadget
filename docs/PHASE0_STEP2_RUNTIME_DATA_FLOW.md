@@ -7,9 +7,9 @@
 **Primary runtime entry point:** `weatherDashboard.ino`  
 **Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h`, `src/apps/weather/WeatherAssetCache.h` (merged in PR #48), `src/ui/ForecastGraphRenderer.h` (PR #49), `src/ui/TextRenderer.h`, `src/ui/HeaderRenderer.h`, `src/ui/StatusScreenRenderer.h` (PR #44), `src/ui/ForecastListItemRenderer.h` (PR #45), `src/ui/WeatherMetricCardRenderer.h` (PR #46) and `src/ui/WeatherConditionsRenderer.h` (merged in PR #47).
 **Source checkpoint:** firmware baseline `main` at PR #48 merge `e59a8e508670959e99115c33dbff38c200503e9a`; current graph-renderer extraction branch `phase1/22-forecast-graph-renderer`.
-**Extraction status:** PR #47's `WeatherConditionsRenderer` and PR #48's `WeatherAssetCache` are merged and hardware-validated. PR #49 adds `ForecastGraphRenderer` on `phase1/22-forecast-graph-renderer`; it moves graph visuals out of the sketch while leaving Weather data access, scroll state/clamping, gestures, animation and canvas lifecycle in Weather. PR #49 is not yet part of the current `main` runtime checkpoint.
+**Extraction status:** PR #47's `WeatherConditionsRenderer` and PR #48's `WeatherAssetCache` are merged and hardware-validated. PR #49 adds `ForecastGraphRenderer` on `phase1/22-forecast-graph-renderer`; it moves graph visuals out of the sketch while leaving Weather data access, scroll state/clamping, gestures, animation and canvas lifecycle in Weather. The PR #49 strict C++11 host suite and Arduino IDE Verify passed on 2026-11-17; Verify measured 1,166,767 bytes program storage and 97,444 bytes dynamic/global memory, leaving 230,236 bytes. Firmware upload/boot and physical graph regression remain outstanding. PR #49 is not yet part of the current `main` runtime checkpoint.
 
-**Review date:** 2026-11-16
+**Review date:** 2026-11-17
 
 ---
 
