@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.42  
+**Version:** 4.43  
 **Last reviewed:** 2026-11-16  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -389,7 +389,7 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
   - [x] Merged; no known outstanding review or validation items.
 - [ ] **PR #49 — ForecastGraphRenderer extraction (in progress on `phase1/22-forecast-graph-renderer`):** adds `src/ui/ForecastGraphRenderer.h` for the graph's visual composition: horizontal grid, temperature curve/points, existing condition icons, compact time/temperature labels and precipitation bars/labels. The sketch supplies forecast items through a small callback adapter and passes the active target, display width, origin and already-clamped scroll position. Weather retains forecast-model ownership, graph scroll state/clamping, point/hold/quick-swipe gesture policy, touch ownership, scroll animation, canvas redraw/flush/fallback and full Forecast screen composition.
   - [x] Added focused strict C++11 host test coverage and `sh scripts/test-forecast-graph-renderer.sh`.
-  - [ ] Run the ForecastGraphRenderer host suite with strict C++11 warnings.
+  - [x] Run `sh scripts/test-forecast-graph-renderer.sh` with strict C++11 warnings; user confirmed `ForecastGraphRenderer tests passed.` (2026-11-17).
   - [ ] Arduino IDE Verify on the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration and ESP32 core 3.3.12.
   - [ ] Upload and confirm successful boot.
   - [ ] Physically verify graph labels, curve/point placement, condition icons, rain bars, edge clipping, graph scrolling/overscroll/snap, List/Graph switching, touch/gesture behaviour, tab transitions and canvas fallback remain unchanged.
@@ -868,3 +868,6 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-16 — Version 4.40:** The user ran both PR #48 strict C++11 host suites successfully. Review refinement now skips Weather icon preparation when a refresh leaves the app on Forecast, avoiding an unnecessary icon HTTP request. Added explicit Weather-view and Forecast-view refresh ordering assertions. Arduino Verify, upload/boot and physical Waveshare regression remain pending.
 
 - **2026-11-16 — Version 4.42:** Recorded PR #48 merge at `e59a8e508670959e99115c33dbff38c200503e9a` after both strict C++11 host suites, Arduino Verify, upload/boot and full physical Waveshare regression passed. Build figures were recorded for that tested build: 1,166,523 bytes program storage, 97,428 bytes global dynamic memory and 230,252 bytes remaining. Started PR #49 on `phase1/22-forecast-graph-renderer`, extracting the visual composition of the Forecast Graph into `src/ui/ForecastGraphRenderer.h`; Weather retains forecast data, graph scroll/clamping, touch/gesture policy, animation, canvas lifecycle and screen composition. Added a strict C++11 host suite and runner; execution, Arduino Verify, upload/boot and physical graph regression remain pending.
+
+
+- **2026-11-17 — Version 4.43:** User ran `sh scripts/test-forecast-graph-renderer.sh` on `phase1/22-forecast-graph-renderer`; strict C++11 host suite passed (`ForecastGraphRenderer tests passed.`). PR #49 remains in draft. Arduino IDE Verify, upload/boot and physical Waveshare regression remain pending.
