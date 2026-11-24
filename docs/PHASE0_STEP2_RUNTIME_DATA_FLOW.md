@@ -5,11 +5,11 @@
 **Related inventory:** [Phase 0, Step 1 — Code inventory](PHASE0_STEP1_CODE_INVENTORY.md)  
 **Repository:** `mdrmx/esp32-gadget`  
 **Primary runtime entry point:** `weatherDashboard.ino`  
-**Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h`, `src/apps/weather/WeatherAssetCache.h` (merged in PR #48), `src/ui/ForecastGraphRenderer.h` (merged in PR #49), `src/ui/TextRenderer.h`, `src/ui/HeaderRenderer.h`, `src/ui/StatusScreenRenderer.h` (PR #44), `src/ui/ForecastListItemRenderer.h` (PR #45), `src/ui/WeatherMetricCardRenderer.h` (PR #46) and `src/ui/WeatherConditionsRenderer.h` (merged in PR #47).
+**Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h`, `src/apps/weather/WeatherAssetCache.h` (merged in PR #48), `src/ui/ForecastGraphRenderer.h` (merged in PR #49), `src/ui/WeatherMetricsViewportRenderer.h` (PR #50 feature branch only; not merged), `src/ui/TextRenderer.h`, `src/ui/HeaderRenderer.h`, `src/ui/StatusScreenRenderer.h` (PR #44), `src/ui/ForecastListItemRenderer.h` (PR #45), `src/ui/WeatherMetricCardRenderer.h` (PR #46) and `src/ui/WeatherConditionsRenderer.h` (merged in PR #47).
 **Source checkpoint:** merged firmware baseline `main` at PR #49 merge `90311b142993465c37c6460b2a79ff56ac136c25` (including PR #48 at `e59a8e508670959e99115c33dbff38c200503e9a`).
-**Extraction status:** PR #47's `WeatherConditionsRenderer`, PR #48's `WeatherAssetCache` and PR #49's `ForecastGraphRenderer` are merged and hardware-validated. ForecastGraphRenderer owns graph visual drawing, while Weather continues to own data access, graph state/clamping, gestures, animation and canvas lifecycle. The PR #49 strict C++11 host suite, Arduino IDE Verify, upload/boot and physical Waveshare graph/List/Weather regression all passed on 2026-11-17. Verify measured 1,166,767 bytes program storage and 97,444 bytes dynamic/global memory, leaving 230,236 bytes.
+**Extraction status:** PR #47's `WeatherConditionsRenderer`, PR #48's `WeatherAssetCache` and PR #49's `ForecastGraphRenderer` are merged and hardware-validated. PR #50 adds `WeatherMetricsViewportRenderer` on `phase1/23-weather-metrics-viewport-renderer`; it is not part of the merged `main` checkpoint. ForecastGraphRenderer owns graph visual drawing, while Weather continues to own data access, graph state/clamping, gestures, animation and canvas lifecycle. The PR #49 strict C++11 host suite, Arduino IDE Verify, upload/boot and physical Waveshare graph/List/Weather regression all passed on 2026-11-17. Verify measured 1,166,767 bytes program storage and 97,444 bytes dynamic/global memory, leaving 230,236 bytes.
 
-**Review date:** 2026-11-17
+**Review date:** 2026-11-24
 
 ---
 
@@ -323,9 +323,9 @@ Consequently, the Weather drawing path no longer initiates network I/O. A cache-
 
 ### 6.2 Weather metric viewport
 
-`drawWeatherMetricsViewport()` renders the visible metrics and neighbouring partial cards to preserve smooth movement. It uses `weatherMetricsCanvas` and flushes the panel when possible. During transition composition or when the canvas is unavailable, it clears and draws the panel directly through `gfx`.
+`drawWeatherMetricsViewport()` renders the visible metrics and neighbouring partial cards to preserve smooth movement. On merged `main` at PR #49, the sketch selects `weatherMetricsCanvas`, clears/flushes it where available, and uses direct drawing during transition composition or when the canvas is unavailable. Scrolling state is held in `weatherMetricOffset` plus transient pixel positions used during drag and snap. Metric labels and values are supplied by Weather's metric helper functions.
 
-Scrolling state is held in `weatherMetricOffset` plus transient pixel positions used during drag and snap. The renderer reads the global weather values through the metric label/value helpers; it does not receive a standalone weather model object.
+**PR #50 branch delta (not merged):** `phase1/23-weather-metrics-viewport-renderer` delegates row-window selection, base-offset bounds, per-row positioning, viewport background fill and card drawing to `WeatherMetricsViewportRenderer`. Weather still supplies each formatted item via a callback and owns canvas/target selection, flush/fallback, panel geometry, offsets, scroll pixels, drag/snap animation and tab-transition composition. This branch-specific description does not change the source checkpoint above: merged `main` remains at PR #49 until PR #50 is reviewed and merged.
 
 ### 6.3 Forecast viewport — List and Graph
 
@@ -573,6 +573,8 @@ The map remains the behavioural reference for the remaining baseline work. Curre
 Do not begin broad source extraction until the memory baseline, documentation/regression review and module-boundary plan are complete. The remaining evidence is needed to avoid choosing file boundaries or interfaces that conflict with the actual toolchain, memory constraints or observed device behaviour.
 
 ## 14. Change history
+
+- **2026-11-24:** Added a branch-specific PR #50 note for `WeatherMetricsViewportRenderer`. The merged `main` source checkpoint and existing runtime flow remain at PR #49; the new renderer is explicitly identified as unmerged work.
 
 - **2026-10-31 — Version 1.0:** Initial Step 2 runtime trace. Documents startup, loop scheduling, touch ownership and gesture arbitration, rendering paths, network / location / time flows, blocking operations and candidate platform boundaries. Static source inspection only.
 - **2026-11-01 — Version 1.1:** Updated remaining-work guidance after the Step 4 physical baseline; marked build/toolchain and initial blocking-operation verification complete, clarified that memory profiling is the next Phase 0 activity, and recorded the demo-mode documentation discrepancy as resolved.
