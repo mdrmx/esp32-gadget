@@ -30,7 +30,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 - [x] Current Weather conditions composition
 - [x] Weather icon asset-cache ownership and pre-render preparation
 - [x] Forecast graph renderer — extracted, fully validated and merged into `main` in PR #49
-- [ ] Weather metrics viewport renderer — PR #50 implementation in review; checked-in host runner passed, Arduino Verify and physical Waveshare regression pending
+- [ ] Weather metrics viewport renderer — PR #50 awaiting firmware validation; checked-in host runner passed, Arduino Verify and physical Waveshare regression pending
 
 ### PR #50 validation record (host tests passed; firmware validation pending)
 
