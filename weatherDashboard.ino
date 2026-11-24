@@ -246,7 +246,6 @@ bool& uvIndexAvailable = weatherForecastData.uvIndexAvailable;
 bool& rainProbabilityAvailable = weatherForecastData.rainProbabilityAvailable;
 bool& forecastAvailable = weatherForecastData.available;
 int& forecastCount = weatherForecastData.count;
-ForecastItem* const forecast = weatherForecastData.items;
 
 
 bool loadDemoWeatherData();
