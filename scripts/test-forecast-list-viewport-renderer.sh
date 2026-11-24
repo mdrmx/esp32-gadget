@@ -8,11 +8,11 @@ trap 'rm -rf "$BUILD_DIR"' EXIT
 trap 'exit 1' HUP INT TERM
 
 CXX="${CXX:-g++}"
-"$CXX" -std=c++11 -Wall -Wextra -Werror -pedantic \\
-  -DNDEBUG \\
-  -I"$ROOT_DIR/tests/host/stubs" \\
-  -I"$ROOT_DIR" \\
-  "$ROOT_DIR/tests/host/forecast_list_viewport_renderer_test.cpp" \\
+"\$CXX" -std=c++11 -Wall -Wextra -Werror -pedantic \
+  -DNDEBUG \
+  -I"$ROOT_DIR/tests/host/stubs" \
+  -I"$ROOT_DIR" \
+  "$ROOT_DIR/tests/host/forecast_list_viewport_renderer_test.cpp" \
   -o "$BUILD_DIR/forecast_list_viewport_renderer_test"
 
 "$BUILD_DIR/forecast_list_viewport_renderer_test"
