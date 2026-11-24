@@ -9,7 +9,7 @@
 
 static void check(bool condition, const char* expression, int line) {
   if (!condition) {
-    fprintf(stderr, "FAIL: %s (line %d)\\n", expression, line);
+    fprintf(stderr, "FAIL: %s (line %d)\n", expression, line);
     exit(EXIT_FAILURE);
   }
 }
@@ -24,8 +24,8 @@ public:
 struct Source {
   int itemCount;
   int failIndex;
-  int readCount;
-  int indices[16];
+  mutable int readCount;
+  mutable int indices[16];
 };
 
 static bool readItem(
@@ -34,8 +34,7 @@ static bool readItem(
   ForecastListItemRenderer::Item& item
 ) {
   if (context == nullptr) return false;
-  Source* source = const_cast<Source*>(
-    static_cast<const Source*>(context));
+  const Source* source = static_cast<const Source*>(context);
   if (index < 0 || index >= source->itemCount) return false;
 
   if (source->readCount < 16) {
@@ -157,6 +156,6 @@ int main() {
   CHECK(invalidTarget.fillRectCount == 0);
   CHECK(invalidTarget.printCount == 0);
 
-  printf("ForecastListViewportRenderer tests passed.\\n");
+  printf("ForecastListViewportRenderer tests passed.\n");
   return EXIT_SUCCESS;
 }
