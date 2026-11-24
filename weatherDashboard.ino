@@ -15,6 +15,7 @@
 #include "src/ui/HeaderRenderer.h"
 #include "src/ui/StatusScreenRenderer.h"
 #include "src/ui/ForecastListItemRenderer.h"
+#include "src/ui/ForecastListViewportRenderer.h"
 #include "src/ui/ForecastGraphRenderer.h"
 #include "src/ui/WeatherMetricCardRenderer.h"
 #include "src/ui/WeatherMetricsViewportRenderer.h"
@@ -196,6 +197,8 @@ const ForecastListItemRenderer::Colours FORECAST_LIST_ITEM_COLOURS = {
 };
 ForecastListItemRenderer forecastListItemRenderer(
   displayManager, FORECAST_LIST_ITEM_COLOURS);
+ForecastListViewportRenderer forecastListViewportRenderer(
+  forecastListItemRenderer);
 
 const ForecastGraphRenderer::Colours FORECAST_GRAPH_COLOURS = {
   PANEL, UI_YELLOW, UI_WHITE, UI_WHITE, MUTED, ACCENT
@@ -248,7 +251,6 @@ ForecastItem* const forecast = weatherForecastData.items;
 
 bool loadDemoWeatherData();
 
-const int MAX_FORECAST = WeatherForecastData::MaxRecords;
 const int ITEMS_PER_PAGE = 3;
 
 const int WEATHER_METRIC_COUNT = 8;
@@ -279,7 +281,6 @@ const int TAB_TRANSITION_FOOTER_HEIGHT = 12;
 
 const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 8;
 const int FORECAST_ROW_STEP = 48;
-const int FORECAST_CARD_HEIGHT = ForecastListItemRenderer::CARD_HEIGHT;
 const int FORECAST_GRAPH_POINTS = 6;
 const int FORECAST_GRAPH_POINT_SPACING = 56;
 const unsigned long FORECAST_GRAPH_HOLD_MS = 220UL;
@@ -879,38 +880,32 @@ void drawWeather() {
 // FORECAST SCREEN
 // =====================================================
 
-String forecastCompactTime(int index) {
-  String label = forecast[index].timeText;
-  const int separator = label.lastIndexOf(' ');
-  if (separator >= 0) label = label.substring(separator + 1);
-  return label;
-}
+// Weather supplies one forecast item at a time. The viewport renderer
+// reuses its Item instance across visible rows, retaining String capacity.
+bool readForecastListItem(
+  const void* context,
+  int index,
+  ForecastListItemRenderer::Item& item
+) {
+  if (context == nullptr || index < 0 ||
+      index >= WeatherForecastData::MaxRecords) {
+    return false;
+  }
 
-ForecastListItemRenderer::Item forecastListRenderItem(int index) {
-  return {
-    forecastCompactTime(index),
-    forecast[index].description,
-    forecast[index].temp,
-    forecast[index].feelsLike,
-    forecast[index].rainProbability
-  };
-}
+  const WeatherForecastData* data =
+    static_cast<const WeatherForecastData*>(context);
+  if (index >= data->count) return false;
 
-void drawForecastItem(Arduino_GFX* target, int index, int y) {
-  forecastListItemRenderer.draw(
-    target, forecastListRenderItem(index), y);
-}
-
-// Draw a forecast card into the viewport canvas while explicitly clipping
-// edge rows. Avoid passing negative coordinates to rounded-rectangle or text
-// primitives, but keep the visible slice of each card moving smoothly.
-void drawForecastItemClipped(Arduino_GFX* target, int index, int y) {
-  forecastListItemRenderer.drawClipped(
-    target,
-    forecastListRenderItem(index),
-    y,
-    FORECAST_VIEWPORT_TOP,
-    FORECAST_VIEWPORT_HEIGHT);
+  const ForecastItem& source = data->items[index];
+  const int separator = source.timeText.lastIndexOf(' ');
+  item.time = separator >= 0
+    ? source.timeText.substring(separator + 1)
+    : source.timeText;
+  item.description = source.description;
+  item.temperature = source.temp;
+  item.feelsLike = source.feelsLike;
+  item.rainProbability = source.rainProbability;
+  return true;
 }
 
 void drawForecastModeSelector() {
@@ -1122,26 +1117,21 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
       return;
     }
 
-    const int firstIndex = max(0, baseOffset - 1);
-    const int lastIndex = min(forecastCount, baseOffset + ITEMS_PER_PAGE + 1);
-    for (int index = firstIndex; index < lastIndex; index++) {
-      if (index < 0 || index >= forecastCount || index >= MAX_FORECAST) {
-        continue;
-      }
-
-      const int y = FORECAST_ROW_TOP +
-                    (index - baseOffset) * FORECAST_ROW_STEP -
-                    scrollPixels;
-
-      // Keep partially visible edge cards in the render so they slide
-      // through the viewport instead of popping in/out during a drag.
-      if (y + FORECAST_CARD_HEIGHT <= FORECAST_VIEWPORT_TOP ||
-          y >= FORECAST_VIEWPORT_BOTTOM) {
-        continue;
-      }
-
-      drawForecastItemClipped(displayManager.forecastCanvas(), index, y);
-    }
+    const ForecastListViewportRenderer::Layout layout = {
+      forecastCount,
+      ITEMS_PER_PAGE,
+      FORECAST_ROW_TOP,
+      FORECAST_ROW_STEP,
+      FORECAST_VIEWPORT_TOP,
+      FORECAST_VIEWPORT_HEIGHT
+    };
+    forecastListViewportRenderer.drawClippedViewport(
+      displayManager.forecastCanvas(),
+      layout,
+      baseOffset,
+      scrollPixels,
+      &weatherForecastData,
+      readForecastListItem);
 
     displayManager.forecastCanvas()->flush();
     return;
@@ -1161,11 +1151,20 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
     return;
   }
 
-  int visible = min(ITEMS_PER_PAGE, max(0, forecastCount - baseOffset));
-  for (int i = 0; i < visible; i++) {
-    int y = FORECAST_ROW_TOP + i * FORECAST_ROW_STEP;
-    drawForecastItem(displayManager.target(), baseOffset + i, y);
-  }
+  const ForecastListViewportRenderer::Layout layout = {
+    forecastCount,
+    ITEMS_PER_PAGE,
+    FORECAST_ROW_TOP,
+    FORECAST_ROW_STEP,
+    FORECAST_VIEWPORT_TOP,
+    FORECAST_VIEWPORT_HEIGHT
+  };
+  forecastListViewportRenderer.drawSettledFallback(
+    displayManager.target(),
+    layout,
+    baseOffset,
+    &weatherForecastData,
+    readForecastListItem);
 }
 
 void drawForecast() {
