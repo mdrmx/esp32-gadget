@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.50  
+**Version:** 4.51  
 **Last reviewed:** 2026-11-24  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -787,6 +787,7 @@ The roadmap document itself is a planning and handover artefact. Its creation do
 - **2026-11-24 — Version 4.48:** Started PR #50 on `phase1/23-weather-metrics-viewport-renderer`, extracting the Weather metric viewport's visible-row selection, placement, viewport background and card delegation into `WeatherMetricsViewportRenderer`. Weather retains formatted metric values, target/canvas selection, flush/fallback, scroll and animation policy. Added strict C++11 host coverage and runner; an isolated local C++11 harness passed, while the complete repository host runner, Arduino Verify, upload/boot and physical Waveshare regression remain pending. PR #50 is not merged; the latest merged firmware baseline remains PR #49.
 - **2026-11-24 — Version 4.49:** Addressed Gemini Code Assist's PR #50 heap-churn comment by constructing one `WeatherMetricsViewportRenderer::Item` before the visible-row loop and reusing its `String` buffers across rows. Replied to the inline comment and resolved the review thread.
 - **2026-11-24 — Version 4.50:** The user ran `sh scripts/test-weather-metrics-viewport-renderer.sh` from the project checkout after pulling the latest branch commits. The checked-in strict C++11 repository test passed on head `c36dfd06c2566aa7b410adc22dc3762e72490d26` (`WeatherMetricsViewportRenderer tests passed.`). Arduino Verify, upload/boot and physical Waveshare regression remain pending.
+- **2026-11-24 — Version 4.51:** Reconciled PR #50 validation status after the user confirmed the checked-in strict C++11 host runner passed on the latest branch head `c36dfd06c2566aa7b410adc22dc3762e72490d26`. Cleaned the PR description's duplicate heap-reuse note and recorded the checked-in host pass; Arduino Verify and physical validation remain pending.
 
 - **2026-10-31 — Version 1.0:** Initial roadmap agreed. Records the platform-refactor direction, connectivity abstraction, persistent Wi-Fi management, reusable UI/interaction components, application lifecycle, cellular integration and Maps application. Phase 0 remains the first implementation stage.
 - **2026-10-31 — Version 1.1:** Phase 0, Step 1 marked complete and linked to `docs/PHASE0_STEP1_CODE_INVENTORY.md`. Phase 0 remains in progress; the runtime data-flow map and remaining audit work are outstanding.
