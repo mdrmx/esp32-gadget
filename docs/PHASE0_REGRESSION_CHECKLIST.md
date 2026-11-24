@@ -330,9 +330,9 @@ PR #48 is merged and fully validated. The following PR extracts only graph drawi
 
 `WeatherMetricsViewportRenderer` extracts the Weather metric viewport's row-window selection, card positioning, background fill and delegation to `WeatherMetricCardRenderer`. Weather retains data selection/formatting, panel geometry, active canvas/target choice, canvas flush and direct-display fallback, scroll positions, drag/snap animations, transition composition and full Weather screen rendering.
 
-- [x] Add a strict C++11 host test and runner for row selection, base-offset clamping, canvas/direct coordinate layouts, partial-card clipping, failed item reads and invalid-input guards. An isolated local harness using the repository host-stub interface passed; the checked-in runner has not yet been run from a repository checkout.
+- [x] Add a strict C++11 host test and runner for row selection, base-offset clamping, canvas/direct coordinate layouts, partial-card clipping, failed item reads and invalid-input guards. The isolated harness passed, and the checked-in repository runner passed on latest branch head `c36dfd06c2566aa7b410adc22dc3762e72490d26` (`WeatherMetricsViewportRenderer tests passed.`).
 - [x] Address Gemini Code Assist heap-churn feedback by constructing one `Item` outside the row loop and reusing its Arduino `String` buffers; the inline review thread is resolved.
-- [ ] Run `sh scripts/test-weather-metrics-viewport-renderer.sh` from the project checkout with the strict C++11 flags.
+- [x] Run `sh scripts/test-weather-metrics-viewport-renderer.sh` from the project checkout with the strict C++11 flags; user confirmed it passed on `c36dfd06c2566aa7b410adc22dc3762e72490d26`.
 - [ ] Arduino IDE Verify using Arduino IDE 2.3.10, ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN.
 - [ ] Upload and confirm normal boot on the Waveshare ESP32-S3 Touch LCD 2.
 - [ ] Confirm all eight metric labels/values remain in their existing order and formatting; no value is lost or duplicated at the first/last page.
@@ -342,7 +342,7 @@ PR #48 is merged and fully validated. The following PR extracts only graph drawi
 - [ ] Switch Weather/Forecast repeatedly and confirm metric drawing follows the active transition target without painting partial content to the physical display.
 - [ ] Confirm the Weather conditions stack, icon, header, tab indicator, Forecast List/Graph and all existing touch/gesture interactions remain unchanged.
 
-No Arduino build, upload/boot or physical-device validation is claimed for PR #50 yet. Do not mark the checks above complete until they have been run on the PR #50 firmware revision.
+Arduino build, upload/boot and physical-device validation remain outstanding for PR #50. Do not mark those checks complete until they have been run on the PR #50 firmware revision.
 
 ## 5. Clock and location
 
