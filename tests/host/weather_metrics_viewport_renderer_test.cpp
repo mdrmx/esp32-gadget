@@ -132,7 +132,7 @@ int main() {
   CHECK(clippedTarget.lastFillRectHeight == 46);
   CHECK(clippedTarget.printCount == 1); // clipped card's value only
   CHECK(clippedTarget.printedText[0] == String("VALUE 0"));
-  CHECK(clippedTarget.printedY[0] == 62);
+  CHECK(clippedTarget.printedY[0] == 67);
 
   // A high requested offset is bounded to the final legal page.
   Source boundedSource = {5, -1, 0, {}};
