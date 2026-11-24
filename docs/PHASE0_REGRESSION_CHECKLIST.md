@@ -326,6 +326,23 @@ PR #48 is merged and fully validated. The following PR extracts only graph drawi
 
 **PR #49 validation is complete and the change is merged into `main` at `90311b142993465c37c6460b2a79ff56ac136c25`.**
 
+## PR #50 — WeatherMetricsViewportRenderer extraction (in progress; device validation pending)
+
+`WeatherMetricsViewportRenderer` extracts the Weather metric viewport's row-window selection, card positioning, background fill and delegation to `WeatherMetricCardRenderer`. Weather retains data selection/formatting, panel geometry, active canvas/target choice, canvas flush and direct-display fallback, scroll positions, drag/snap animations, transition composition and full Weather screen rendering.
+
+- [x] Add a strict C++11 host test and runner for row selection, base-offset clamping, canvas/direct coordinate layouts, partial-card clipping, failed item reads and invalid-input guards. An isolated local harness using the repository host-stub interface passed; the checked-in runner has not yet been run from a repository checkout.
+- [ ] Run `sh scripts/test-weather-metrics-viewport-renderer.sh` from the project checkout with the strict C++11 flags.
+- [ ] Arduino IDE Verify using Arduino IDE 2.3.10, ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN.
+- [ ] Upload and confirm normal boot on the Waveshare ESP32-S3 Touch LCD 2.
+- [ ] Confirm all eight metric labels/values remain in their existing order and formatting; no value is lost or duplicated at the first/last page.
+- [ ] Confirm partially visible cards clip at the top and bottom of the metric viewport without text escaping the panel.
+- [ ] Drag the metric panel in both directions; confirm the same movement, resisted/capped overscroll and nearest-row snap.
+- [ ] Confirm the renderer works through the metric canvas path and the direct-display fallback when the canvas is unavailable.
+- [ ] Switch Weather/Forecast repeatedly and confirm metric drawing follows the active transition target without painting partial content to the physical display.
+- [ ] Confirm the Weather conditions stack, icon, header, tab indicator, Forecast List/Graph and all existing touch/gesture interactions remain unchanged.
+
+No Arduino build, upload/boot or physical-device validation is claimed for PR #50 yet. Do not mark the checks above complete until they have been run on the PR #50 firmware revision.
+
 ## 5. Clock and location
 
 | Check | Procedure | Pass condition | Status |
