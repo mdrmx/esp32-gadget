@@ -69,6 +69,9 @@ public:
       layout.itemCount,
       baseOffset + layout.visibleItems + 1);
 
+    // Reuse the String buffers across visible rows to avoid repeated
+    // allocation/free cycles (and heap fragmentation) on the ESP32.
+    Item item;
     for (int index = firstIndex; index < lastIndex; ++index) {
       const int localY = layout.rowTop +
         (index - baseOffset) * layout.rowStep - scrollPixels;
@@ -78,7 +81,6 @@ public:
         continue;
       }
 
-      Item item;
       if (!readItem(context, index, item)) {
         continue;
       }
