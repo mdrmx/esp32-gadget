@@ -8,7 +8,7 @@ trap 'rm -rf "$BUILD_DIR"' EXIT
 trap 'exit 1' HUP INT TERM
 
 CXX="${CXX:-g++}"
-"\$CXX" -std=c++11 -Wall -Wextra -Werror -pedantic \
+"$CXX" -std=c++11 -Wall -Wextra -Werror -pedantic \
   -DNDEBUG \
   -I"$ROOT_DIR/tests/host/stubs" \
   -I"$ROOT_DIR" \
