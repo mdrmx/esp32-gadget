@@ -30,8 +30,8 @@ public:
 struct Source {
   int itemCount;
   int failIndex;
-  int readCount;
-  int indices[16];
+  mutable int readCount;
+  mutable int indices[16];
 };
 
 static bool readItem(
@@ -40,7 +40,7 @@ static bool readItem(
   WeatherMetricsViewportRenderer::Item& item
 ) {
   if (context == nullptr) return false;
-  Source* source = static_cast<Source*>(const_cast<void*>(context));
+  const Source* source = static_cast<const Source*>(context);
   if (index < 0 || index >= source->itemCount) return false;
 
   if (source->readCount < 16) {
