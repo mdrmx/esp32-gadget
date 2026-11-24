@@ -17,6 +17,7 @@
 #include "src/ui/ForecastListItemRenderer.h"
 #include "src/ui/ForecastGraphRenderer.h"
 #include "src/ui/WeatherMetricCardRenderer.h"
+#include "src/ui/WeatherMetricsViewportRenderer.h"
 #include "src/ui/WeatherConditionsRenderer.h"
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
@@ -207,6 +208,8 @@ const WeatherMetricCardRenderer::Colours WEATHER_METRIC_CARD_COLOURS = {
 };
 WeatherMetricCardRenderer weatherMetricCardRenderer(
   WEATHER_METRIC_CARD_COLOURS);
+WeatherMetricsViewportRenderer weatherMetricsViewportRenderer(
+  weatherMetricCardRenderer);
 
 const WeatherConditionsRenderer::Colours WEATHER_CONDITIONS_COLOURS = {
   MUTED, UI_YELLOW, MUTED
@@ -663,7 +666,7 @@ int weatherMetricsPanelWidth() {
   return displayManager.width() - weatherMetricsPanelX() - 10;
 }
 
-String weatherMetricLabel(int index) {
+const char* weatherMetricLabel(int index) {
   switch (index) {
     case 0: return "HUMIDITY";
     case 1: return "PRESSURE";
@@ -698,88 +701,73 @@ String weatherMetricValue(int index) {
   }
 }
 
-// Weather selects and formats the metric; the renderer owns card drawing
-// and clipping. Viewport geometry remains supplied by the calling layout code.
-void drawWeatherMetricItem(
-  Arduino_GFX* target,
+// Weather owns metric identity and formatting. The viewport renderer only
+// asks for visible records and composes their cards within the supplied target.
+bool readWeatherMetricItem(
+  const void* context,
   int index,
-  int x,
-  int y,
-  int panelWidth,
-  int viewportTop
+  WeatherMetricsViewportRenderer::Item& item
 ) {
-  weatherMetricCardRenderer.draw(
-    target,
-    weatherMetricLabel(index),
-    weatherMetricValue(index),
-    x,
-    y,
-    panelWidth,
-    viewportTop,
-    WEATHER_METRIC_PANEL_HEIGHT);
+  (void)context;
+  if (index < 0 || index >= WEATHER_METRIC_COUNT) return false;
+
+  item.label = weatherMetricLabel(index);
+  item.value = weatherMetricValue(index);
+  return true;
 }
 
-// Render the metrics panel into a small off-screen buffer, then transfer the
-// complete panel in one bitmap operation. This avoids clearing/repainting
-// individual cards directly to the LCD for each animation frame.
+// The sketch keeps ownership of the selected buffer and its flush/fallback
+// lifecycle. Both the PSRAM canvas and direct-display path use the same
+// renderer with coordinates relative to their respective viewport origins.
 void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
-  int panelWidth = weatherMetricsPanelWidth();
+  const int panelWidth = weatherMetricsPanelWidth();
 
-  if (displayManager.weatherMetricsCanvas() != nullptr && !displayManager.renderingTabTransition()) {
-    displayManager.weatherMetricsCanvas()->fillScreen(BG);
-
-    int firstIndex = max(0, baseOffset - 1);
-    int lastIndex = min(
+  if (displayManager.weatherMetricsCanvas() != nullptr &&
+      !displayManager.renderingTabTransition()) {
+    const WeatherMetricsViewportRenderer::Layout layout = {
       WEATHER_METRIC_COUNT,
-      baseOffset + WEATHER_METRICS_VISIBLE + 1);
+      WEATHER_METRICS_VISIBLE,
+      WEATHER_METRIC_ROW_TOP,
+      WEATHER_METRIC_ROW_STEP,
+      0,
+      panelWidth,
+      0,
+      WEATHER_METRIC_PANEL_HEIGHT,
+      BG
+    };
 
-    for (int index = firstIndex; index < lastIndex; index++) {
-      int y = WEATHER_METRIC_ROW_TOP +
-              (index - baseOffset) * WEATHER_METRIC_ROW_STEP -
-              scrollPixels;
-      if (y + WEATHER_METRIC_CARD_HEIGHT <= 0 ||
-          y >= WEATHER_METRIC_PANEL_HEIGHT) {
-        continue;
-      }
-
-      drawWeatherMetricItem(
-        displayManager.weatherMetricsCanvas(), index, 0, y, panelWidth, 0);
-    }
-
+    weatherMetricsViewportRenderer.draw(
+      displayManager.weatherMetricsCanvas(),
+      layout,
+      baseOffset,
+      scrollPixels,
+      nullptr,
+      readWeatherMetricItem);
     displayManager.weatherMetricsCanvas()->flush();
     return;
   }
 
-  // Direct-render fallback if the PSRAM buffer is unavailable. Use the same
-  // clipping renderer so boundary overscroll doesn't make edge cards vanish.
-  displayManager.target()->fillRect(
-    weatherMetricsPanelX(),
-    WEATHER_METRIC_PANEL_TOP,
-    panelWidth,
-    WEATHER_METRIC_PANEL_HEIGHT,
-    BG);
-
-  int firstIndex = max(0, baseOffset - 1);
-  int lastIndex = min(
+  // Direct-render fallback when the PSRAM canvas is unavailable or the
+  // screen is being composed on the tab-transition target.
+  const WeatherMetricsViewportRenderer::Layout layout = {
     WEATHER_METRIC_COUNT,
-    baseOffset + WEATHER_METRICS_VISIBLE + 1);
-  for (int index = firstIndex; index < lastIndex; index++) {
-    int localY = WEATHER_METRIC_ROW_TOP +
-                 (index - baseOffset) * WEATHER_METRIC_ROW_STEP -
-                 scrollPixels;
-    if (localY + WEATHER_METRIC_CARD_HEIGHT <= 0 ||
-        localY >= WEATHER_METRIC_PANEL_HEIGHT) {
-      continue;
-    }
+    WEATHER_METRICS_VISIBLE,
+    WEATHER_METRIC_ROW_TOP,
+    WEATHER_METRIC_ROW_STEP,
+    weatherMetricsPanelX(),
+    panelWidth,
+    WEATHER_METRIC_PANEL_TOP,
+    WEATHER_METRIC_PANEL_HEIGHT,
+    BG
+  };
 
-    drawWeatherMetricItem(
-      displayManager.target(),
-      index,
-      weatherMetricsPanelX(),
-      WEATHER_METRIC_PANEL_TOP + localY,
-      panelWidth,
-      WEATHER_METRIC_PANEL_TOP);
-  }
+  weatherMetricsViewportRenderer.draw(
+    displayManager.target(),
+    layout,
+    baseOffset,
+    scrollPixels,
+    nullptr,
+    readWeatherMetricItem);
 }
 
 void drawWeatherMetricsPanel(int baseOffset, int scrollPixels) {
