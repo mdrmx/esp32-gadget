@@ -331,6 +331,7 @@ PR #48 is merged and fully validated. The following PR extracts only graph drawi
 `WeatherMetricsViewportRenderer` extracts the Weather metric viewport's row-window selection, card positioning, background fill and delegation to `WeatherMetricCardRenderer`. Weather retains data selection/formatting, panel geometry, active canvas/target choice, canvas flush and direct-display fallback, scroll positions, drag/snap animations, transition composition and full Weather screen rendering.
 
 - [x] Add a strict C++11 host test and runner for row selection, base-offset clamping, canvas/direct coordinate layouts, partial-card clipping, failed item reads and invalid-input guards. An isolated local harness using the repository host-stub interface passed; the checked-in runner has not yet been run from a repository checkout.
+- [x] Address Gemini Code Assist heap-churn feedback by constructing one `Item` outside the row loop and reusing its Arduino `String` buffers; the inline review thread is resolved.
 - [ ] Run `sh scripts/test-weather-metrics-viewport-renderer.sh` from the project checkout with the strict C++11 flags.
 - [ ] Arduino IDE Verify using Arduino IDE 2.3.10, ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN.
 - [ ] Upload and confirm normal boot on the Waveshare ESP32-S3 Touch LCD 2.
