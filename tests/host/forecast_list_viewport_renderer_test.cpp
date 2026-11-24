@@ -110,6 +110,25 @@ int main() {
   CHECK(fallbackTarget.printedText[0] == String("TIME 1"));
   CHECK(fallbackTarget.printedY[0] == 90);
 
+  // Negative scroll near the first page exposes a partial bottom card.
+  // The viewport renderer keeps that slice and omits rows below the viewport.
+  Source bottomClipSource = {8, -1, 0, {}};
+  TestGfx bottomClipTarget;
+  renderer.drawClippedViewport(
+    &bottomClipTarget, layout, 0, -20, &bottomClipSource, readItem);
+  CHECK(bottomClipSource.readCount == 3);
+  CHECK(bottomClipSource.indices[0] == 0);
+  CHECK(bottomClipSource.indices[1] == 1);
+  CHECK(bottomClipSource.indices[2] == 2);
+  CHECK(bottomClipTarget.fillRectCount == 1);
+  CHECK(bottomClipTarget.lastFillRectX == 4);
+  CHECK(bottomClipTarget.lastFillRectY == 124);
+  CHECK(bottomClipTarget.lastFillRectWidth == 312);
+  CHECK(bottomClipTarget.lastFillRectHeight == 28);
+  CHECK(bottomClipTarget.printCount == 11);
+  CHECK(bottomClipTarget.printedText[8] == String("TIME 2"));
+  CHECK(bottomClipTarget.printedY[8] == 142);
+
   // A high requested offset is bounded to the last valid page.
   Source boundedSource = {8, -1, 0, {}};
   TestGfx boundedTarget;
