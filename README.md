@@ -16,6 +16,10 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 - [x] **[PR #48 — Weather asset-cache boundary](https://github.com/mdrmx/esp32-gadget/pull/48):** merged into `main` at `e59a8e508670959e99115c33dbff38c200503e9a`. Both strict C++11 host suites passed, Arduino Verify passed, firmware uploaded and booted, and the complete physical Waveshare regression passed (user-confirmed 2026-11-16).
 - [x] **[PR #49 — Forecast graph renderer](https://github.com/mdrmx/esp32-gadget/pull/49):** merged into `main` at `90311b142993465c37c6460b2a79ff56ac136c25`. Strict C++11 host tests, Arduino IDE Verify, firmware upload/boot and full physical Waveshare graph/List/Weather regression passed (user-confirmed 2026-11-17). Verified build: 1,166,767 bytes program storage (37% of the 3 MiB app partition), 97,444 bytes dynamic/global memory (29%), leaving 230,236 bytes. `ForecastGraphRenderer` owns graph visual composition; Weather retains data, scrolling, interaction and canvas lifecycle.
 
+### In progress on branch
+
+- **PR #50 — Weather metrics viewport renderer:** branch `phase1/23-weather-metrics-viewport-renderer`; extracts visible metric-row selection, placement and clipping into `WeatherMetricsViewportRenderer`. Not merged. The isolated strict C++11 harness passed; the checked-in host runner, Arduino Verify and Waveshare hardware regression remain pending.
+
 ### Phase 1 sequence
 
 - [x] Shared text renderer
@@ -26,7 +30,15 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 - [x] Current Weather conditions composition
 - [x] Weather icon asset-cache ownership and pre-render preparation
 - [x] Forecast graph renderer — extracted, fully validated and merged into `main` in PR #49
-- [ ] Review any remaining Weather screen composition that still has a useful independent boundary
+- [ ] Weather metrics viewport renderer — PR #50 in progress; repository host runner, Arduino Verify and physical Waveshare regression pending
+
+### PR #50 validation record (in progress)
+
+- [x] Isolated strict C++11 harness passed for visible-row selection, offset clamping, direct/canvas coordinate layouts, clipped rows, failed item reads and invalid input guards.
+- [ ] Run the checked-in repository test: `sh scripts/test-weather-metrics-viewport-renderer.sh`.
+- [ ] Arduino IDE Verify with the recorded Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12.
+- [ ] Upload/boot and physical Weather metric viewport regression: row ordering, partial top/bottom cards, metric drag/overscroll/snap, tab transition composition and canvas-unavailable fallback.
+- PR #50 is on `phase1/23-weather-metrics-viewport-renderer`; it is not merged. No firmware build-size/memory figures or hardware pass are claimed.
 
 ### PR #49 validation record (all checks passed)
 
