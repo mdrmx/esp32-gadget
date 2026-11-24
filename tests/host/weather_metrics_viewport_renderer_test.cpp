@@ -117,17 +117,22 @@ int main() {
 
   // A partial top row is clipped by the card renderer: panel slice remains
   // visible, while text outside the viewport is omitted.
-  Source clippedSource = {8, -1, 0, {}};
+  Source clippedSource = {1, -1, 0, {}};
+  const WeatherMetricsViewportRenderer::Layout topClipLayout = {
+    1, 1, 2, 59, 192, 118, 47, 177, BG
+  };
   TestGfx clippedTarget;
   renderer.draw(
-    &clippedTarget, directLayout, 0, 10, &clippedSource, readItem);
+    &clippedTarget, topClipLayout, 0, 10, &clippedSource, readItem);
 
   CHECK(clippedTarget.fillRectCount == 2); // viewport + clipped card slice
   CHECK(clippedTarget.lastFillRectX == 194);
   CHECK(clippedTarget.lastFillRectY == 47);
   CHECK(clippedTarget.lastFillRectWidth == 114);
   CHECK(clippedTarget.lastFillRectHeight == 46);
-  CHECK(clippedTarget.printCount == 5); // clipped first row has value only
+  CHECK(clippedTarget.printCount == 1); // clipped card's value only
+  CHECK(clippedTarget.printedText[0] == String("VALUE 0"));
+  CHECK(clippedTarget.printedY[0] == 62);
 
   // A high requested offset is bounded to the final legal page.
   Source boundedSource = {5, -1, 0, {}};
