@@ -63,3 +63,20 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 - [x] User confirmed existing Weather/Forecast interactions remain working; build / memory figures are recorded against the verified firmware build.
 
 For the detailed module boundaries, regression procedures and hardware baseline, see the [Platform Refactor Roadmap](PLATFORM_REFACTOR_ROADMAP.md) and [Phase 0 regression checklist](docs/PHASE0_REGRESSION_CHECKLIST.md).
+
+
+## Phase 2 — Shared connectivity (in progress)
+
+The first implementation slice is being developed on [`phase2/01-connectivity-manager-wifi-backend`](https://github.com/mdrmx/esp32-gadget/tree/phase2/01-connectivity-manager-wifi-backend).
+
+- Adds a transport-neutral `ConnectivityBackend` contract and `NetworkType`.
+- Adds an ESP32 `WiFiBackend` and a `ConnectivityManager` with non-blocking start/update calls, a 20-second connection timeout and disconnect-state handling.
+- Adds strict C++11 host runners:
+  - `sh scripts/test-connectivity-manager.sh`
+  - `sh scripts/test-wifi-backend.sh`
+
+Both focused host suites passed in the implementation workspace. Arduino IDE Verify, firmware upload/boot and physical Waveshare regression are still pending.
+
+**Transitional limitation:** the existing `connectWiFi()` call sites use a temporary synchronous compatibility adapter that pumps the manager while waiting. The manager API is non-blocking, but Weather startup/refresh can still block during association. The next slice will move that work into WeatherApp's regular update lifecycle. Persistent NVS profiles, network-management UI and reconnect/backoff policy are not yet implemented.
+
+See [Phase 2 connectivity design](docs/PHASE2_CONNECTIVITY_MANAGER.md) and the [canonical roadmap](PLATFORM_REFACTOR_ROADMAP.md).
