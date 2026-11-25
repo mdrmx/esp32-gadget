@@ -67,7 +67,7 @@ class WiFiProfileStore {
       return Status::NotFound;
     }
 
-    if (encodedLength < EncodedHeaderSize) {
+    if (encodedLength != MaxEncodedSize) {
       return Status::CorruptData;
     }
 
@@ -80,8 +80,7 @@ class WiFiProfileStore {
       return Status::UnsupportedVersion;
     }
 
-    if (encodedLength != MaxEncodedSize ||
-        readU16(encoded + 6) != MaxEncodedSize) {
+    if (readU16(encoded + 6) != MaxEncodedSize) {
       return Status::CorruptData;
     }
 
