@@ -476,10 +476,10 @@ Only mark a check as passed when the procedure has actually been performed on th
 **Scope limitation:** Wi-Fi association is now state-driven and does not block the WeatherApp call stack. A due TimeService/TimeAPI request, LocationService geolocation, current/forecast HTTP/TLS requests and icon asset downloads remain synchronous within their individual hooks/stages; input processing is delayed while one of those operations is executing. This slice does not claim a fully asynchronous networking stack.
 
 
-## Phase 2 — versioned Wi-Fi profile storage (implementation branch)
+## Phase 2 — versioned Wi-Fi profile storage (merged PR #54)
 
-**Branch:** `phase2/03-persistent-wifi-profiles`  
-**Status:** Implementation and physical validation passed on 2026-11-25. All four automated-review code/test fixes are committed, all five inline review threads are resolved, and both strict C++11 host suites have now been rerun successfully on the latest PR head. Final Arduino IDE Verify on that commit remains outstanding before merge.
+**Merge:** `4ebd4a5469f20677ee8759fc1bc3f2dae531be2b` into `main`  
+**Status:** Implementation, host validation and physical connectivity validation passed. All five inline review threads were answered and resolved. Both strict C++11 host suites passed again after the final automated-review fixes; the latest uploaded firmware after those fixes booted and reported the saved preferred profile loaded.
 
 - [x] Add a platform-independent `WiFiProfileStore` with a fixed maximum of five profiles, a versioned binary schema and CRC32 validation.
 - [x] Support preferred-profile selection, duplicate-SSID credential replacement, bounded profile capacity, forget semantics and open-network credentials.
@@ -490,7 +490,7 @@ Only mark a check as passed when the procedure has actually been performed on th
 - [x] Run `sh scripts/test-wifi-profile-store.sh` before the review fixes; both strict C++11 suites passed.
 - [x] **Final post-review rerun:** the user reran `sh scripts/test-wifi-profile-store.sh` on the latest PR head after the read-only Preferences, oversized-read and host-stub key-bound changes. Both `WiFiProfileStore tests passed.` and `PreferencesWiFiProfileStorage tests passed.` were reported.
 - [x] Arduino IDE Verify on the pre-review-hardening implementation revision using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12; the tested build reported 1,172,523 bytes program storage (37%) and 98,092 bytes global dynamic memory (29%), leaving 229,588 bytes.
-- [ ] Repeat Arduino IDE Verify on the latest review-fix commit before merge.
+- [x] Latest review-fixed firmware was uploaded and booted; startup reported `[WIFI] Loaded the saved preferred network profile.` No new program/global-memory footprint figures were supplied for this final revision.
 - [x] Upload/boot on the Waveshare ESP32-S3 Touch LCD 2; bootloader, partition table, boot-app and application writes completed with hash verification, followed by hard reset.
 - [x] First-boot migration: the device booted and connected using the one network/password previously held in `secrets.h`; the migration was followed by a subsequent reset/reconnect.
 - [x] Existing NVS profile: startup logged `[WIFI] Loaded the saved preferred network profile.`
@@ -501,10 +501,10 @@ Only mark a check as passed when the procedure has actually been performed on th
 - [x] **NVS source-isolation proof:** temporarily replaced the compiled `secrets.h` SSID/password with deliberately invalid values, uploaded without erasing flash, and observed the saved-profile startup message followed by successful Google Wi-Fi positioning and OpenWeather reverse geocoding. This demonstrated live network access using the NVS profile rather than the compile-time fallback.
 - [x] Restored the original local `secrets.h` and uploaded the normal firmware again.
 - [x] Repeat the host runner after the final review-fix commits; both suites passed.
-- [ ] Repeat Arduino IDE Verify after the final review-fix commits.
+- [x] Confirm latest firmware startup after review fixes; device reported `[WIFI] Loaded the saved preferred network profile.`
 
 **Security limitation:** the code does not enable NVS encryption or ESP32 flash encryption. Credential confidentiality at rest depends on the board's flash-encryption configuration. No profile passwords should appear in logs, diagnostics or PR descriptions.
 
-**Review follow-up:** five inline review threads covering four distinct code/test requests have been resolved. Oversized Preferences reads now return failure, Preferences opens read-only for reads, and the test stub checks key lengths before copying in `getBytes()` and `putBytes()`. The post-review host suites have passed; only final Arduino IDE Verify remains outstanding before merge.
+**Review follow-up:** all five inline review threads covering four distinct code/test requests were answered and resolved. Oversized Preferences reads now return failure, Preferences opens read-only for reads, and the test stub checks key lengths before copying in `getBytes()` and `putBytes()`. The final post-review host suites passed and the latest device startup confirmed the saved preferred profile was loaded. PR #54 is merged into `main`.
 
 **Scope boundary:** this slice provides the persistence and credential-lifetime foundation only. Network scanning, selection/password-entry UI, manager-owned retry/backoff and roaming policy remain separate work.
