@@ -470,4 +470,4 @@ Only mark a check as passed when the procedure has actually been performed on th
 - [ ] Confirm Weather/Forecast, List/Graph, touch, gesture, scrolling, graph interaction and tab transitions remain unchanged.
 - [ ] Record runtime internal free heap/largest block and PSRAM separately from compile-time footprint.
 
-**Scope limitation:** Wi-Fi association is now state-driven and does not block the WeatherApp call stack. LocationService geolocation, current/forecast HTTP/TLS requests and icon asset downloads remain synchronous within their individual stages; input processing is delayed while one of those operations is executing. This slice does not claim a fully asynchronous networking stack.
+**Scope limitation:** Wi-Fi association is now state-driven and does not block the WeatherApp call stack. A due TimeService/TimeAPI request, LocationService geolocation, current/forecast HTTP/TLS requests and icon asset downloads remain synchronous within their individual hooks/stages; input processing is delayed while one of those operations is executing. This slice does not claim a fully asynchronous networking stack.
