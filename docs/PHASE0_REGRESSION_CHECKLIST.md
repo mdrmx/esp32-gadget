@@ -450,10 +450,10 @@ For each extraction PR, record:
 Only mark a check as passed when the procedure has actually been performed on the stated firmware revision and hardware. Static code inspection is useful evidence, but it is not a substitute for physical validation.
 
 
-## Phase 2 — WeatherApp non-blocking startup/refresh slice (follow-up branch)
+## Phase 2 — WeatherApp non-blocking startup/refresh slice (PR #53)
 
 **Branch:** `phase2/02-nonblocking-weather-startup`  
-**Status:** Implemented; awaiting review and firmware/device validation. Not merged.
+**Status:** Firmware, upload/boot and physical regression passed (user-confirmed 2026-11-25). PR #53 remains open and unmerged.
 
 - [x] Replace the synchronous Weather startup wait with explicit `WeatherApp` states: connection, location, current weather, forecast, asset preparation and ready.
 - [x] Keep `ConnectivityManager.update(millis())` in the platform loop and keep Weather input/time hooks running while association is pending.
@@ -461,13 +461,16 @@ Only mark a check as passed when the procedure has actually been performed on th
 - [x] Remove the sketch-level `connectWiFi()` helper and confirm current/forecast fetch adapters no longer start or wait for Wi-Fi association.
 - [x] Preserve configured-location fallback on failed association; do not start an additional IP-geolocation request when there is no network.
 - [x] Strict C++11 WeatherApp state-machine host harness passed with `-Wall -Wextra -Werror -pedantic`. Coverage includes pending and successful association, offline fallback, sequential first load, refresh re-association, Forecast view asset skipping and stale Weather rendering.
-- [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12.
-- [ ] Upload/boot on the Waveshare ESP32-S3 Touch LCD 2.
-- [ ] Live startup: verify input remains serviced while Wi-Fi association is pending and the 20-second timeout advances to fallback without a connection wait in the application path.
-- [ ] Confirm location, current-weather and forecast loading after successful association.
-- [ ] Controlled unavailable-AP test: verify timeout/fallback and unavailable Weather presentation.
-- [ ] Disconnect Wi-Fi during normal operation; allow driver-managed background recovery and verify the next periodic Weather refresh follows the new connection state.
-- [ ] Confirm Weather/Forecast, List/Graph, touch, gesture, scrolling, graph interaction and tab transitions remain unchanged.
-- [ ] Record runtime internal free heap/largest block and PSRAM separately from compile-time footprint.
+- [x] Arduino IDE Verify using ESP32 core 3.3.12 / esptool 5.3.1 and FQBN `esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`.
+- [x] Upload/boot on the Waveshare ESP32-S3 Touch LCD 2. Bootloader and partition table were verified; boot-app and application writes reported `Hash of data verified`, followed by a hard reset via RTS.
+- [x] Live startup: input remains serviced while Wi-Fi association is pending and the 20-second timeout progresses to fallback without an association wait in the application path.
+- [x] Confirm location, current-weather and forecast loading after successful association.
+- [x] Controlled unavailable-AP test: timeout/fallback and unavailable Weather presentation passed.
+- [x] Disconnect/reconnect regression: driver-managed background recovery is observed and the next periodic Weather refresh follows the connection state.
+- [x] Confirm Weather/Forecast, List/Graph, touch, gesture, scrolling, graph interaction and tab transitions remain unchanged; user confirmed all physical tests passed.
+
+**Build footprint (2026-11-25):** 1,169,075 bytes program storage (37% of the 3,145,728-byte application partition); 97,492 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,188 bytes. The uploaded application image was 1,171,456 bytes. These are compile-time/build and image-size figures, not runtime heap measurements.
+
+- [ ] Record runtime internal free heap/largest block and PSRAM separately from compile-time footprint. This remains a separate memory-profile measurement, not an outstanding firmware or physical-regression gate.
 
 **Scope limitation:** Wi-Fi association is now state-driven and does not block the WeatherApp call stack. A due TimeService/TimeAPI request, LocationService geolocation, current/forecast HTTP/TLS requests and icon asset downloads remain synchronous within their individual hooks/stages; input processing is delayed while one of those operations is executing. This slice does not claim a fully asynchronous networking stack.
