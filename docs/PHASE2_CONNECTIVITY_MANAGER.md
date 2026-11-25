@@ -266,11 +266,19 @@ During one of those operations, the loop cannot process touch input until that c
 - The device loop defers manager-initiated retries while the asynchronous user-facing Wi-Fi scan is active. Driver-managed recovery can still be observed during this pause.
 - The manager does not own credentials and does not roam through the saved-profile list. At boot the composition root configures the saved preferred profile. A user-selected candidate is only persisted as preferred after successful association; the existing settings flow restores the previous preferred profile if the candidate fails.
 
+### Saved-profile availability freshness
+
+The saved-profile badges are based on the most recent visible-network scan, so a one-off scan on menu entry could become stale while the settings screen remained open. The composition root now starts a scan immediately when Profiles opens and refreshes every 30 seconds while that screen remains visible. If a scan start or completion fails, the next attempt is scheduled after 5 seconds. The scan remains asynchronous; the policy does not start a second scan while one is active. Moving to another settings screen pauses the periodic refresh, and returning to Profiles resumes it when due.
+
+`WiFiAvailabilityRefreshPolicy.h` isolates the cadence and uses unsigned elapsed-time arithmetic so it remains safe across `millis()` rollover. Both the automatic refresh and the manual scan action record their attempt time. The connectivity loop continues to defer manager-owned association retries only for the duration of an active scan.
+
 ### Host coverage added
 
-`sh scripts/test-connectivity-manager.sh` now covers successful association, immediate backend start failures, exponential/capped backoff, per-attempt timeouts, retry-budget exhaustion, link-loss recovery, driver reconnect during backoff, timer rollover, explicit disconnect cancellation and deferral while Wi-Fi scanning is active.
+`sh scripts/test-connectivity-manager.sh` now covers successful association, immediate backend start failures, exponential/capped backoff, per-attempt timeouts, retry-budget exhaustion, link-loss recovery, driver reconnect during backoff, timer rollover, explicit disconnect cancellation and deferral while Wi-Fi scanning is active. The saved-profile refresh cadence has a separate strict C++11 runner, `sh scripts/test-wifi-availability-refresh-policy.sh`, covering immediate scan, 30-second refresh, visibility/overlap guards, 5-second failed-scan retry and timer rollover.
 
 **Validation record:** the user ran `sh scripts/test-connectivity-manager.sh` on 2026-11-25 and confirmed `ConnectivityManager tests passed.`
+
+**Availability-refresh policy validation (2026-11-25):** `WiFiAvailabilityRefreshPolicy` and its strict C++11 test compiled and passed locally with `-Wall -Wextra -Werror -pedantic`. This is host-policy validation only; Arduino Verify/upload and physical Waveshare confirmation of `CHECKING` / `AVAILABLE` / `UNAVAILABLE` transitions after an AP disappears and returns remain outstanding.
 
 **Firmware build/upload validation (2026-11-25):** Arduino IDE Verify passed using the recorded ESP32-S3 16 MB / OPI PSRAM FQBN, ESP32 core 3.3.12 and esptool 5.3.1. The ESP32-S3 application and merged 16 MB flash images were generated. Build footprint: 1,201,623 bytes program storage (38% of the 3,145,728-byte application partition); 99,932 bytes global dynamic memory (30% of 327,680 bytes), leaving 227,748 bytes. The upload log reports the application image written and `Hash of data verified`; the bootloader and partition image were already present and verified, and the board hard-reset via RTS. This is compile-time/global-memory footprint, not a runtime heap/PSRAM measurement. The supplied log does not include a serial boot confirmation or physical Wi-Fi recovery test result.
 
