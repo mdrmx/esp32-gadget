@@ -418,19 +418,19 @@ Reference values after startup on the recorded board/configuration were 213,608 
 
 ## Phase 2 — Connectivity Manager and Wi-Fi backend (first slice)
 
-The manager and backend are introduced in `phase2/01-connectivity-manager-wifi-backend`. This slice preserves the current Weather startup/refresh sequence through a temporary synchronous `connectWiFi()` adapter; it does not yet claim to remove the up-to-20-second association wait from the application path.
+The manager and backend are introduced in `phase2/01-connectivity-manager-wifi-backend`. This slice preserves the current Weather startup/refresh sequence through a temporary synchronous `connectWiFi()` adapter; it does not yet claim to remove the up-to-20-second association wait from the application path. The manager mirrors backend/driver background reconnection, but manager-initiated retry/backoff is not implemented.
 
 - [x] Strict C++11 manager host suite: `sh scripts/test-connectivity-manager.sh` (passed in the implementation workspace).
 - [x] Strict C++11 Wi-Fi backend host suite: `sh scripts/test-wifi-backend.sh` (passed in the implementation workspace).
-- [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12.
+- [x] Arduino IDE Verify passed for the Phase 2 working tree using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN, ESP32 core 3.3.12 and esptool 5.3.1. The ESP32-S3 application image and merged 16 MB flash image were generated successfully. Build: 1,168,551 bytes program storage (37% of 3,145,728 bytes); 97,476 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,204 bytes.
 - [ ] Upload/boot on the Waveshare ESP32-S3 Touch LCD 2.
 - [ ] Confirm normal Wi-Fi startup with valid `secrets.h` credentials, then confirm TimeService synchronisation and Google Wi-Fi/IP location selection remain unchanged.
 - [ ] Confirm current-weather and hourly-forecast requests load successfully after connection.
 - [ ] With the configured access point unavailable, confirm the existing loading/fallback/error sequence and 20-second connection timeout remain intact; note that this path still blocks while the compatibility adapter is in use.
-- [ ] Disconnect Wi-Fi during normal operation; confirm manager state becomes `Disconnected` and the next Weather network attempt can start a new connection.
+- [ ] Disconnect Wi-Fi during normal operation; confirm manager state becomes `Disconnected`, then confirm that a driver-managed background reconnection is reflected as `Connected` without a new `connect()` call. Confirm a subsequent Weather network attempt can also start a new connection when the driver has not recovered.
 - [ ] Confirm Weather/Forecast, List/Graph, touch, gesture, scrolling and tab transitions remain unchanged.
 
-Do not mark physical checks as passed until they have been run on the stated firmware revision. Record compile-time program/global memory separately from on-device free-heap, largest-block and PSRAM snapshots.
+Firmware Verify is complete for this working tree, but it is not evidence of upload, boot or physical behaviour. Those checks remain pending until they have been run on the stated firmware revision. Record compile-time program/global memory separately from on-device free-heap, largest-block and PSRAM snapshots.
 
 ## 10. Test record
 
