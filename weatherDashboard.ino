@@ -2647,11 +2647,11 @@ void handleWiFiSettingsTap(int x, int y) {
     if (y >= WiFiSettingsRenderer::FooterTop &&
         y < WiFiSettingsRenderer::FooterTop +
                 WiFiSettingsRenderer::FooterHeight) {
-      if (x < 160) {
+      if (x >= 8 && x < 153) {
         wifiSettingsScreen = WiFiSettingsScreen::Profiles;
         wifiUiMessage = "";
         drawWiFiSettingsScreen();
-      } else {
+      } else if (x >= 167 && x < 312) {
         startWiFiNetworkScan();
       }
     }
