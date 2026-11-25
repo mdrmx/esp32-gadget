@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.61  
+**Version:** 4.62  
 **Last reviewed:** 2026-11-25  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#51 are merged into `main`; the PR #50 and #51 renderer validation gates are complete. Phase 2 connectivity slice 1 is merged in PR #52 and slice 2 is merged in PR #53 at `7650072bc0ab4e778f97e05519ec475e8f33fba4`, with host, Arduino Verify, upload/hash verification and user-confirmed physical validation recorded. The third Phase 2 slice is implemented in draft PR [#54](https://github.com/mdrmx/esp32-gadget/pull/54) on `phase2/03-persistent-wifi-profiles`: a bounded, versioned Preferences/NVS profile store, preferred-profile selection, replace/forget operations and first-boot-only `secrets.h` migration are integrated. Strict C++11 host suites have been added but not yet executed; Arduino Verify and device validation remain pending. Network scan/selection/password UI and manager-owned retry/backoff remain future slices. Location resolution, due TimeAPI sync, HTTP/TLS and icon preparation still run synchronously in their scheduled hooks/stages. Phase 1 remains in progress for broader module-boundary, state/resource ownership and runtime memory-profile close-out.
+**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#51 are merged into `main`; PR #50 and #51 renderer validation gates are complete. Phase 2 connectivity slice 1 is merged in PR #52 and slice 2 is merged in PR #53 at `7650072bc0ab4e778f97e05519ec475e8f33fba4`, with host, Arduino Verify, upload/hash verification and user-confirmed physical validation recorded. Phase 2 slice 3 is implemented in [PR #54](https://github.com/mdrmx/esp32-gadget/pull/54) on `phase2/03-persistent-wifi-profiles`: the bounded versioned Preferences/NVS profile store, preferred-profile selection, replace/forget operations and first-boot-only `secrets.h` migration are integrated. The user ran both strict C++11 host suites, Arduino IDE Verify and upload/hash verification passed, and physical tests confirmed boot, reset/reconnect, preserved interactions and actual NVS credential use with invalid compile-time fallback values. The original `secrets.h` and normal firmware were restored. Four automated review hardening fixes have since been committed; repeat host tests and Arduino Verify against the latest PR head before merge. Network scan/selection/password UI and manager-owned retry/backoff remain future slices. Location resolution, due TimeAPI sync, HTTP/TLS and icon preparation still run synchronously in their scheduled hooks/stages. Phase 1 remains in progress for broader module-boundary, state/resource ownership and runtime memory-profile close-out.
 
 ---
 
@@ -417,7 +417,7 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
 
 ### Phase 2 — Wi-Fi management and shared connectivity
 
-**Status: IN PROGRESS — connectivity backend and state-driven Weather startup slices are merged and validated in PRs #52 and #53; versioned NVS profile storage is implemented in draft PR #54 on `phase2/03-persistent-wifi-profiles` and awaiting host/build/device validation; network-management UI, retry policy and full Phase 2 acceptance remain open.**
+**Status: IN PROGRESS — connectivity backend and state-driven Weather startup slices are merged and validated in PRs #52 and #53. NVS profile storage is implemented and device-validated in PR #54 on `phase2/03-persistent-wifi-profiles`; the user ran host suites and firmware/device checks, including invalid-`secrets.h` source isolation. Four automated review fixes have since been committed; repeat host tests and Arduino Verify on the latest PR head before merge. Network-management UI, retry policy and full Phase 2 acceptance remain open.**
 
 **Completed in the current slice:**
 
@@ -443,7 +443,8 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
 
 **Remaining Phase 2 work:**
 
-- [x] Implement a versioned, bounded Preferences/NVS profile store on `phase2/03-persistent-wifi-profiles`: five saved networks, preferred-profile selection, same-SSID credential replacement, forget semantics, CRC validation and a strict C++11 host runner. Host-suite execution, Arduino Verify and device validation remain pending.
+- [x] Implement and validate the versioned, bounded Preferences/NVS profile store on `phase2/03-persistent-wifi-profiles`: five saved networks, preferred-profile selection, same-SSID credential replacement, forget semantics, CRC validation and first-boot-only `secrets.h` migration. The user ran both strict C++11 host suites, Arduino IDE Verify/upload and physical tests, including the invalid-compile-time-credentials proof that the live connection uses NVS.
+- [ ] Repeat `sh scripts/test-wifi-profile-store.sh` and Arduino IDE Verify after the final automated-review fixes (read-only Preferences reads, oversized-read failure and test-stub key bounds) before merging PR #54.
 - [ ] Build network scan, selection, password-entry, save, preferred-network and forget flows.
 - [x] Add first-boot-only migration from compile-time `secrets.h` credentials when the NVS profile key is absent. Existing corrupt/unsupported records are not overwritten; a valid intentionally empty store does not resurrect the legacy profile.
 - [ ] Introduce manager-initiated bounded retry/backoff and a defined policy for link loss and preferred-network recovery. The current manager mirrors background reconnection performed by the backend/driver but does not initiate retries itself.
@@ -632,7 +633,7 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ## 10. Handover instructions for future development sessions
 
-### Current handover — 2026-11-25 (PR #52 merged/validated; Phase 2 startup slice on branch; PR #50/#51 validation complete)
+### Current handover — 2026-11-25 (PRs #52/#53 merged; PR #54 NVS profile slice device-validated; final review-fix retest outstanding)
 
 Recheck GitHub before acting. PR #42 merged into `main` at `ba92b8b53da8457caa18bb454f53c0d51ca6687a`; its build figures (1,164,667 bytes program storage, 97,396 bytes global dynamic memory and 230,284 bytes remaining) apply only to tested firmware revision `af09b7cf8388f60db81bcdce19fc5563d70b7d0c`. PR #44 merged into `main` at `4a567bef43a07a8f50ecd9deb434c67051104b70`. It adds `src/ui/StatusScreenRenderer.h` and routes the existing loading/error wrappers through it. Weather retains status-message selection, Wi-Fi lifecycle, location/time resolution, clock-cache policy and theme definitions; the renderer owns composition only and delegates header/text work to `HeaderRenderer` and `TextRenderer`.
 
@@ -650,7 +651,7 @@ The user also confirmed Arduino IDE Verify, firmware upload/boot and all physica
 - **Latest Phase 2 firmware validation (merged PR #53):** Arduino IDE Verify passed on the Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN using ESP32 core 3.3.12 / esptool 5.3.1. Build: 1,169,075 bytes program storage, 97,492 bytes global dynamic memory, 230,188 bytes remaining. A 1,171,456-byte application image was written and hash-verified; bootloader/partition writes were verified and the board hard-reset via RTS. The user confirmed all physical regression tests passed. No runtime free-heap/largest-block/PSRAM snapshot was supplied.
 
 - **Phase 1:** PRs #27–#51 are merged. The PR #50 and #51 renderer validation gates are complete. Broader Phase 1 acceptance remains open for final module-boundary review, shared-state/resource ownership reconciliation and comparison with the Phase 0 runtime-memory baseline.
-- **Phase 2:** PR #52 (Connectivity Manager/Wi-Fi backend) and PR #53 (state-driven Weather startup/refresh) are merged and validated. The next slice is implemented on `phase2/03-persistent-wifi-profiles`: `WiFiProfileStore` provides a versioned five-profile store, preferred selection, credential replacement and forget semantics; `PreferencesWiFiProfileStorage` persists one checksum-protected blob in NVS; setup migrates `secrets.h` only when no stored record exists and keeps a stable RAM copy for the borrowed `WiFiBackend` credentials. Strict host runners are added but have not yet been executed; Arduino Verify, upload/boot and device validation for this branch are pending. NVS encryption is not enabled by this code, and no network-management UI exists yet. Location/time/HTTP/geolocation/icon synchronous limitations remain as documented; manager-owned retry/backoff and runtime memory profiling remain open.
+- **Phase 2:** PR #52 (Connectivity Manager/Wi-Fi backend) and PR #53 (state-driven Weather startup/refresh) are merged and validated. PR #54 implements `WiFiProfileStore` and `PreferencesWiFiProfileStorage` on `phase2/03-persistent-wifi-profiles`: versioned five-profile NVS storage, preferred selection, credential replacement/forget, first-boot-only `secrets.h` migration and stable RAM credential lifetime. The user ran both strict C++11 suites; Arduino IDE Verify and upload/hash verification passed; the device booted, reconnected after reset and preserved existing interactions. The decisive source-isolation test changed the compiled `secrets.h` SSID/password to invalid values while preserving flash; the saved preferred profile still loaded and online Google Wi-Fi positioning / OpenWeather reverse geocoding succeeded. The original `secrets.h` was restored and normal firmware uploaded again. Four review hardening fixes followed; host tests and Verify must be repeated on the latest PR head before merge. NVS encryption is not enabled by this code; network-management UI remains separate. Location/time/HTTP/geolocation/icon synchronous limitations remain as documented; manager-owned retry/backoff and runtime memory profiling remain open.
 
 - **PR #27:** `TouchSample` value-type extraction is merged after successful compile, upload and physical input regression.
 - **PR #28:** `DisplayManager` extraction and resource-lifecycle fixes are merged after successful compile, upload and physical display/input regression. Exact post-change heap comparison remains unrecorded.
@@ -814,7 +815,7 @@ When resuming work after a context reset:
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
 | 1 | Project structure and shared foundations | In progress — PRs #27–#51 merged; PR #50/#51 renderer host, firmware and physical validation complete; broader Phase 1 acceptance criteria remain |
-| 2 | Wi-Fi management and shared connectivity | In progress — PR #52 backend/manager slice merged and device-validated; PR #53 state-driven Weather startup/refresh firmware- and device-validated on its branch, awaiting merge; persistent profiles, UI and manager-owned retry/backoff remain |
+| 2 | Wi-Fi management and shared connectivity | In progress — PRs #52/#53 merged and validated; PR #54 NVS profile store implemented and device-validated, with final host/Verify rerun after review fixes outstanding; network UI and manager-owned retry/backoff remain |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
 | 5 | Cellular integration | Waiting for hardware decision / purchase |
@@ -823,6 +824,8 @@ When resuming work after a context reset:
 The roadmap document itself is a planning and handover artefact. Its creation does not count as completion of Phase 0.
 
 ## 12. Change history
+
+- **2026-11-25 — Version 4.62:** Reconciled the Phase 2 slice 3 validation record across the roadmap and handover. Recorded user-confirmed host-suite passes, Arduino IDE Verify, upload/hash verification, normal boot/reset reconnect, preservation of existing interactions and the decisive NVS source-isolation test using intentionally invalid compiled `secrets.h` Wi-Fi credentials; the original local secrets and normal firmware were restored afterwards. Addressed and resolved four automated review threads by making Preferences reads read-only, failing on oversized stored records and bounding key copies in the host stub. The host runner and Arduino Verify must be repeated against these final review-fix commits before merging PR #54.
 
 - **2026-11-25 — Version 4.61:** Opened draft PR #54 on `phase2/03-persistent-wifi-profiles` for versioned bounded Preferences/NVS Wi-Fi profile storage and first-boot `secrets.h` migration. GitHub reports a clean merge base and no branch divergence. Strict C++11 host runners are checked in but have not been executed in the current environment; Arduino Verify, upload/boot and physical validation remain pending. No CI workflow/status checks are configured for this branch.
 
