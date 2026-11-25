@@ -2942,10 +2942,10 @@ bool processWiFiSettingsTouch(
 
       if (!wifiUiTouchMoved) {
         const bool headerWiFiTapped =
-            wifiUiTouchStartX >= HeaderRenderer::WiFiIndicatorLeft &&
-            wifiUiTouchStartX < HeaderRenderer::WiFiIndicatorRight &&
-            wifiUiTouchStartY >= HeaderRenderer::WiFiIndicatorTop &&
-            wifiUiTouchStartY < HeaderRenderer::WiFiIndicatorBottom;
+            wifiUiTouchStartX >= HeaderRenderer::WiFiHitAreaLeft &&
+            wifiUiTouchStartX < HeaderRenderer::WiFiHitAreaRight &&
+            wifiUiTouchStartY >= HeaderRenderer::WiFiHitAreaTop &&
+            wifiUiTouchStartY < HeaderRenderer::WiFiHitAreaBottom;
         if (headerWiFiTapped) {
           closeWiFiSettings();
         } else {
@@ -2959,10 +2959,10 @@ bool processWiFiSettingsTouch(
   }
 
   if (observation.touchStarted &&
-      x >= HeaderRenderer::WiFiIndicatorLeft &&
-      x < HeaderRenderer::WiFiIndicatorRight &&
-      y >= HeaderRenderer::WiFiIndicatorTop &&
-      y < HeaderRenderer::WiFiIndicatorBottom) {
+      x >= HeaderRenderer::WiFiHitAreaLeft &&
+      x < HeaderRenderer::WiFiHitAreaRight &&
+      y >= HeaderRenderer::WiFiHitAreaTop &&
+      y < HeaderRenderer::WiFiHitAreaBottom) {
     wifiHeaderTouchActive = true;
     wifiHeaderTouchValid = true;
     wifiHeaderTouchStartX = x;
