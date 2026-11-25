@@ -1,6 +1,6 @@
 # Phase 2 — Connectivity Manager and Wi-Fi backend
 
-**Status:** Connectivity slices 1–3 are merged and validated in PRs #52–#54. Slice 4 (on-device Wi-Fi management) is implemented on `phase2/04-wifi-network-management`; the bounded async scanner passes strict C++11 host tests and all five PR review threads have been addressed and resolved. Arduino IDE Verify and physical-device validation remain pending. Phase 2 overall remains in progress.  
+**Status:** Connectivity slices 1–3 are merged and validated in PRs #52–#54. Slice 4 (on-device Wi-Fi management) is implemented and validated on `phase2/04-wifi-network-management`; strict C++11 scanner tests, Arduino IDE Verify, firmware upload/hash verification and user-confirmed physical Wi-Fi UI regression have passed. All five PR review threads are addressed/resolved. PR #55 is ready for review. Phase 2 overall remains in progress.  
 **Base:** `main` at `f4ae999e3f37eb893dee777f9ec404997856b091`  
 **Latest merged checkpoint:** PR #54 at `4ebd4a5469f20677ee8759fc1bc3f2dae531be2b`; subsequent docs-only main checkpoint `f4ae999e3f37eb893dee777f9ec404997856b091`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
@@ -200,7 +200,7 @@ During one of those operations, the loop cannot process touch input until that c
 
 **Branch:** `phase2/04-wifi-network-management`  
 **Base:** `main` at `f4ae999e3f37eb893dee777f9ec404997856b091`  
-**Status:** Implemented in the feature branch; host scanner tests pass and all five PR review threads are addressed/resolved. Arduino IDE Verify and physical Waveshare validation remain pending.
+**Status:** Implemented and validated on the feature branch; strict C++11 scanner tests, Arduino IDE Verify, firmware upload/hash verification and user-confirmed Waveshare hardware regression pass. All five PR review threads are addressed/resolved. PR #55 is ready for review.
 
 ### User-facing flow
 
@@ -223,8 +223,9 @@ During one of those operations, the loop cannot process touch input until that c
 ### Validation
 
 - `WiFiNetworkScanner` has a strict C++11 host runner at `sh scripts/test-wifi-network-scanner.sh` (`-Wall -Wextra -Werror -pedantic`). Coverage includes asynchronous scan state, retry after failures, strongest-signal sorting, same-SSID deduplication, the 24-result cap and clearing results.
-- The scanner implementation and corresponding test cases passed a local strict C++11 compile/run (`-Wall -Wextra -Werror -pedantic`) after correcting the expected ordering to match strongest-first RSSI sorting. The checked-in shell runner provides the same repeatable command for a full repository checkout; it was not invoked from a mounted checkout in this environment.
-- Automated review follow-up: all five inline review threads were answered and resolved. The settings enums/state and scanner/renderer instances are now declared with their required includes; all public settings draw methods guard a null display target; the selected SSID buffer is explicitly null-terminated after copying.
-- Arduino IDE Verify against the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM target, firmware upload/boot and physical touch/network regression have not yet been run on this branch. Do not mark this slice as device-validated until those checks are confirmed.
-- Physical regression should cover the header entry tap, every settings screen and keyboard area, repeated scans, open and secured access points, existing-profile selection, preferred-profile update, forgetting a non-preferred profile, forgetting the preferred/last profile, failed-password rollback to the previous preferred network, reset/reboot persistence and all prior Weather/Forecast/List/Graph/gesture/scroll interactions.
+- The scanner implementation and corresponding test cases passed a strict C++11 compile/run (`-Wall -Wextra -Werror -pedantic`) after correcting the expected ordering to match strongest-first RSSI sorting. The checked-in shell runner provides the same repeatable command for a full repository checkout.
+- Automated review follow-up: all five inline review threads were answered and resolved. The settings enums/state and scanner/renderer instances are declared with their required includes; all public settings draw methods guard a null display target; the selected SSID buffer is explicitly null-terminated after copying.
+- **Arduino IDE Verify and upload (user-supplied build log, 2026-11-25):** passed with ESP32 core 3.3.12 / esptool 5.3.1 and the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN. Build reported 1,195,063 bytes program storage (37% of the 3,145,728-byte application partition), 99,844 bytes global dynamic memory (30%), leaving 227,836 bytes. The ESP32-S3 image and merged 16 MB flash image were generated; the application write completed with `Hash of data verified`, followed by a hard reset via RTS.
+- **Physical validation (user-confirmed 2026-11-25):** all hardware tests passed. The user confirmed the on-device Wi-Fi UI is interactive and every element within it works. This closes the device-validation gate for this slice; retain the user's confirmation as the evidence record rather than inferring individual unreported measurements.
+- Existing Wi-Fi UI scope remains limited to open and supported WPA personal networks; WPA-Enterprise, WEP, WAPI, hidden SSIDs and unknown security modes remain unsupported. The NVS encryption limitation is unchanged.
 
