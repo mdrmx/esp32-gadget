@@ -232,7 +232,7 @@ private:
 
     // ArduinoJson may retain references to these writable buffers until
     // serializeJson() runs, so their lifetime must extend beyond the loop.
-    char macAddresses[MAX_WIFI_GEOLOCATION_APS][18] = {};
+    char macAddresses[WiFiGeolocationScanner::MaxAccessPoints][18] = {};
 
     for (int i = 0; i < candidateCount; i++) {
       snprintf(
@@ -247,7 +247,7 @@ private:
 
       JsonObject point = wifiPoints.add<JsonObject>();
       point["macAddress"] = macAddresses[i];
-      point["signalStrength"] = candidates[i].rssi;
+      point["signalStrength"] = candidates[i].signalStrengthDbm;
       point["channel"] = candidates[i].channel;
       point["age"] = 0;
     }
