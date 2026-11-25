@@ -2674,15 +2674,15 @@ void handleWiFiSettingsTap(int x, int y) {
         y < WiFiSettingsRenderer::ScanRowsTop +
                 WiFiSettingsRenderer::ScanRowsVisible *
                     WiFiSettingsRenderer::ScanRowHeight) {
-      const int rowOffset =
-          wifiScanScrollPositionPx % WiFiSettingsRenderer::ScanRowHeight;
-      const int row = (y - WiFiSettingsRenderer::ScanRowsTop + rowOffset) /
-          WiFiSettingsRenderer::ScanRowHeight;
-      const int firstVisibleIndex =
-          wifiScanScrollPositionPx / WiFiSettingsRenderer::ScanRowHeight;
-      const int index = firstVisibleIndex + row;
-      if (index < wifiNetworkScanner.count()) {
-        selectScannedWiFiNetwork(index);
+      const int contentY =
+          y - WiFiSettingsRenderer::ScanRowsTop +
+          wifiScanScrollPositionPx;
+      if (contentY >= 0) {
+        const int index =
+            contentY / WiFiSettingsRenderer::ScanRowHeight;
+        if (index < wifiNetworkScanner.count()) {
+          selectScannedWiFiNetwork(static_cast<uint8_t>(index));
+        }
       }
       return;
     }
