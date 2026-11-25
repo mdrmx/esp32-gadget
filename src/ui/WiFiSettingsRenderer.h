@@ -133,6 +133,8 @@ public:
       status = "Scan failed - tap RESCAN";
     } else if (count == 0) {
       status = "No visible networks found";
+    } else if (count > ScanRowsVisible) {
+      status = String(count) + " found - swipe to scroll";
     } else {
       status = String(count) + " networks found - strongest first";
     }
