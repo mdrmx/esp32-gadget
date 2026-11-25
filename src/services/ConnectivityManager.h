@@ -101,7 +101,7 @@ public:
   }
 
   bool hasSignalStrength() const {
-    return isConnected() && activeNetworkType() == NetworkType::WiFi;
+    return isConnected();
   }
 
   int32_t signalStrengthDbm() const {
