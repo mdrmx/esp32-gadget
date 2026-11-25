@@ -11,7 +11,7 @@ class PreferencesWiFiProfileStorage {
  public:
   bool read(uint8_t* destination, size_t capacity, size_t& outputLength) {
     outputLength = 0;
-    if (destination == nullptr || !preferences_.begin(kNamespace(), false)) {
+    if (destination == nullptr || !preferences_.begin(kNamespace(), true)) {
       return false;
     }
 
@@ -24,7 +24,7 @@ class PreferencesWiFiProfileStorage {
 
     if (storedLength > capacity) {
       preferences_.end();
-      return true;
+      return false;
     }
 
     const size_t bytesRead =
