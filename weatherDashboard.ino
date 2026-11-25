@@ -2174,7 +2174,8 @@ void animateWiFiScanSnap(int startPixels, int targetPixels) {
   targetPixels = constrain(targetPixels, 0, maxWiFiScanScrollPixels());
 
   if (startPixels != targetPixels &&
-      displayManager.tabTransitionCanvas() != nullptr) {
+      displayManager.tabTransitionCanvas() != nullptr &&
+      displayManager.tabTransitionCanvas()->getFramebuffer() != nullptr) {
     const int animationFrames = 6;
     const int animationDelayMs = 8;
     for (int frame = 1; frame <= animationFrames; ++frame) {
@@ -2673,12 +2674,13 @@ void handleWiFiSettingsTap(int x, int y) {
         y < WiFiSettingsRenderer::ScanRowsTop +
                 WiFiSettingsRenderer::ScanRowsVisible *
                     WiFiSettingsRenderer::ScanRowHeight) {
-      const uint8_t row = static_cast<uint8_t>(
-          (y - WiFiSettingsRenderer::ScanRowsTop) /
-          WiFiSettingsRenderer::ScanRowHeight);
-      const uint8_t firstVisibleIndex = static_cast<uint8_t>(
-          wifiScanScrollPositionPx / WiFiSettingsRenderer::ScanRowHeight);
-      const uint8_t index = static_cast<uint8_t>(firstVisibleIndex + row);
+      const int rowOffset =
+          wifiScanScrollPositionPx % WiFiSettingsRenderer::ScanRowHeight;
+      const int row = (y - WiFiSettingsRenderer::ScanRowsTop + rowOffset) /
+          WiFiSettingsRenderer::ScanRowHeight;
+      const int firstVisibleIndex =
+          wifiScanScrollPositionPx / WiFiSettingsRenderer::ScanRowHeight;
+      const int index = firstVisibleIndex + row;
       if (index < wifiNetworkScanner.count()) {
         selectScannedWiFiNetwork(index);
       }
