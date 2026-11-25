@@ -2659,7 +2659,7 @@ void handleWiFiSettingsTap(int x, int y) {
   if (wifiSettingsScreen == WiFiSettingsScreen::Password) {
     if (y >= WiFiSettingsRenderer::PasswordFieldTop &&
         y < WiFiSettingsRenderer::PasswordFieldTop + 21 &&
-        x >= 220) {
+        x >= 220 && x < 312) {
       wifiPasswordVisible = !wifiPasswordVisible;
       drawWiFiSettingsScreen();
       return;
