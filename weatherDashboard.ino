@@ -2336,7 +2336,12 @@ void weatherAppResolveLocation() {
 }
 
 void weatherAppDrawLoading(const char* message) {
+#if USE_DEMO_WEATHER_DATA
+  (void)message;
+  drawLoading("Loading demo weather...");
+#else
   drawLoading(message != nullptr ? String(message) : String("Loading..."));
+#endif
 }
 
 bool weatherAppFetchCurrentWeather() {
