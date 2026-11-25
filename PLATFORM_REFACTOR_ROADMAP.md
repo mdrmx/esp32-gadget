@@ -814,7 +814,7 @@ When resuming work after a context reset:
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
 | 1 | Project structure and shared foundations | In progress — PRs #27–#51 merged; PR #50/#51 renderer host, firmware and physical validation complete; broader Phase 1 acceptance criteria remain |
-| 2 | Wi-Fi management and shared connectivity | In progress — PR #52 backend/manager slice merged and device-validated; state-driven Weather startup/refresh implemented on follow-up branch; persistent profiles, UI and manager-owned retry/backoff remain |
+| 2 | Wi-Fi management and shared connectivity | In progress — PR #52 backend/manager slice merged and device-validated; PR #53 state-driven Weather startup/refresh firmware- and device-validated on its branch, awaiting merge; persistent profiles, UI and manager-owned retry/backoff remain |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
 | 5 | Cellular integration | Waiting for hardware decision / purchase |
