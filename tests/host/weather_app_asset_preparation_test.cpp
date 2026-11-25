@@ -57,9 +57,8 @@ static bool fetchCurrentWeather() {
   return fetchResult;
 }
 
-static bool fetchForecast() {
+static void fetchForecast() {
   record('F');
-  return true;
 }
 
 static void prepareWeatherAssets() { record('A'); }
