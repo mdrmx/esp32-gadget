@@ -2486,6 +2486,10 @@ void updateWiFiSettings() {
        wifiSettingsScreen == WiFiSettingsScreen::Profiles) &&
       (wifiNetworkScanner.state() != previousScanState ||
        wifiNetworkScanner.count() != previousScanCount)) {
+    if (wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning &&
+        wifiUiMessage == "Please wait for the availability scan") {
+      wifiUiMessage = "";
+    }
     drawWiFiSettingsScreen();
   }
 
@@ -2571,7 +2575,13 @@ void handleWiFiSettingsTap(int x, int y) {
           (y - WiFiSettingsRenderer::ProfileRowsTop) /
           WiFiSettingsRenderer::ProfileRowHeight);
       if (index < wifiProfileStore.count()) {
-        selectSavedWiFiProfile(index);
+        if (wifiNetworkScanner.state() ==
+            WiFiNetworkScanner::State::Scanning) {
+          wifiUiMessage = "Please wait for the availability scan";
+          drawWiFiSettingsScreen();
+        } else {
+          selectSavedWiFiProfile(index);
+        }
       }
       return;
     }
