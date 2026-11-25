@@ -262,7 +262,7 @@ public:
       }
     }
     if (visible.length() > 31) {
-      visible = visible.substring(0, 28) + "...";
+      visible = "..." + visible.substring(visible.length() - 28);
     }
     textRenderer_.drawText(visible, 15, PasswordFieldTop + 7, 1,
                            colours_.white);
@@ -321,14 +321,18 @@ public:
 
     drawButton(shifted ? "SHIFT*" : "SHIFT", 8,
                KeyboardFunctionTop, 62, 22,
-               colours_.panel, colours_.white);
+               colours_.panel, colours_.white,
+               highlightedRow == 4 && highlightedColumn == 0);
     drawButton("SPACE", 74, KeyboardFunctionTop, 60, 22,
-               colours_.panel, colours_.white);
+               colours_.panel, colours_.white,
+               highlightedRow == 4 && highlightedColumn == 1);
     drawButton("DELETE", 138, KeyboardFunctionTop, 60, 22,
-               colours_.panel, colours_.white);
+               colours_.panel, colours_.white,
+               highlightedRow == 4 && highlightedColumn == 2);
     drawButton(symbols ? "ABC" : "SYM", 202,
                KeyboardFunctionTop, 110, 22,
-               colours_.panel, colours_.accent);
+               colours_.panel, colours_.accent,
+               highlightedRow == 4 && highlightedColumn == 3);
 
     drawButton("CANCEL", 8, PasswordFooterTop, 145, 23,
                colours_.panel, colours_.white);
@@ -425,16 +429,22 @@ private:
       int width,
       int height,
       uint16_t fill,
-      uint16_t text) const {
+      uint16_t text,
+      bool highlighted = false) const {
     Arduino_GFX* target = displayManager_.target();
     if (target == nullptr) return;
-    target->fillRoundRect(x, y, width, height, 5, fill);
-    target->drawRoundRect(x, y, width, height, 5, colours_.accent);
+    target->fillRoundRect(
+        x, y, width, height, 5,
+        highlighted ? colours_.accent : fill);
+    target->drawRoundRect(
+        x, y, width, height, 5,
+        highlighted ? colours_.white : colours_.accent);
     const String value(label);
     const int textWidth = textRenderer_.measureTextWidth(value, 1);
     textRenderer_.drawText(
         value, x + (width - textWidth) / 2,
-        y + (height - 8) / 2, 1, text);
+        y + (height - 8) / 2, 1,
+        highlighted ? colours_.background : text);
   }
 
   static String shortenSsid(const char* ssid, size_t maximum) {

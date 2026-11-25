@@ -2529,6 +2529,17 @@ void handleWiFiPasswordKey(char key) {
 }
 
 bool findWiFiPasswordKeyAt(int x, int y, int& row, int& column) {
+  if (y >= WiFiSettingsRenderer::KeyboardFunctionTop &&
+      y < WiFiSettingsRenderer::KeyboardFunctionTop + 22 &&
+      x >= 8 && x < 312) {
+    row = 4;
+    if (x < 72) column = 0;
+    else if (x < 138) column = 1;
+    else if (x < 202) column = 2;
+    else column = 3;
+    return true;
+  }
+
   if (y < WiFiSettingsRenderer::KeyboardY ||
       y >= WiFiSettingsRenderer::KeyboardY +
                4 * (WiFiSettingsRenderer::KeyboardKeyHeight +
