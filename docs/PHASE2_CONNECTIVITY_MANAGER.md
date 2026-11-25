@@ -1,6 +1,6 @@
 # Phase 2 — Connectivity Manager and Wi-Fi backend
 
-**Status:** Slice 1 merged and validated in PR #52. Slice 2 is implemented on `phase2/02-nonblocking-weather-startup` and awaiting review, Arduino Verify, upload/boot and physical regression. Phase 2 overall remains in progress.  
+**Status:** Slice 1 merged and validated in PR #52. Slice 2 is implemented and firmware/device-validated on `phase2/02-nonblocking-weather-startup` in PR #53; awaiting merge. Phase 2 overall remains in progress.  
 **Base:** `main` at `ed4991e249a42d68ec59cecc6d3f0931d06af19a`  
 **Merged checkpoint:** PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
@@ -106,13 +106,13 @@ PR #52 was merged into `main` on 2026-11-25 at `bc1948019c31ce466ea97be34f205373
 - Upload wrote the bootloader, partition table, boot-app image and 1,168,704-byte application image. Each write reported `Hash of data verified`; upload ended with hard reset via RTS.
 - The user confirmed the physical tests passed after upload.
 
-No new runtime free-heap, largest-block or PSRAM snapshot was supplied. Do not infer one from the program/global-memory build report. The separate controlled unavailable-AP and physical driver-managed reconnect tests remain outstanding unless later recorded.
+No new runtime free-heap, largest-block or PSRAM snapshot was supplied at the PR #52 checkpoint. Do not infer one from its program/global-memory build report. The controlled unavailable-AP and driver-managed reconnect tests are recorded as passed for the PR #53 follow-up below; runtime memory sampling remains outstanding.
 
 
 ## 8. Follow-up slice 2 — state-driven Weather startup and refresh
 
 **Branch:** `phase2/02-nonblocking-weather-startup`  
-**Status:** Implemented; awaiting review and device validation. Not merged.
+**Status:** Firmware and physical-device validation passed (user-confirmed 2026-11-25); PR #53 remains open and unmerged.
 
 The Weather application no longer calls a synchronous connection helper. `WeatherApp::begin()` binds its hooks, draws the connection status and requests a connection start, then returns. `WeatherApp::update()` advances the lifecycle through explicit states:
 
@@ -153,12 +153,13 @@ This slice removes the up-to-20-second Wi-Fi association wait from the applicati
 
 During one of those operations, the loop cannot process touch input until that call returns. A later request-execution slice must define bounded request ownership, completion/error delivery, cancellation and response lifetimes before attempting to make these services asynchronous or concurrent. The connection manager itself remains platform-owned; Weather does not start/stop Wi-Fi directly.
 
-### Remaining validation for this branch
+### Device validation — passed (2026-11-25)
 
-- Arduino IDE Verify with the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12.
-- Upload/boot on the Waveshare ESP32-S3 Touch LCD 2.
-- Physical live Wi-Fi startup and confirm input continues to be serviced while association is pending.
-- Controlled unavailable-AP timeout/fallback test.
-- Physical periodic-refresh reconnection test after Wi-Fi loss.
-- Weather/Forecast, List/Graph, touch, scrolling, graph interaction and tab-transition regression.
-- Record runtime free internal heap/largest block and PSRAM separately from build footprint.
+- [x] Arduino IDE Verify passed with ESP32 core 3.3.12 / esptool 5.3.1 and the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN: `esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`.
+- [x] Build output: 1,169,075 bytes program storage (37% of 3,145,728 bytes); 97,492 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,188 bytes.
+- [x] ESP32-S3 firmware image and merged 16 MB flash image generated. The 1,171,456-byte application image was written; bootloader, partition table, boot-app and application writes were verified, with the boot-app/application writes reporting `Hash of data verified`; upload ended with a hard reset via RTS.
+- [x] User confirmed all physical tests passed on the Waveshare ESP32-S3 Touch LCD 2, including pending-association responsiveness, controlled unavailable-AP fallback, location/current-weather/forecast loading, periodic reconnect behaviour and Weather/Forecast/List/Graph/touch/scroll/gesture/tab-transition regression.
+
+### Separate runtime-memory measurement
+
+- [ ] Capture runtime free internal heap, largest free block and PSRAM separately. The global dynamic-memory build figure above is not a runtime heap/PSRAM snapshot; this measurement remains a separate profiling task and is not a failed firmware-validation gate.
