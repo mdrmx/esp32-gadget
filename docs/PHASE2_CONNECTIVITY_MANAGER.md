@@ -1,8 +1,8 @@
 **Status:** Connectivity slices 1–4 are merged and validated in PRs #52–#55. PR #55 merged into `main` at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12` after the user confirmed final Wi-Fi manager validation. Manager-owned bounded recovery is implemented on `phase2/05-connectivity-retry-policy`; the strict C++11 host runner has been extended but execution and review remain outstanding. Network capability extraction, HTTP/TLS transport review and runtime memory profiling remain. Phase 2 overall is still in progress.
 
-**Status:** Connectivity slices 1–3 are merged and validated in PRs #52–#54. Slice 4 is implemented on `phase2/04-wifi-network-management`. The preceding Wi-Fi UI revision passed strict C++11 scanner/signal-meter tests, Arduino IDE Verify/upload and user-confirmed physical regression on 2026-11-25, including scanning and joining other networks and preserving dashboard interactions. The scan list has three evenly spaced larger rows, signal bars and the same card-style finger-following, resisted edge elasticity and eased settle animation; Saved and Rescan remain in the footer, and the header Wi-Fi button closes settings while the modal is open. The user confirmed the three-row layout and signal bars pass hardware regression. The count hint has been removed. Secured SSIDs now show a compact lock immediately beside the measured network name, while open networks show no icon. The heading has moved down slightly and the three-row viewport up to use the cleared status space. The SSID/lock group and signal bars are vertically centred in the row cards. The top overflow mask now covers the full possible upward travel of a row and restores the header after clipping, preventing scan rows from overwriting the blue header divider. The Wi-Fi header hit area is now 64×36 px (`x=186..249`, `y=0..35`), expanded from the 42×28 glyph bounds while remaining separate from its visible drawing rectangle. It stops before the clock's leftmost layout position (`x=250`) and is used consistently for opening settings from Weather/Forecast and closing the settings modal. The visible Wi-Fi glyph and its drawing bounds are unchanged. The latest saved-profile styling refinement (selected-row outline, vertically centred SSID/availability badge and 8 px right inset for the badge) needs fresh Arduino Verify/upload and physical regression, so PR #55 remains in draft. All five existing review threads are resolved. Phase 2 overall remains in progress.
-**Base:** `main` at `f4ae999e3f37eb893dee777f9ec404997856b091`  
-**Latest merged checkpoint:** PR #54 at `4ebd4a5469f20677ee8759fc1bc3f2dae531be2b`; subsequent docs-only main checkpoint `f4ae999e3f37eb893dee777f9ec404997856b091`  
+**Merged Wi-Fi manager:** PR #55 merged into `main` at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12` after the user confirmed the final UI revision and hardware validation. It adds the saved/scan profile screens, asynchronous scanning, availability tags, password keyboard feedback, live RSSI indicator and shared touch-scroll presentation. The final selected-profile card outline, centred SSID/badge and 8 px badge inset are part of the merged implementation; no PR #55 validation gate remains open.
+**Base:** `main` at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12`  
+**Latest merged checkpoint:** PR #55 at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
 
 ## 1. Design boundary
@@ -95,7 +95,7 @@ Still open as distinct follow-up validation:
 1. **On-device network management:** merged and user-validated in PR #55 at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12` (see Section 10).
 2. **Manager-owned reconnect policy:** implemented on `phase2/05-connectivity-retry-policy`. The manager has a two-retry budget, 2 s / 4 s exponential delays (8 s cap), 20 s per-attempt timeout, link-loss recovery, driver-reconnect acceptance and explicit-disconnect cancellation. Host-test execution and code review are still open.
 3. **Network capability boundary:** move the remaining Wi-Fi scan/BSSID/RSSI operations behind a platform-owned capability and review whether HTTP request transport should be abstracted separately from connectivity state.
-4. **Runtime memory profiling:** capture internal free heap/largest block and PSRAM under representative operation; keep these separate from compile-time build footprint.
+4. **Runtime memory profiling:** capture internal free heap/largest block and PSRAM under representative operation; keep these separate from compile-time build footprint. This is still outstanding.
 
 Keep each slice behaviour-preserving and independently testable. Keep passwords out of logs, serial diagnostics and tracked files.
 
@@ -248,3 +248,26 @@ During one of those operations, the loop cannot process touch input until that c
 - **Selected saved-profile row treatment (2026-11-25):** Removed the PREFERRED/CURRENT text labels from saved-profile rows. The preferred or active profile now receives an accent outline around its card. The size-2 SSID and Available/Unavailable badge share one line and are vertically centred within the 41 px card; long SSIDs are shortened to reserve the badge area. This exact revision needs Arduino IDE Verify/upload and physical regression; PR #55 remains in draft.
 
 - **Saved-profile availability-tag inset (2026-11-25):** Moved the 98 px availability tag 8 px inward from the saved card's right edge, keeping its vertical centring while giving it clear right-side padding inside the outlined row. SSID shortening uses the badge's updated x position. Fresh Verify/upload and physical regression are required; PR #55 remains in draft.
+
+
+## 11. Follow-up slice 5 — manager-owned connection recovery
+
+**Branch:** `phase2/05-connectivity-retry-policy`  
+**Status:** Implemented; strict C++11 host runner, review and firmware/device verification are pending.
+
+### Recovery policy
+
+- `ConnectivityManager` adds `RetryWaiting` to its state machine. The state is considered pending by `isConnecting()`, so WeatherApp and the Wi-Fi settings flow continue to wait without blocking.
+- The default policy allows two retries after the initial association attempt. The existing 20-second connection timeout remains per attempt. Backoff is exponential: 2 seconds, then 4 seconds, capped at 8 seconds.
+- Immediate backend start failures and per-attempt timeouts both consume the same retry budget.
+- Loss of an established link starts a fresh bounded recovery sequence for the currently configured profile.
+- If the ESP32 driver restores the link while the manager is waiting, the manager accepts the connection, clears the timer and resets the retry budget.
+- An explicit `disconnect()` cancels pending retries. A later explicit `connect()` starts a fresh budget.
+- The device loop defers manager-initiated retries while the asynchronous user-facing Wi-Fi scan is active. Driver-managed recovery can still be observed during this pause.
+- The manager does not own credentials and does not roam through the saved-profile list. At boot the composition root configures the saved preferred profile. A user-selected candidate is only persisted as preferred after successful association; the existing settings flow restores the previous preferred profile if the candidate fails.
+
+### Host coverage added
+
+`sh scripts/test-connectivity-manager.sh` now covers successful association, immediate backend start failures, exponential/capped backoff, per-attempt timeouts, retry-budget exhaustion, link-loss recovery, driver reconnect during backoff, timer rollover, explicit disconnect cancellation and deferral while Wi-Fi scanning is active.
+
+**Validation still required:** execute the repository host runner, run Arduino IDE Verify with the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration, upload/boot, and perform physical regression. Include unavailable-access-point recovery, link loss/recovery, preferred-profile behaviour, manual network switching, scanning while a retry is due, open-network association and existing Weather/Forecast/touch/scroll interactions. No new firmware footprint figures or hardware validation are claimed for this branch yet.
