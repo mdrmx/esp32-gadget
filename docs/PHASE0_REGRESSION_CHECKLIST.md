@@ -507,4 +507,40 @@ Only mark a check as passed when the procedure has actually been performed on th
 
 **Review follow-up:** all five inline review threads covering four distinct code/test requests were answered and resolved. Oversized Preferences reads now return failure, Preferences opens read-only for reads, and the test stub checks key lengths before copying in `getBytes()` and `putBytes()`. The final post-review host suites passed and the latest device startup confirmed the saved preferred profile was loaded. PR #54 is merged into `main`.
 
-**Scope boundary:** this slice provides the persistence and credential-lifetime foundation only. Network scanning, selection/password-entry UI, manager-owned retry/backoff and roaming policy remain separate work.
+**Scope boundary:** this slice provides the persistence and credential-lifetime foundation only. Network scanning and selection/password-entry UI were added in merged PR #55; manager-owned retry/backoff and saved-profile availability refresh were added in merged PR #56. Autonomous roaming remains intentionally out of scope.
+
+## Phase 2 — manager-owned retry and saved-profile availability (merged PR #56)
+
+**Merge:** `32a9e3908b5af96759590c94cd8a3a123a1ac223` into `main`  
+**Status:** Strict C++11 host validation, Arduino Verify/upload and full physical regression passed (user-confirmed 2026-11-25).
+
+- [x] `sh scripts/test-connectivity-manager.sh` — retry budget, timeout/backoff, link-loss recovery, driver reconnect while waiting, explicit-disconnect cancellation and scan deferral.
+- [x] `sh scripts/test-wifi-availability-refresh-policy.sh` — immediate entry scan, 30-second visible refresh, 5-second failed-scan retry, no overlap, screen visibility, connection-edge refresh and rollover.
+- [x] `sh scripts/test-wifi-availability-snapshot.sh` — UNKNOWN before first result, retain last successful snapshot during scanning/failure, replace on success, empty successful scan and reset.
+- [x] Arduino IDE Verify on Waveshare ESP32-S3 16 MB / OPI PSRAM, ESP32 core 3.3.12 / esptool 5.3.1.
+- [x] Build footprint: 1,202,271 bytes program storage (38%); 100,740 bytes global dynamic memory (30%); 226,940 bytes remaining.
+- [x] Upload: application image hash verified; board hard-reset via RTS.
+- [x] Physical regression: user confirmed full hardware test pass, including retry/recovery, pending-association responsiveness, unavailable-AP fallback, saved-profile availability updates during refresh and preservation of existing Weather/Forecast/List/Graph/touch/scroll/gesture/transition interactions.
+- [x] Confirm saved-profile badges retain AVAILABLE/UNAVAILABLE while a background scan is running or fails; update only when a successful scan completes. No CHECKING state is displayed.
+
+Runtime internal free-heap/largest-block and PSRAM profiling remains a separate measurement and is not inferred from the program/global-memory figures.
+
+## Phase 2 — Google Wi-Fi geolocation scan capability (PR #57; open)
+
+**Branch:** `phase2/06-wifi-geolocation-scan-capability`  
+**PR:** [#57 — Extract Google Wi-Fi geolocation scan capability](https://github.com/mdrmx/esp32-gadget/pull/57)  
+**Status:** Implementation and local strict C++11 host test pass; Arduino Verify/upload and physical regression are pending.
+
+- [x] Extract the neutral BSSID/RSSI/channel observation and backend contract into `WiFiGeolocationScanner.h`.
+- [x] Move BSSID eligibility, reserved/zero MAC rejection, RSSI bounds, de-duplication and strongest-15 descending ranking into the platform-neutral scanner.
+- [x] Add `Esp32WiFiGeolocationScanBackend.h` for the existing passive synchronous ESP32 scan and scan-buffer lifecycle.
+- [x] Inject the scanner into `LocationService`; confirm the service no longer includes `WiFi.h` or calls `WiFi.status()`, `WiFi.scanNetworks()`, `WiFi.BSSID()`, `WiFi.RSSI()`, `WiFi.channel()` or `WiFi.scanDelete()`.
+- [x] Preserve the Google request payload, two-access-point minimum and Google → IP → configured-coordinate fallback order.
+- [x] Run `sh scripts/test-wifi-geolocation-scanner.sh` locally with `-std=c++11 -Wall -Wextra -Werror -pedantic`; result: `WiFiGeolocationScanner tests passed.`
+- [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN.
+- [ ] Upload/hash verification and normal boot.
+- [ ] Confirm Google Wi-Fi location succeeds with multiple eligible APs and still reports provider accuracy when supplied.
+- [ ] Confirm insufficient/failed Google scans fall through to IP geolocation, and IP failure returns configured fallback coordinates.
+- [ ] Confirm Weather/Forecast data, location display, Settings/network scanning, touch, gestures, scrolling and all existing interactions remain intact.
+
+**Known constraint:** this extraction preserves the current synchronous passive scan and synchronous HTTP/TLS requests. It does not yet make LocationService non-blocking or replace the Wi-Fi-specific HTTP transport.
