@@ -16,12 +16,15 @@ public:
       uint32_t nowMs,
       bool profilesVisible,
       bool scanInProgress,
-      bool lastScanFailed) const {
+      bool lastScanFailed,
+      bool refreshRequested = false) const {
     if (!profilesVisible || scanInProgress) {
       return false;
     }
 
-    if (!hasAttempt_) {
+    // A link loss/recovery invalidates the connected-profile shortcut even
+    // when the regular scan deadline has not arrived.
+    if (refreshRequested || !hasAttempt_) {
       return true;
     }
 
