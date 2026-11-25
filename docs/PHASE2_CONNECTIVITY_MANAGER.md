@@ -1,4 +1,4 @@
-# Phase 2 — Connectivity Manager and Wi-Fi backend
+**Status:** Connectivity slices 1–4 are merged and validated in PRs #52–#55. PR #55 merged into `main` at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12` after the user confirmed final Wi-Fi manager validation. Manager-owned bounded recovery is implemented on `phase2/05-connectivity-retry-policy`; the strict C++11 host runner has been extended but execution and review remain outstanding. Network capability extraction, HTTP/TLS transport review and runtime memory profiling remain. Phase 2 overall is still in progress.
 
 **Status:** Connectivity slices 1–3 are merged and validated in PRs #52–#54. Slice 4 is implemented on `phase2/04-wifi-network-management`. The preceding Wi-Fi UI revision passed strict C++11 scanner/signal-meter tests, Arduino IDE Verify/upload and user-confirmed physical regression on 2026-11-25, including scanning and joining other networks and preserving dashboard interactions. The scan list has three evenly spaced larger rows, signal bars and the same card-style finger-following, resisted edge elasticity and eased settle animation; Saved and Rescan remain in the footer, and the header Wi-Fi button closes settings while the modal is open. The user confirmed the three-row layout and signal bars pass hardware regression. The count hint has been removed. Secured SSIDs now show a compact lock immediately beside the measured network name, while open networks show no icon. The heading has moved down slightly and the three-row viewport up to use the cleared status space. The SSID/lock group and signal bars are vertically centred in the row cards. The top overflow mask now covers the full possible upward travel of a row and restores the header after clipping, preventing scan rows from overwriting the blue header divider. The Wi-Fi header hit area is now 64×36 px (`x=186..249`, `y=0..35`), expanded from the 42×28 glyph bounds while remaining separate from its visible drawing rectangle. It stops before the clock's leftmost layout position (`x=250`) and is used consistently for opening settings from Weather/Forecast and closing the settings modal. The visible Wi-Fi glyph and its drawing bounds are unchanged. The latest saved-profile styling refinement (selected-row outline, vertically centred SSID/availability badge and 8 px right inset for the badge) needs fresh Arduino Verify/upload and physical regression, so PR #55 remains in draft. All five existing review threads are resolved. Phase 2 overall remains in progress.
 **Base:** `main` at `f4ae999e3f37eb893dee777f9ec404997856b091`  
@@ -12,29 +12,33 @@ The platform owns network-interface lifecycle and connection state. Applications
 The first slice adds three small modules:
 
 - `ConnectivityBackend.h` defines a transport-neutral interface and `NetworkType` (`None`, `WiFi`, `Cellular`).
-- `ConnectivityManager.h` owns connection state, start/update/disconnect operations and a bounded connection timeout.
+- `ConnectivityManager.h` owns connection state, start/update/disconnect operations, the bounded connection timeout and the retry/backoff recovery state machine.
 - `WiFiBackend.h` implements the interface with the ESP32 Arduino Wi-Fi station APIs.
 
 The manager does not include Arduino or Wi-Fi headers. A future cellular backend can implement the same contract without changing the manager or Weather's use of the manager.
 
 ## 2. Connection state
 
-`ConnectivityManager::connect(nowMs)` starts one backend attempt and returns immediately. It rejects a second attempt while one is already connecting. The caller must continue to call `update(nowMs)`.
+`ConnectivityManager::connect(nowMs)` starts a backend attempt and returns immediately. It rejects a duplicate request while either connecting or waiting for a retry. The caller continues to call `update(nowMs)` from the platform loop.
 
-The state transitions are:
+The current state transitions are:
 
 ```text
 Disconnected --connect accepted--> Connecting
 Connecting --backend connected----> Connected
-Connecting --20 s elapsed---------> TimedOut
-Connecting --backend start failed-> Failed
-Connected --link lost-------------> Disconnected
-Disconnected --backend/driver reconnects--> Connected
-Connected --disconnect------------> Disconnected
-TimedOut / Failed --connect-------> Connecting (new attempt)
+Connecting --20 s timeout---------> RetryWaiting (if retry budget remains)
+Connecting --backend start failed-> RetryWaiting (if retry budget remains)
+RetryWaiting --backoff elapsed----> Connecting
+RetryWaiting --driver reconnect---> Connected
+Connected --link lost-------------> RetryWaiting (if retry budget remains)
+RetryWaiting --budget exhausted---> Failed / TimedOut / Disconnected
+Connected --explicit disconnect---> Disconnected
+Failed / TimedOut --new connect---> Connecting (fresh retry budget)
 ```
 
-The default connection timeout is 20 seconds, matching the previous sketch-level connection wait. Elapsed-time arithmetic is unsigned and is tested across `millis()` rollover. A timeout disconnects the backend. When the manager is no longer in `Connecting`, it mirrors the backend's live connection state, so a driver-managed reconnection returns the manager to `Connected` without another `connect()` call. This observes reconnection performed by the underlying backend/driver; it is not a manager-owned retry or backoff policy. The manager does not retain profile credentials; profile selection and credential lifetime remain outside the manager. The NVS follow-up keeps the selected profile in a device-lifetime RAM object before configuring the backend, because `WiFiBackend` borrows its credential pointers.
+The default association timeout remains 20 seconds. The manager allows **two retries after the initial attempt**, with exponential backoff of **2 seconds then 4 seconds**, capped at 8 seconds. The same bounded sequence is started after link loss. Unsigned elapsed-time arithmetic is used for both timeout and backoff checks, so `millis()` rollover is safe. If the backend/driver restores the link during `RetryWaiting`, the manager accepts that connection immediately, clears the pending timer and resets the retry budget. An explicit `disconnect()` cancels retries; a later explicit `connect()` starts a fresh sequence.
+
+The profile policy is intentionally conservative: the manager retries the **currently configured profile** and does not silently roam through the saved-profile list. At boot, the composition root loads the saved preferred profile from NVS and configures `WiFiBackend` with it. A user-selected candidate profile is tried through the same manager policy; the existing Wi-Fi settings flow records it as preferred only after a successful connection and attempts to restore the previous preferred profile if the candidate exhausts its retries. The manager does not own, copy or persist credentials. `WiFiBackend` borrows the SSID/password strings, so the composition root retains the active profile in device-lifetime RAM.
 
 The backend owns platform-specific profile configuration. For this first slice, `WiFiBackend::configure()` borrows the SSID/password strings. A null or empty password is normalised to `nullptr` and passed directly to `WiFi.begin(ssid, password)`, explicitly supporting open access points. The current sketch supplies static values from the ignored `secrets.h`, whose lifetime is process-wide. When NVS-backed profiles are introduced, the profile store must keep the selected strings alive for as long as the backend may use them or the backend must take explicit ownership.
 
@@ -88,8 +92,8 @@ Still open as distinct follow-up validation:
 
 ## 6. Remaining implementation sequence
 
-1. **On-device network management:** implemented on `phase2/04-wifi-network-management` (see Section 10). Review, Arduino IDE Verify and physical validation remain open.
-2. **Manager-owned reconnect policy:** introduce bounded backoff, link-loss recovery and a defined preferred-network policy using saved profiles. Driver-managed recovery is already observed by the manager, but this does not replace an app-level retry policy.
+1. **On-device network management:** merged and user-validated in PR #55 at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12` (see Section 10).
+2. **Manager-owned reconnect policy:** implemented on `phase2/05-connectivity-retry-policy`. The manager has a two-retry budget, 2 s / 4 s exponential delays (8 s cap), 20 s per-attempt timeout, link-loss recovery, driver-reconnect acceptance and explicit-disconnect cancellation. Host-test execution and code review are still open.
 3. **Network capability boundary:** move the remaining Wi-Fi scan/BSSID/RSSI operations behind a platform-owned capability and review whether HTTP request transport should be abstracted separately from connectivity state.
 4. **Runtime memory profiling:** capture internal free heap/largest block and PSRAM under representative operation; keep these separate from compile-time build footprint.
 
