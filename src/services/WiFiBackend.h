@@ -53,8 +53,8 @@ public:
   }
 
   void disconnect() override {
-    // Retain the driver's saved credentials; profile persistence is a later
-    // Phase 2 slice owned by the settings/profile store.
+    // Disconnect the active station only. Saved profiles remain owned by the
+    // Preferences-backed WiFiProfileStore and are not forgotten here.
     WiFi.disconnect();
   }
 
