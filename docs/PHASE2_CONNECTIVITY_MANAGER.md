@@ -253,7 +253,7 @@ During one of those operations, the loop cannot process touch input until that c
 ## 11. Follow-up slice 5 — manager-owned connection recovery
 
 **Branch:** `phase2/05-connectivity-retry-policy`  
-**Status:** Implemented; strict C++11 host runner passed on 2026-11-25 (user-confirmed). Review and firmware/device verification are pending.
+**Status:** Implemented; strict C++11 host runner passed. Arduino IDE Verify and firmware upload/hash verification passed on 2026-11-25 (user-confirmed). Normal boot confirmation and physical retry/recovery regression remain pending.
 
 ### Recovery policy
 
@@ -272,4 +272,6 @@ During one of those operations, the loop cannot process touch input until that c
 
 **Validation record:** the user ran `sh scripts/test-connectivity-manager.sh` on 2026-11-25 and confirmed `ConnectivityManager tests passed.`
 
-**Validation still required:** run Arduino IDE Verify with the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration, upload/boot, and perform physical regression. Include unavailable-access-point recovery, link loss/recovery, preferred-profile behaviour, manual network switching, scanning while a retry is due, open-network association and existing Weather/Forecast/touch/scroll interactions. No new firmware footprint figures or hardware validation are claimed for this branch yet.
+**Firmware build/upload validation (2026-11-25):** Arduino IDE Verify passed using the recorded ESP32-S3 16 MB / OPI PSRAM FQBN, ESP32 core 3.3.12 and esptool 5.3.1. The ESP32-S3 application and merged 16 MB flash images were generated. Build footprint: 1,201,623 bytes program storage (38% of the 3,145,728-byte application partition); 99,932 bytes global dynamic memory (30% of 327,680 bytes), leaving 227,748 bytes. The upload log reports the application image written and `Hash of data verified`; the bootloader and partition image were already present and verified, and the board hard-reset via RTS. This is compile-time/global-memory footprint, not a runtime heap/PSRAM measurement. The supplied log does not include a serial boot confirmation or physical Wi-Fi recovery test result.
+
+**Validation still required:** confirm normal boot and perform physical regression. Include unavailable-access-point recovery, link loss/recovery, preferred-profile behaviour, manual network switching, scanning while a retry is due, open-network association and existing Weather/Forecast/touch/scroll interactions. The firmware build figures above are recorded; no new runtime free-heap/largest-block/PSRAM sample is claimed, and physical retry/recovery validation is still pending.
