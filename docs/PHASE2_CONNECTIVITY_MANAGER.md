@@ -1,8 +1,8 @@
 # Phase 2 — Connectivity Manager and Wi-Fi backend
 
-**Status:** Connectivity slice 1 and state-driven Weather startup/refresh are merged and validated in PRs #52 and #53. The versioned NVS profile-store slice is implemented and physically validated in PR #54 on `phase2/03-persistent-wifi-profiles`. The initial host suites, Arduino Verify/upload and NVS credential-source isolation test passed; final automated-review hardening fixes are committed and the host runner / Verify must be repeated on the latest commit before merge. Phase 2 overall remains in progress.  
+**Status:** Connectivity slices 1–3 are merged and validated in PRs #52–#54. PR #54 merged into `main` at `4ebd4a5469f20677ee8759fc1bc3f2dae531be2b`; both strict C++11 host suites passed again after final review fixes, and the latest device startup confirmed the preferred NVS profile loaded. All five inline reviewer threads were answered and resolved. Phase 2 overall remains in progress.  
 **Base:** `main` at `ed4991e249a42d68ec59cecc6d3f0931d06af19a`  
-**Merged checkpoint:** PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`  
+**Latest merged checkpoint:** PR #54 at `4ebd4a5469f20677ee8759fc1bc3f2dae531be2b`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
 
 ## 1. Design boundary
@@ -164,10 +164,11 @@ During one of those operations, the loop cannot process touch input until that c
 - [ ] Capture runtime free internal heap, largest free block and PSRAM separately. The global dynamic-memory build figure above is not a runtime heap/PSRAM snapshot; this measurement remains a separate profiling task and is not a failed firmware-validation gate.
 
 
-## 9. Follow-up slice 3 — versioned Wi-Fi profile storage
+## 9. Follow-up slice 3 — versioned Wi-Fi profile storage (merged PR #54)
 
 **Branch:** `phase2/03-persistent-wifi-profiles`  
-**Status:** Implemented and physically validated; final review-fix retest outstanding.
+**Merge:** `4ebd4a5469f20677ee8759fc1bc3f2dae531be2b` into `main`  
+**Status:** Implemented, host-tested and physically validated; all review threads resolved.
 
 ### Storage contract
 
@@ -189,7 +190,7 @@ During one of those operations, the loop cannot process touch input until that c
 
 **NVS source-isolation proof:** the user temporarily changed the compiled Wi-Fi SSID/password in `secrets.h` to deliberately invalid values, uploaded without erasing flash and observed `[WIFI] Loaded the saved preferred network profile.` followed by successful Google Wi-Fi positioning and OpenWeather reverse geocoding. This proves the working network connection came from the saved NVS profile rather than the compiled fallback. The original `secrets.h` was restored and the normal firmware uploaded again.
 
-**Automated review follow-up:** four review threads have been resolved. The adapter now opens Preferences read-only for reads and returns failure if stored bytes exceed the destination capacity. Both `getBytes()` and `putBytes()` in the host Preferences stub reject overlong key names before copying. These changes were committed after the reported test/build run, so rerun `sh scripts/test-wifi-profile-store.sh` and Arduino IDE Verify once against the latest PR head before merge.
+**Automated review follow-up:** all five inline review threads were answered and resolved. The adapter opens Preferences read-only for reads and returns failure if stored bytes exceed the destination capacity. Both `getBytes()` and `putBytes()` in the host Preferences stub reject overlong key names before copying. The user reran `sh scripts/test-wifi-profile-store.sh` after these fixes; both suites passed. The latest uploaded firmware also reported `[WIFI] Loaded the saved preferred network profile.`
 
 **Security limitation:** this implementation does not enable NVS encryption or ESP32 flash encryption. It stores Wi-Fi passphrases in the device's NVS partition; confidentiality at rest depends on the board's flash-encryption configuration. No credentials are printed to serial or included in tracked configuration files.
 
