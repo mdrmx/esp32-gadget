@@ -4,7 +4,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 
 ## Current refactor progress
 
-> **Progress snapshot:** the Weather rendering and asset-cache extraction sequence is complete through PR #51, including post-merge host, firmware and physical validation. Phase 1 overall remains in progress while the broader module-boundary and platform ownership review is completed. The canonical architecture and handover remain in [PLATFORM_REFACTOR_ROADMAP.md](PLATFORM_REFACTOR_ROADMAP.md).
+> **Progress snapshot:** the Weather rendering and asset-cache extraction sequence is complete through PR #51, including post-merge host, firmware and physical validation. The first Phase 2 connectivity slice was merged in PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`; both strict C++11 host suites and Arduino Verify passed, the firmware upload was hash-verified, and the user confirmed physical tests passed. Phase 1 remains in progress for the broader module-boundary/platform ownership review, and Phase 2 remains in progress for non-blocking Weather startup, persistent Wi-Fi profiles, network UI and manager-owned retry/backoff. The canonical architecture and handover remain in [PLATFORM_REFACTOR_ROADMAP.md](PLATFORM_REFACTOR_ROADMAP.md).
 
 ### Completed
 
@@ -65,9 +65,9 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 For the detailed module boundaries, regression procedures and hardware baseline, see the [Platform Refactor Roadmap](PLATFORM_REFACTOR_ROADMAP.md) and [Phase 0 regression checklist](docs/PHASE0_REGRESSION_CHECKLIST.md).
 
 
-## Phase 2 — Shared connectivity (in progress)
+## Phase 2 — Shared connectivity (first slice merged; phase in progress)
 
-The first implementation slice is being developed on [`phase2/01-connectivity-manager-wifi-backend`](https://github.com/mdrmx/esp32-gadget/tree/phase2/01-connectivity-manager-wifi-backend).
+The first implementation slice was developed on [`phase2/01-connectivity-manager-wifi-backend`](https://github.com/mdrmx/esp32-gadget/tree/phase2/01-connectivity-manager-wifi-backend) and merged into `main` in [PR #52](https://github.com/mdrmx/esp32-gadget/pull/52) at `bc1948019c31ce466ea97be34f205373d05c7954`.
 
 - Adds a transport-neutral `ConnectivityBackend` contract and `NetworkType`.
 - Adds an ESP32 `WiFiBackend` and a `ConnectivityManager` with non-blocking start/update calls, a 20-second connection timeout, link-loss detection and awareness of backend/driver background reconnection. Wi-Fi profiles with null or empty passwords retain `nullptr` for open-network association.
@@ -75,8 +75,8 @@ The first implementation slice is being developed on [`phase2/01-connectivity-ma
   - `sh scripts/test-connectivity-manager.sh`
   - `sh scripts/test-wifi-backend.sh`
 
-Both focused strict C++11 host suites passed in the implementation workspace. Arduino IDE Verify also passed for the Phase 2 working tree using ESP32 core 3.3.12 / esptool 5.3.1; the ESP32-S3 application image and merged 16 MB flash image were generated. Build footprint: 1,168,551 bytes program storage (37%), 97,476 bytes global dynamic memory (29%), leaving 230,204 bytes. Firmware upload/boot and physical Waveshare regression are still pending.
+Both focused strict C++11 host suites passed. Arduino IDE Verify passed using ESP32 core 3.3.12 / esptool 5.3.1; the ESP32-S3 application image and merged 16 MB flash image were generated. Build footprint: 1,168,551 bytes program storage (37%), 97,476 bytes global dynamic memory (29%), leaving 230,204 bytes. The upload log confirms bootloader, partition table and firmware were written and hash-verified, followed by hard reset via RTS. The user confirmed the physical tests passed.
 
-**Transitional limitation:** the existing `connectWiFi()` call sites use a temporary synchronous compatibility adapter that pumps the manager while waiting. The manager API is non-blocking, but Weather startup/refresh can still block during association. The manager mirrors a background reconnect reported by the Wi-Fi driver, but does not initiate retries/backoff itself. The next slice will move startup work into WeatherApp's regular update lifecycle. Persistent NVS profiles and network-management UI are not yet implemented.
+**Remaining Phase 2 work:** the existing `connectWiFi()` call sites still use a temporary synchronous compatibility adapter, so Weather startup/refresh can wait up to 20 seconds during association. The manager mirrors driver-managed background recovery but does not initiate retry/backoff itself. Persistent NVS profiles, safe migration from compile-time credentials, network scan/selection/password-entry/save/forget UI, manager-owned retry/backoff, moving Wi-Fi scan/BSSID operations out of `LocationService`, transport-boundary review and non-blocking Weather startup remain outstanding.
 
 See [Phase 2 connectivity design](docs/PHASE2_CONNECTIVITY_MANAGER.md) and the [canonical roadmap](PLATFORM_REFACTOR_ROADMAP.md).
