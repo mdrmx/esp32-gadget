@@ -69,6 +69,7 @@ public:
       uint8_t count,
       const String& connectionStatus,
       const String& message) const {
+    if (displayManager_.target() == nullptr) return;
     beginPage(location, clock);
     textRenderer_.drawText("WI-FI NETWORKS", 10, 43, 2, colours_.white);
     drawStatusLine(connectionStatus, message, 62);
@@ -110,6 +111,7 @@ public:
       bool failed,
       const String& connectionStatus,
       const String& message) const {
+    if (displayManager_.target() == nullptr) return;
     beginPage(location, clock);
     textRenderer_.drawText("AVAILABLE NETWORKS", 10, 43, 2, colours_.white);
 
@@ -175,6 +177,7 @@ public:
       bool connected,
       bool confirmForget,
       const String& message) const {
+    if (displayManager_.target() == nullptr) return;
     beginPage(location, clock);
     textRenderer_.drawText("SAVED NETWORK", 10, 44, 2, colours_.white);
     textRenderer_.drawWrappedCenteredText(
@@ -216,6 +219,7 @@ public:
       bool shifted,
       bool symbols,
       const String& message) const {
+    if (displayManager_.target() == nullptr) return;
     beginPage(location, clock);
     textRenderer_.drawText("ENTER PASSWORD", 10, 42, 2, colours_.white);
     textRenderer_.drawText(
@@ -301,6 +305,7 @@ public:
       const String& clock,
       const char* ssid,
       bool restoring) const {
+    if (displayManager_.target() == nullptr) return;
     beginPage(location, clock);
     textRenderer_.drawCenteredText(
         restoring ? "RESTORING NETWORK" : "CONNECTING",

@@ -14,6 +14,7 @@
 #include "src/ui/TextRenderer.h"
 #include "src/ui/HeaderRenderer.h"
 #include "src/ui/StatusScreenRenderer.h"
+#include "src/ui/WiFiSettingsRenderer.h"
 #include "src/ui/ForecastListItemRenderer.h"
 #include "src/ui/ForecastListViewportRenderer.h"
 #include "src/ui/ForecastGraphRenderer.h"
@@ -28,6 +29,8 @@
 #include "src/services/WiFiBackend.h"
 #include "src/services/WiFiProfileStore.h"
 #include "src/services/PreferencesWiFiProfileStorage.h"
+#include "src/services/WiFiNetworkScanner.h"
+#include "src/services/Esp32WiFiScanBackend.h"
 #include "src/services/LocationService.h"
 #include "src/services/WeatherDataService.h"
 #include "src/apps/weather/WeatherApp.h"
@@ -101,6 +104,8 @@ ConnectivityManager connectivityManager(wifiBackend);
 PreferencesWiFiProfileStorage wifiProfileStorage;
 typedef WiFiProfileStore<PreferencesWiFiProfileStorage> PersistentWiFiProfileStore;
 PersistentWiFiProfileStore wifiProfileStore(wifiProfileStorage);
+Esp32WiFiScanBackend wifiScanBackend;
+WiFiNetworkScanner wifiNetworkScanner(wifiScanBackend);
 
 // WiFiBackend borrows these RAM strings. Keep this copy alive for the full
 // device lifetime, independently from temporary Preferences read buffers.
@@ -209,6 +214,60 @@ const uint16_t ERROR_COLOUR = 0xF986;
 const StatusScreenRenderer::Colours STATUS_SCREEN_COLOURS = {
   BG, PANEL, UI_WHITE, ACCENT, UI_WHITE, ERROR_COLOUR, MUTED
 };
+
+const WiFiSettingsRenderer::Colours WIFI_SETTINGS_COLOURS = {
+  BG, PANEL, UI_WHITE, MUTED, ACCENT, UI_GREEN, ERROR_COLOUR
+};
+
+enum class WiFiSettingsScreen : uint8_t {
+  Closed = 0,
+  Profiles,
+  Scan,
+  ProfileDetail,
+  Password,
+  Connecting
+};
+
+enum class WiFiConnectPhase : uint8_t {
+  None = 0,
+  Candidate,
+  Restore
+};
+
+WiFiSettingsScreen wifiSettingsScreen = WiFiSettingsScreen::Closed;
+WiFiConnectPhase wifiConnectPhase = WiFiConnectPhase::None;
+char wifiSelectedSsid[PersistentWiFiProfileStore::MaxSsidLength + 1] = {};
+char wifiPasswordInput[PersistentWiFiProfileStore::MaxPasswordLength + 1] = {};
+bool wifiKeyboardShifted = false;
+bool wifiKeyboardSymbols = false;
+
+PersistentWiFiProfileStore::Profile wifiSelectedProfile = {};
+bool wifiSelectedProfileValid = false;
+bool wifiForgetConfirmation = false;
+PersistentWiFiProfileStore::Profile wifiPendingProfile = {};
+bool wifiPendingProfileWasNew = false;
+PersistentWiFiProfileStore::Profile wifiPreviousProfile = {};
+bool wifiPreviousProfileValid = false;
+
+WiFiSettingsRenderer::ProfileRow
+    wifiProfileRows[PersistentWiFiProfileStore::MaxProfiles] = {};
+uint8_t wifiScanPage = 0;
+String wifiUiMessage = "";
+
+bool wifiUiTouchActive = false;
+bool wifiUiTouchMoved = false;
+int wifiUiTouchStartX = 0;
+int wifiUiTouchStartY = 0;
+
+bool wifiHeaderTouchActive = false;
+bool wifiHeaderTouchValid = false;
+int wifiHeaderTouchStartX = 0;
+int wifiHeaderTouchStartY = 0;
+
+bool wifiPendingWeatherRefresh = false;
+
+WiFiSettingsRenderer wifiSettingsRenderer(
+    displayManager, headerRenderer, textRenderer, WIFI_SETTINGS_COLOURS);
 
 const ForecastListItemRenderer::Colours FORECAST_LIST_ITEM_COLOURS = {
   PANEL, UI_WHITE, UI_YELLOW, MUTED, ACCENT
@@ -2148,6 +2207,7 @@ void selectScannedWiFiNetwork(uint8_t index) {
   }
 
   strncpy(wifiSelectedSsid, network.ssid, sizeof(wifiSelectedSsid) - 1);
+  wifiSelectedSsid[sizeof(wifiSelectedSsid) - 1] = '\0';
   memset(wifiPasswordInput, 0, sizeof(wifiPasswordInput));
   wifiKeyboardShifted = false;
   wifiKeyboardSymbols = false;
