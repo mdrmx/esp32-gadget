@@ -1,6 +1,6 @@
 # Phase 2 — Connectivity Manager and Wi-Fi backend
 
-**Status:** First connectivity slice merged and validated — PR #52 merged into `main` at `bc1948019c31ce466ea97be34f205373d05c7954` on 2026-11-25. Strict C++11 host suites, Arduino IDE Verify, firmware upload/hash verification and user-confirmed physical tests passed. Phase 2 overall remains in progress.  
+**Status:** Slice 1 merged and validated in PR #52. Slice 2 is implemented on `phase2/02-nonblocking-weather-startup` and awaiting review, Arduino Verify, upload/boot and physical regression. Phase 2 overall remains in progress.  
 **Base:** `main` at `ed4991e249a42d68ec59cecc6d3f0931d06af19a`  
 **Merged checkpoint:** PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
@@ -49,7 +49,7 @@ The backend owns platform-specific profile configuration. For this first slice, 
 
 **Important transitional limitation:** the existing `connectWiFi()` call sites are synchronous. The helper currently pumps `ConnectivityManager::update()` and retains the existing 500 ms polling delay so Weather startup and refresh sequencing are not changed in this PR. Therefore, the manager API is non-blocking, but the complete Weather startup/refresh path is not yet non-blocking and can still wait up to 20 seconds during association. This slice must not be reported as having removed the UI freeze on a missing access point.
 
-The next integration slice should move connection progress into the regular application update path, make initial location/weather loading wait on explicit connection state, and remove this compatibility loop without changing the existing success, stale-data or fallback presentation.
+That next integration slice is now implemented on `phase2/02-nonblocking-weather-startup`; see Section 8. The branch removes this compatibility wait loop and moves startup/refresh sequencing into `WeatherApp.update()` without changing the existing success, stale-data or fallback presentation.
 
 ## 4. Deliberately deferred
 
@@ -88,11 +88,10 @@ Still open as distinct follow-up validation:
 
 ## 6. Remaining implementation sequence
 
-1. **Non-blocking Weather startup/update integration:** remove the compatibility wait loop and make connection progress, location resolution and first data loading explicit application states.
-2. **Persistent Wi-Fi profiles:** add a versioned Preferences/NVS store with bounded profile count, safe credential replacement, preferred profile and forget semantics.
-3. **On-device network management:** scan and select networks, password entry, save/forget controls and clear connection/error feedback.
-4. **Manager-owned reconnect policy:** introduce bounded backoff, link-loss recovery and a defined preferred-network policy using saved profiles. Driver-managed recovery is already observed by the manager, but this does not replace an app-level retry policy.
-5. **Network capability boundary:** move the remaining Wi-Fi scan/BSSID operations behind a platform-owned capability and review whether HTTP request transport should be abstracted separately from connectivity state.
+1. **Persistent Wi-Fi profiles:** add a versioned Preferences/NVS store with bounded profile count, safe credential replacement, preferred profile and forget semantics.
+2. **On-device network management:** scan and select networks, password entry, save/forget controls and clear connection/error feedback.
+3. **Manager-owned reconnect policy:** introduce bounded backoff, link-loss recovery and a defined preferred-network policy using saved profiles. Driver-managed recovery is already observed by the manager, but this does not replace an app-level retry policy.
+4. **Network capability boundary:** move the remaining Wi-Fi scan/BSSID operations behind a platform-owned capability and review whether HTTP request transport should be abstracted separately from connectivity state.
 
 Keep each slice behaviour-preserving and independently testable. Keep passwords out of logs, serial diagnostics and tracked files.
 
@@ -108,3 +107,57 @@ PR #52 was merged into `main` on 2026-11-25 at `bc1948019c31ce466ea97be34f205373
 - The user confirmed the physical tests passed after upload.
 
 No new runtime free-heap, largest-block or PSRAM snapshot was supplied. Do not infer one from the program/global-memory build report. The separate controlled unavailable-AP and physical driver-managed reconnect tests remain outstanding unless later recorded.
+
+
+## 8. Follow-up slice 2 — state-driven Weather startup and refresh
+
+**Branch:** `phase2/02-nonblocking-weather-startup`  
+**Status:** Implemented; awaiting review and device validation. Not merged.
+
+The Weather application no longer calls a synchronous connection helper. `WeatherApp::begin()` binds its hooks, draws the connection status and requests a connection start, then returns. `WeatherApp::update()` advances the lifecycle through explicit states:
+
+```text
+Connecting
+  -> ResolvingLocation
+  -> FetchingCurrentWeather
+  -> FetchingForecast
+  -> PreparingStartupAssets
+  -> Ready
+```
+
+The update path checks the platform connection state. While the manager remains in `Connecting`, Weather continues to run its input, time-sync and clock hooks on subsequent loop passes. Once connected or the manager reports that the attempt has ended (failure/timeout), the app advances. A failed association uses configured fallback coordinates and does not start another IP-geolocation request without a network.
+
+Periodic refresh uses a corresponding `RefreshConnecting`, `RefreshingCurrentWeather`, `RefreshingForecast` and `PreparingRefreshAssets` sequence. It starts at most one association attempt for the refresh; current and forecast adapters only read the manager's current connection state. Driver-managed reconnection is still observed by the manager. If a refresh connection attempt fails, current Weather retains the stale-data/error path and Forecast retains its unavailable state.
+
+The sketch no longer contains `connectWiFi()` or a synchronous loop that polls `ConnectivityManager::update()`. The device `loop()` remains responsible for polling the manager before calling `weatherApp.update()`.
+
+### Host validation
+
+The strict C++11 WeatherApp state/asset-preparation harness passed with `-Wall -Wextra -Werror -pedantic`. Coverage includes:
+
+- startup returns while connection is pending and keeps input/time hooks advancing;
+- successful connection, location, current weather, forecast, asset preparation and first render order;
+- failed/offline connection progresses to configured-location fallback and a stable Weather-unavailable state;
+- periodic refresh waits for connection before current/forecast fetches;
+- Forecast refresh skips Weather-only asset preparation;
+- failed current-weather refresh can keep stale-but-available Weather visible.
+
+### Scope limitation — not fully asynchronous networking
+
+This slice removes the up-to-20-second Wi-Fi association wait from the application call stack. It does **not** make every subsequent operation non-blocking. The following work still runs synchronously within its individual WeatherApp update stage:
+
+- Google Wi-Fi scan / geolocation and IP/reverse-geocoding work in `LocationService`;
+- current-weather and hourly-forecast HTTP/TLS requests in `WeatherDataService` / `HttpRequestClient`;
+- Weather icon download and asset preparation.
+
+During one of those operations, the loop cannot process touch input until that call returns. A later request-execution slice must define bounded request ownership, completion/error delivery, cancellation and response lifetimes before attempting to make these services asynchronous or concurrent. The connection manager itself remains platform-owned; Weather does not start/stop Wi-Fi directly.
+
+### Remaining validation for this branch
+
+- Arduino IDE Verify with the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12.
+- Upload/boot on the Waveshare ESP32-S3 Touch LCD 2.
+- Physical live Wi-Fi startup and confirm input continues to be serviced while association is pending.
+- Controlled unavailable-AP timeout/fallback test.
+- Physical periodic-refresh reconnection test after Wi-Fi loss.
+- Weather/Forecast, List/Graph, touch, scrolling, graph interaction and tab-transition regression.
+- Record runtime free internal heap/largest block and PSRAM separately from build footprint.
