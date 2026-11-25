@@ -233,6 +233,22 @@ void linkLossStartsManagerOwnedRetryWhenDriverDoesNotRecover() {
   CHECK(manager.state() == ConnectivityManager::State::Connecting);
 }
 
+void retryWaitsUntilTheWiFiScanHasFinished() {
+  FakeBackend backend;
+  backend.startResult = false;
+  ConnectivityManager manager(backend, 100U, 2, 10U, 20U);
+
+  CHECK(manager.connect(0U));
+  CHECK(manager.isRetryPending());
+  manager.update(10U, false);
+  CHECK(backend.beginCalls == 1);
+  CHECK(manager.isRetryPending());
+
+  manager.update(10U, true);
+  CHECK(backend.beginCalls == 2);
+  CHECK(manager.isRetryPending());
+}
+
 void manualDisconnectCancelsPendingRetry() {
   FakeBackend backend;
   backend.startResult = false;
@@ -286,6 +302,7 @@ int main() {
   retryDeadlineIsSafeAcrossMillisRolloverAndBackoffIsCapped();
   linkLossStartsRecoveryAndDriverReconnectCancelsRetry();
   linkLossStartsManagerOwnedRetryWhenDriverDoesNotRecover();
+  retryWaitsUntilTheWiFiScanHasFinished();
   manualDisconnectCancelsPendingRetry();
   explicitConnectCanStartANewRecoverySequenceAfterFailure();
   reconnectWorksAfterDisconnect();
