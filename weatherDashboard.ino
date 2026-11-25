@@ -14,6 +14,7 @@
 #include "src/ui/TextRenderer.h"
 #include "src/ui/HeaderRenderer.h"
 #include "src/ui/StatusScreenRenderer.h"
+#include "src/ui/WiFiSettingsRenderer.h"
 #include "src/ui/ForecastListItemRenderer.h"
 #include "src/ui/ForecastListViewportRenderer.h"
 #include "src/ui/ForecastGraphRenderer.h"
@@ -28,6 +29,9 @@
 #include "src/services/WiFiBackend.h"
 #include "src/services/WiFiProfileStore.h"
 #include "src/services/PreferencesWiFiProfileStorage.h"
+#include "src/services/WiFiNetworkScanner.h"
+#include "src/services/WiFiSignalMeter.h"
+#include "src/services/Esp32WiFiScanBackend.h"
 #include "src/services/LocationService.h"
 #include "src/services/WeatherDataService.h"
 #include "src/apps/weather/WeatherApp.h"
@@ -101,6 +105,10 @@ ConnectivityManager connectivityManager(wifiBackend);
 PreferencesWiFiProfileStorage wifiProfileStorage;
 typedef WiFiProfileStore<PreferencesWiFiProfileStorage> PersistentWiFiProfileStore;
 PersistentWiFiProfileStore wifiProfileStore(wifiProfileStorage);
+Esp32WiFiScanBackend wifiScanBackend;
+WiFiNetworkScanner wifiNetworkScanner(wifiScanBackend);
+WiFiSignalMeter wifiSignalMeter;
+uint32_t wifiSignalLastSampleMs = 0;
 
 // WiFiBackend borrows these RAM strings. Keep this copy alive for the full
 // device lifetime, independently from temporary Preferences read buffers.
@@ -209,6 +217,71 @@ const uint16_t ERROR_COLOUR = 0xF986;
 const StatusScreenRenderer::Colours STATUS_SCREEN_COLOURS = {
   BG, PANEL, UI_WHITE, ACCENT, UI_WHITE, ERROR_COLOUR, MUTED
 };
+
+const WiFiSettingsRenderer::Colours WIFI_SETTINGS_COLOURS = {
+  BG, PANEL, UI_WHITE, MUTED, ACCENT, UI_GREEN, ERROR_COLOUR
+};
+
+enum class WiFiSettingsScreen : uint8_t {
+  Closed = 0,
+  Profiles,
+  Scan,
+  ProfileDetail,
+  Password,
+  Connecting
+};
+
+enum class WiFiConnectPhase : uint8_t {
+  None = 0,
+  Candidate,
+  Restore
+};
+
+WiFiSettingsScreen wifiSettingsScreen = WiFiSettingsScreen::Closed;
+WiFiConnectPhase wifiConnectPhase = WiFiConnectPhase::None;
+char wifiSelectedSsid[PersistentWiFiProfileStore::MaxSsidLength + 1] = {};
+char wifiPasswordInput[PersistentWiFiProfileStore::MaxPasswordLength + 1] = {};
+bool wifiKeyboardShifted = false;
+bool wifiKeyboardSymbols = false;
+bool wifiPasswordVisible = false;
+
+bool wifiKeyFeedbackActive = false;
+bool wifiKeyFeedbackHeld = false;
+int8_t wifiHighlightedKeyRow = -1;
+int8_t wifiHighlightedKeyColumn = -1;
+uint32_t wifiKeyFeedbackUntilMs = 0;
+
+PersistentWiFiProfileStore::Profile wifiSelectedProfile = {};
+bool wifiSelectedProfileValid = false;
+bool wifiForgetConfirmation = false;
+PersistentWiFiProfileStore::Profile wifiPendingProfile = {};
+bool wifiPendingProfileWasNew = false;
+PersistentWiFiProfileStore::Profile wifiPreviousProfile = {};
+bool wifiPreviousProfileValid = false;
+
+WiFiSettingsRenderer::ProfileRow
+    wifiProfileRows[PersistentWiFiProfileStore::MaxProfiles] = {};
+int wifiListScrollPositionPx = 0;
+bool wifiListTouchCandidate = false;
+bool wifiListTouchDragActive = false;
+int wifiListDragStartScroll = 0;
+int wifiListDragCurrentScroll = 0;
+String wifiUiMessage = "";
+
+bool wifiUiTouchActive = false;
+bool wifiUiTouchMoved = false;
+int wifiUiTouchStartX = 0;
+int wifiUiTouchStartY = 0;
+
+bool wifiHeaderTouchActive = false;
+bool wifiHeaderTouchValid = false;
+int wifiHeaderTouchStartX = 0;
+int wifiHeaderTouchStartY = 0;
+
+bool wifiPendingWeatherRefresh = false;
+
+WiFiSettingsRenderer wifiSettingsRenderer(
+    displayManager, headerRenderer, textRenderer, WIFI_SETTINGS_COLOURS);
 
 const ForecastListItemRenderer::Colours FORECAST_LIST_ITEM_COLOURS = {
   PANEL, UI_WHITE, UI_YELLOW, MUTED, ACCENT
@@ -382,8 +455,28 @@ String getHeaderLocationText() {
 }
 
 void drawHeaderClockOnly(const String& clockText) {
-  headerRenderer.drawClockOnly(clockText, PANEL, ACCENT);
+  headerRenderer.drawClockOnly(clockText, PANEL, UI_WHITE, ACCENT);
   lastHeaderClock = clockText;
+}
+
+void updateWiFiSignalIndicator() {
+  const uint32_t nowMs = millis();
+  const bool connected = connectivityManager.isConnected();
+
+  if (!connected) {
+    wifiSignalMeter.reset();
+    wifiSignalLastSampleMs = 0;
+  } else if (wifiSignalLastSampleMs == 0 ||
+             nowMs - wifiSignalLastSampleMs >= 1000UL) {
+    wifiSignalMeter.addSample(WiFi.RSSI());
+    wifiSignalLastSampleMs = nowMs;
+  }
+
+  const uint8_t strengthLevel =
+      connected ? wifiSignalMeter.level() : 0;
+  if (headerRenderer.setWiFiStatus(connected, strengthLevel)) {
+    headerRenderer.drawWiFiIndicator(PANEL, UI_WHITE, ACCENT);
+  }
 }
 
 void refreshHeaderClock() {
@@ -1881,6 +1974,1053 @@ void updateTouchDrag(const TouchSample& sample, const GestureObservation& observ
 }
 
 // =====================================================
+// WI-FI NETWORK MANAGEMENT UI
+// =====================================================
+
+String wifiConnectionStatusText() {
+  if (connectivityManager.isConnected()) {
+    return String("Connected: ") + WiFi.SSID();
+  }
+  if (connectivityManager.isConnecting()) {
+    return "Connecting to Wi-Fi...";
+  }
+  if (wifiSsid != nullptr && wifiSsid[0] != '\0') {
+    return String("Saved: ") + wifiSsid + " (offline)";
+  }
+  return "No network connected";
+}
+
+WiFiSettingsRenderer::Availability getWiFiProfileAvailability(
+    const char* ssid,
+    bool activeProfile) {
+  if (activeProfile && connectivityManager.isConnected()) {
+    return WiFiSettingsRenderer::Availability::Available;
+  }
+
+  const WiFiNetworkScanner::State state = wifiNetworkScanner.state();
+  if (state == WiFiNetworkScanner::State::Scanning) {
+    return WiFiSettingsRenderer::Availability::Checking;
+  }
+  if (state != WiFiNetworkScanner::State::Ready) {
+    return WiFiSettingsRenderer::Availability::Unknown;
+  }
+
+  for (uint8_t i = 0; i < wifiNetworkScanner.count(); ++i) {
+    WiFiScanResult result = {};
+    if (wifiNetworkScanner.getAt(i, result) &&
+        strcmp(result.ssid, ssid) == 0) {
+      return WiFiSettingsRenderer::Availability::Available;
+    }
+  }
+  return WiFiSettingsRenderer::Availability::Unavailable;
+}
+
+uint8_t wifiSettingsListItemCount() {
+  if (wifiSettingsScreen == WiFiSettingsScreen::Profiles) {
+    return wifiProfileStore.count();
+  }
+  if (wifiSettingsScreen == WiFiSettingsScreen::Scan) {
+    return wifiNetworkScanner.count();
+  }
+  return 0;
+}
+
+int maxWiFiListScrollPixels() {
+  const int maximumFirstIndex =
+      static_cast<int>(wifiSettingsListItemCount()) -
+      static_cast<int>(WiFiSettingsRenderer::ListRowsVisible);
+  return (maximumFirstIndex > 0 ? maximumFirstIndex : 0) *
+      WiFiSettingsRenderer::ListRowHeight;
+}
+
+void drawWiFiProfilesScreen() {
+  PersistentWiFiProfileStore::Profile preferred = {};
+  const bool hasPreferred = wifiProfileStore.getPreferred(preferred);
+  const uint8_t count = wifiProfileStore.count();
+
+  memset(wifiProfileRows, 0, sizeof(wifiProfileRows));
+  for (uint8_t i = 0; i < count; ++i) {
+    PersistentWiFiProfileStore::Profile profile = {};
+    if (!wifiProfileStore.getAt(i, profile)) continue;
+    strncpy(wifiProfileRows[i].ssid, profile.ssid,
+            sizeof(wifiProfileRows[i].ssid) - 1);
+    wifiProfileRows[i].preferred =
+        hasPreferred && strcmp(preferred.ssid, profile.ssid) == 0;
+    wifiProfileRows[i].active =
+        wifiSsid != nullptr && strcmp(wifiSsid, profile.ssid) == 0;
+    wifiProfileRows[i].availability =
+        getWiFiProfileAvailability(profile.ssid, wifiProfileRows[i].active);
+  }
+
+  String message = wifiUiMessage;
+  if (!wifiProfileStore.isLoaded()) {
+    message = "Saved profiles unavailable";
+  } else if (message.length() == 0 && count == 0) {
+    message = "Scan to add a network";
+  }
+
+  wifiListScrollPositionPx = ScrollController::clampElasticPosition(
+      wifiListScrollPositionPx,
+      maxWiFiListScrollPixels(),
+      SCROLL_OVERSCROLL_MAX_PX);
+
+  wifiSettingsRenderer.drawProfiles(
+      getHeaderLocationText(), timeService.headerClockText(),
+      wifiProfileRows, count, wifiListScrollPositionPx,
+      wifiConnectionStatusText(), message);
+}
+
+void drawWiFiScanScreen() {
+  WiFiScanResult results[WiFiNetworkScanner::MaxResults] = {};
+  const uint8_t count = wifiNetworkScanner.count();
+  for (uint8_t i = 0; i < count; ++i) {
+    wifiNetworkScanner.getAt(i, results[i]);
+  }
+
+  wifiListScrollPositionPx = ScrollController::clampElasticPosition(
+      wifiListScrollPositionPx,
+      maxWiFiListScrollPixels(),
+      SCROLL_OVERSCROLL_MAX_PX);
+
+  wifiSettingsRenderer.drawScan(
+      getHeaderLocationText(), timeService.headerClockText(),
+      results, count, wifiListScrollPositionPx,
+      wifiNetworkScanner.state() == WiFiNetworkScanner::State::Scanning,
+      wifiNetworkScanner.state() == WiFiNetworkScanner::State::Failed,
+      wifiConnectionStatusText(), wifiUiMessage);
+}
+
+void drawWiFiProfileDetailScreen() {
+  PersistentWiFiProfileStore::Profile preferred = {};
+  const bool isPreferred =
+      wifiProfileStore.getPreferred(preferred) &&
+      strcmp(preferred.ssid, wifiSelectedProfile.ssid) == 0;
+  const bool isActive =
+      wifiSsid != nullptr &&
+      strcmp(wifiSsid, wifiSelectedProfile.ssid) == 0;
+  const bool connected =
+      connectivityManager.isConnected() &&
+      isActive;
+
+  wifiSettingsRenderer.drawProfileDetail(
+      getHeaderLocationText(), timeService.headerClockText(),
+      wifiSelectedProfile.ssid, isPreferred, isActive, connected,
+      wifiForgetConfirmation, wifiUiMessage);
+}
+
+void drawWiFiPasswordScreen() {
+  wifiSettingsRenderer.drawPassword(
+      getHeaderLocationText(), timeService.headerClockText(),
+      wifiSelectedSsid, wifiPasswordInput,
+      wifiKeyboardShifted, wifiKeyboardSymbols,
+      wifiPasswordVisible,
+      wifiKeyFeedbackActive ? wifiHighlightedKeyRow : -1,
+      wifiKeyFeedbackActive ? wifiHighlightedKeyColumn : -1,
+      wifiUiMessage);
+}
+
+void drawWiFiConnectingScreen() {
+  wifiSettingsRenderer.drawConnecting(
+      getHeaderLocationText(), timeService.headerClockText(),
+      wifiPendingProfile.ssid,
+      wifiConnectPhase == WiFiConnectPhase::Restore);
+}
+
+// Compose the Wi-Fi modal into the existing full-screen staging canvas.
+// Rendering all controls into RAM first and flushing once avoids visible tearing
+// from the many small SPI drawing operations in each settings screen.
+void drawWiFiSettingsScreenContents() {
+  switch (wifiSettingsScreen) {
+    case WiFiSettingsScreen::Profiles:
+      drawWiFiProfilesScreen();
+      break;
+    case WiFiSettingsScreen::Scan:
+      drawWiFiScanScreen();
+      break;
+    case WiFiSettingsScreen::ProfileDetail:
+      drawWiFiProfileDetailScreen();
+      break;
+    case WiFiSettingsScreen::Password:
+      drawWiFiPasswordScreen();
+      break;
+    case WiFiSettingsScreen::Connecting:
+      drawWiFiConnectingScreen();
+      break;
+    case WiFiSettingsScreen::Closed:
+    default:
+      break;
+  }
+}
+
+void drawWiFiSettingsScreen() {
+  if (wifiSettingsScreen == WiFiSettingsScreen::Closed) return;
+
+  Arduino_Canvas* frameCanvas = displayManager.tabTransitionCanvas();
+  if (frameCanvas == nullptr || frameCanvas->getFramebuffer() == nullptr) {
+    // Preserve a functional direct-render fallback on boards where the
+    // full-screen PSRAM canvas could not be allocated.
+    drawWiFiSettingsScreenContents();
+    return;
+  }
+
+  displayManager.beginTabTransitionRender();
+  drawWiFiSettingsScreenContents();
+  displayManager.endTabTransitionRender();
+
+  // Arduino_Canvas is a full-screen 320x240 staging buffer (origin 0,0).
+  // Its flush writes one RGB565 bitmap rather than issuing per-widget writes.
+  frameCanvas->flush();
+}
+
+// Draw either Wi-Fi list at a finger-following or animation position. Saved
+// profiles and scan results share the same row geometry and scroll policy.
+void drawWiFiListAtScrollPosition(int pixels) {
+  wifiListScrollPositionPx = ScrollController::clampElasticPosition(
+      pixels,
+      maxWiFiListScrollPixels(),
+      SCROLL_OVERSCROLL_MAX_PX);
+  if (wifiSettingsScreen == WiFiSettingsScreen::Profiles ||
+      wifiSettingsScreen == WiFiSettingsScreen::Scan) {
+    drawWiFiSettingsScreen();
+  }
+}
+
+// Match the metric-card settle animation for either Wi-Fi list: six eased
+// frames at 8 ms intervals. Without the staging canvas, settle in one frame.
+void animateWiFiListSnap(int startPixels, int targetPixels) {
+  targetPixels = constrain(targetPixels, 0, maxWiFiListScrollPixels());
+
+  if (startPixels != targetPixels &&
+      displayManager.tabTransitionCanvas() != nullptr &&
+      displayManager.tabTransitionCanvas()->getFramebuffer() != nullptr) {
+    const int animationFrames = 6;
+    const int animationDelayMs = 8;
+    for (int frame = 1; frame <= animationFrames; ++frame) {
+      const float progress =
+          static_cast<float>(frame) / animationFrames;
+      const float easedProgress =
+          progress * progress * (3.0f - 2.0f * progress);
+      const int pixels = startPixels +
+          static_cast<int>((targetPixels - startPixels) * easedProgress);
+      drawWiFiListAtScrollPosition(pixels);
+      delay(animationDelayMs);
+    }
+  } else if (startPixels != targetPixels) {
+    drawWiFiListAtScrollPosition(targetPixels);
+  }
+
+  wifiListScrollPositionPx = targetPixels;
+  if (wifiSettingsScreen == WiFiSettingsScreen::Profiles ||
+      wifiSettingsScreen == WiFiSettingsScreen::Scan) {
+    drawWiFiSettingsScreen();
+  }
+}
+
+void openWiFiSettings() {
+  wifiUiMessage = "";
+  wifiForgetConfirmation = false;
+  wifiPasswordVisible = false;
+  wifiKeyFeedbackActive = false;
+  wifiKeyFeedbackHeld = false;
+  wifiHighlightedKeyRow = -1;
+  wifiHighlightedKeyColumn = -1;
+
+  // Populate saved-profile availability from a fresh background scan.
+  if (wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning) {
+    wifiNetworkScanner.start();
+  }
+
+  wifiListScrollPositionPx = 0;
+  wifiSettingsScreen = WiFiSettingsScreen::Profiles;
+  drawWiFiSettingsScreen();
+}
+
+void restoreWeatherScreenAfterWiFiSettings() {
+  if (wifiPendingWeatherRefresh && weatherApp.isReady()) {
+    wifiPendingWeatherRefresh = false;
+    weatherApp.requestRefresh();
+    drawLoading("Refreshing weather...");
+    return;
+  }
+  wifiPendingWeatherRefresh = false;
+
+  switch (weatherApp.state()) {
+    case WeatherApp::State::Ready:
+      if (currentTab == 1) drawForecast();
+      else drawWeather();
+      break;
+    case WeatherApp::State::Connecting:
+    case WeatherApp::State::RefreshConnecting:
+      drawLoading("Connecting Wi-Fi...");
+      break;
+    case WeatherApp::State::ResolvingLocation:
+      drawLoading("Finding your location...");
+      break;
+    case WeatherApp::State::FetchingCurrentWeather:
+    case WeatherApp::State::RefreshingCurrentWeather:
+      drawLoading("Fetching current weather...");
+      break;
+    case WeatherApp::State::FetchingForecast:
+    case WeatherApp::State::RefreshingForecast:
+      drawLoading("Fetching hourly forecast...");
+      break;
+    case WeatherApp::State::PreparingStartupAssets:
+    case WeatherApp::State::PreparingRefreshAssets:
+      drawLoading("Preparing weather display...");
+      break;
+    case WeatherApp::State::Inactive:
+    default:
+      drawLoading("Loading weather...");
+      break;
+  }
+}
+
+void closeWiFiSettings() {
+  // ESP32 scan cancellation is not exposed by the Arduino API. Let an in-flight
+  // scan finish in the background; updateWiFiSettings() will copy/release its
+  // bounded results before another scan can be started.
+  wifiSettingsScreen = WiFiSettingsScreen::Closed;
+  wifiUiTouchActive = false;
+  wifiHeaderTouchActive = false;
+  wifiListTouchCandidate = false;
+  wifiListTouchDragActive = false;
+  wifiPasswordVisible = false;
+  wifiKeyFeedbackActive = false;
+  wifiKeyFeedbackHeld = false;
+  wifiHighlightedKeyRow = -1;
+  wifiHighlightedKeyColumn = -1;
+  restoreWeatherScreenAfterWiFiSettings();
+}
+
+bool beginWiFiProfileConnection(
+    const PersistentWiFiProfileStore::Profile& profile,
+    bool profileWasNew) {
+  if (connectivityManager.isConnected()) {
+    const String connectedSsid = WiFi.SSID();
+    if (connectedSsid == profile.ssid) {
+      const PersistentWiFiProfileStore::Status preferenceStatus =
+          wifiProfileStore.setPreferred(profile.ssid);
+      wifiUiMessage =
+          preferenceStatus == PersistentWiFiProfileStore::Status::Success
+              ? "Already connected; preferred network saved"
+              : "Connected; could not save preference";
+      wifiSettingsScreen = WiFiSettingsScreen::Profiles;
+      wifiPendingWeatherRefresh = true;
+      drawWiFiSettingsScreen();
+      return true;
+    }
+  }
+
+  wifiPendingProfile = profile;
+  wifiPendingProfileWasNew = profileWasNew;
+  wifiPreviousProfileValid =
+      wifiProfileStore.getPreferred(wifiPreviousProfile);
+  if (wifiPreviousProfileValid &&
+      strcmp(wifiPreviousProfile.ssid, profile.ssid) == 0) {
+    // The attempted network is already preferred; retry it only once.
+    wifiPreviousProfileValid = false;
+  }
+
+  activeWiFiProfile = profile;
+  wifiSsid = activeWiFiProfile.ssid;
+  wifiPassword = activeWiFiProfile.password;
+
+  connectivityManager.disconnect();
+  if (!wifiBackend.configure(wifiSsid, wifiPassword)) {
+    wifiUiMessage = "Could not configure this network";
+    wifiSettingsScreen = WiFiSettingsScreen::Profiles;
+    drawWiFiSettingsScreen();
+    return false;
+  }
+
+  wifiConnectPhase = WiFiConnectPhase::Candidate;
+  connectivityManager.connect(millis());
+  wifiSettingsScreen = WiFiSettingsScreen::Connecting;
+  drawWiFiSettingsScreen();
+  return true;
+}
+
+void selectSavedWiFiProfile(uint8_t index) {
+  if (!wifiProfileStore.getAt(index, wifiSelectedProfile)) {
+    wifiUiMessage = "Saved profile is unavailable";
+    drawWiFiSettingsScreen();
+    return;
+  }
+  wifiSelectedProfileValid = true;
+  wifiForgetConfirmation = false;
+  wifiUiMessage = "";
+  wifiSettingsScreen = WiFiSettingsScreen::ProfileDetail;
+  drawWiFiSettingsScreen();
+}
+
+void startWiFiNetworkScan() {
+  wifiListScrollPositionPx = 0;
+  wifiListTouchCandidate = false;
+  wifiListTouchDragActive = false;
+  wifiUiMessage = "";
+  wifiSettingsScreen = WiFiSettingsScreen::Scan;
+  wifiNetworkScanner.start();
+  drawWiFiSettingsScreen();
+}
+
+void selectScannedWiFiNetwork(uint8_t index) {
+  WiFiScanResult network = {};
+  if (!wifiNetworkScanner.getAt(index, network)) return;
+
+  PersistentWiFiProfileStore::Profile saved = {};
+  if (wifiProfileStore.getBySsid(network.ssid, saved)) {
+    wifiUiMessage = "";
+    beginWiFiProfileConnection(saved, false);
+    return;
+  }
+
+  if (!wifiProfileStore.isLoaded()) {
+    wifiUiMessage = "Saved profile storage unavailable";
+    drawWiFiSettingsScreen();
+    return;
+  }
+
+  if (!network.supported) {
+    wifiUiMessage = "This security type is not supported";
+    drawWiFiSettingsScreen();
+    return;
+  }
+
+  strncpy(wifiSelectedSsid, network.ssid, sizeof(wifiSelectedSsid) - 1);
+  wifiSelectedSsid[sizeof(wifiSelectedSsid) - 1] = '\0';
+  memset(wifiPasswordInput, 0, sizeof(wifiPasswordInput));
+  wifiKeyboardShifted = false;
+  wifiKeyboardSymbols = false;
+  wifiPasswordVisible = false;
+  wifiUiMessage = "";
+
+  if (network.open) {
+    const PersistentWiFiProfileStore::Status saveStatus =
+        wifiProfileStore.save(network.ssid, nullptr, false);
+    if (saveStatus != PersistentWiFiProfileStore::Status::Success) {
+      wifiUiMessage =
+          saveStatus == PersistentWiFiProfileStore::Status::Full
+              ? "Saved profile limit reached"
+              : "Could not save this network";
+      drawWiFiSettingsScreen();
+      return;
+    }
+
+    PersistentWiFiProfileStore::Profile profile = {};
+    if (wifiProfileStore.getBySsid(network.ssid, profile)) {
+      beginWiFiProfileConnection(profile, true);
+    }
+    return;
+  }
+
+  wifiSettingsScreen = WiFiSettingsScreen::Password;
+  drawWiFiSettingsScreen();
+}
+
+void submitWiFiPassword() {
+  const size_t passwordLength = strlen(wifiPasswordInput);
+  if (passwordLength < 8 || passwordLength > 63) {
+    wifiUiMessage = "Password must be 8-63 characters";
+    drawWiFiSettingsScreen();
+    return;
+  }
+
+  if (!wifiProfileStore.isLoaded()) {
+    wifiUiMessage = "Saved profile storage unavailable";
+    drawWiFiSettingsScreen();
+    return;
+  }
+
+  const PersistentWiFiProfileStore::Status saveStatus =
+      wifiProfileStore.save(wifiSelectedSsid, wifiPasswordInput, false);
+  if (saveStatus != PersistentWiFiProfileStore::Status::Success) {
+    wifiUiMessage =
+        saveStatus == PersistentWiFiProfileStore::Status::Full
+            ? "Saved profile limit reached"
+            : "Could not save this network";
+    drawWiFiSettingsScreen();
+    return;
+  }
+
+  PersistentWiFiProfileStore::Profile profile = {};
+  if (!wifiProfileStore.getBySsid(wifiSelectedSsid, profile)) {
+    wifiUiMessage = "Could not read the saved profile";
+    drawWiFiSettingsScreen();
+    return;
+  }
+
+  beginWiFiProfileConnection(profile, true);
+}
+
+void forgetSelectedWiFiProfile() {
+  if (!wifiSelectedProfileValid) return;
+
+  PersistentWiFiProfileStore::Profile preferred = {};
+  const bool wasPreferred =
+      wifiProfileStore.getPreferred(preferred) &&
+      strcmp(preferred.ssid, wifiSelectedProfile.ssid) == 0;
+
+  const PersistentWiFiProfileStore::Status removeStatus =
+      wifiProfileStore.remove(wifiSelectedProfile.ssid);
+  if (removeStatus != PersistentWiFiProfileStore::Status::Success) {
+    wifiUiMessage = "Could not forget this network";
+    wifiForgetConfirmation = false;
+    drawWiFiSettingsScreen();
+    return;
+  }
+
+  wifiSelectedProfileValid = false;
+  wifiForgetConfirmation = false;
+  wifiUiMessage = "Network forgotten";
+
+  if (wasPreferred) {
+    PersistentWiFiProfileStore::Profile nextPreferred = {};
+    if (wifiProfileStore.getPreferred(nextPreferred)) {
+      beginWiFiProfileConnection(nextPreferred, false);
+      return;
+    }
+
+    connectivityManager.disconnect();
+    wifiSsid = nullptr;
+    wifiPassword = nullptr;
+    memset(&activeWiFiProfile, 0, sizeof(activeWiFiProfile));
+    wifiConnectPhase = WiFiConnectPhase::None;
+    wifiPendingWeatherRefresh = true;
+  }
+
+  wifiSettingsScreen = WiFiSettingsScreen::Profiles;
+  drawWiFiSettingsScreen();
+}
+
+void restorePreviousWiFiProfile() {
+  if (!wifiPreviousProfileValid) return;
+
+  activeWiFiProfile = wifiPreviousProfile;
+  wifiSsid = activeWiFiProfile.ssid;
+  wifiPassword = activeWiFiProfile.password;
+  connectivityManager.disconnect();
+
+  wifiConnectPhase = WiFiConnectPhase::Restore;
+  wifiBackend.configure(wifiSsid, wifiPassword);
+  connectivityManager.connect(millis());
+  wifiSettingsScreen = WiFiSettingsScreen::Connecting;
+  drawWiFiSettingsScreen();
+}
+
+void finishWiFiConnection(bool restored) {
+  if (!restored) {
+    const PersistentWiFiProfileStore::Status preferredStatus =
+        wifiProfileStore.setPreferred(wifiPendingProfile.ssid);
+    wifiUiMessage =
+        preferredStatus == PersistentWiFiProfileStore::Status::Success
+            ? String("Connected: ") + wifiPendingProfile.ssid
+            : "Connected, but preference could not be saved";
+  } else {
+    wifiUiMessage =
+        String("Connection failed; restored ") + wifiPreviousProfile.ssid;
+  }
+
+  wifiConnectPhase = WiFiConnectPhase::None;
+  wifiSettingsScreen = WiFiSettingsScreen::Profiles;
+  wifiPendingWeatherRefresh = true;
+  drawWiFiSettingsScreen();
+}
+
+void failWiFiConnection(bool restoring) {
+  if (!restoring && wifiPreviousProfileValid) {
+    restorePreviousWiFiProfile();
+    return;
+  }
+
+  if (!restoring && wifiPendingProfileWasNew &&
+      !wifiPreviousProfileValid) {
+    // The store automatically makes its first profile preferred. If that
+    // first connection fails, remove the unusable candidate rather than
+    // leaving it as the boot-time preferred network.
+    wifiProfileStore.remove(wifiPendingProfile.ssid);
+    wifiSsid = nullptr;
+    wifiPassword = nullptr;
+    memset(&activeWiFiProfile, 0, sizeof(activeWiFiProfile));
+    wifiUiMessage = "Connection failed; check the password";
+  } else if (restoring) {
+    wifiUiMessage = "Connection failed; previous network is offline";
+    wifiPendingWeatherRefresh = true;
+  } else {
+    // Preserve an existing saved profile so the user can retry it later.
+    activeWiFiProfile = wifiPendingProfile;
+    wifiSsid = activeWiFiProfile.ssid;
+    wifiPassword = activeWiFiProfile.password;
+    wifiUiMessage = "Connection failed; check network availability";
+  }
+
+  wifiConnectPhase = WiFiConnectPhase::None;
+  wifiSettingsScreen = WiFiSettingsScreen::Profiles;
+  drawWiFiSettingsScreen();
+}
+
+void updateWiFiSettings() {
+  const WiFiNetworkScanner::State previousScanState =
+      wifiNetworkScanner.state();
+  const uint8_t previousScanCount = wifiNetworkScanner.count();
+  wifiNetworkScanner.update();
+
+  if ((wifiSettingsScreen == WiFiSettingsScreen::Scan ||
+       wifiSettingsScreen == WiFiSettingsScreen::Profiles) &&
+      (wifiNetworkScanner.state() != previousScanState ||
+       wifiNetworkScanner.count() != previousScanCount)) {
+    if (wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning &&
+        wifiUiMessage == "Please wait for the availability scan") {
+      wifiUiMessage = "";
+    }
+    drawWiFiSettingsScreen();
+  }
+
+  if (wifiKeyFeedbackActive && !wifiKeyFeedbackHeld &&
+      static_cast<int32_t>(millis() - wifiKeyFeedbackUntilMs) >= 0) {
+    wifiKeyFeedbackActive = false;
+    wifiHighlightedKeyRow = -1;
+    wifiHighlightedKeyColumn = -1;
+    if (wifiSettingsScreen == WiFiSettingsScreen::Password) {
+      drawWiFiSettingsScreen();
+    }
+  }
+
+  if (wifiConnectPhase == WiFiConnectPhase::None) {
+    return;
+  }
+
+  if (connectivityManager.isConnected()) {
+    finishWiFiConnection(wifiConnectPhase == WiFiConnectPhase::Restore);
+    return;
+  }
+
+  const ConnectivityManager::State state = connectivityManager.state();
+  if (state == ConnectivityManager::State::Failed ||
+      state == ConnectivityManager::State::TimedOut) {
+    failWiFiConnection(wifiConnectPhase == WiFiConnectPhase::Restore);
+  }
+}
+
+void handleWiFiPasswordKey(char key) {
+  const size_t length = strlen(wifiPasswordInput);
+  if (length >= PersistentWiFiProfileStore::MaxPasswordLength) return;
+  wifiPasswordInput[length] = key;
+  wifiPasswordInput[length + 1] = '\0';
+  wifiUiMessage = "";
+  drawWiFiSettingsScreen();
+}
+
+bool findWiFiPasswordKeyAt(int x, int y, int& row, int& column) {
+  if (y >= WiFiSettingsRenderer::KeyboardFunctionTop &&
+      y < WiFiSettingsRenderer::KeyboardFunctionTop + 22 &&
+      x >= 8 && x < 312) {
+    row = 4;
+    if (x < 72) column = 0;
+    else if (x < 138) column = 1;
+    else if (x < 202) column = 2;
+    else column = 3;
+    return true;
+  }
+
+  if (y < WiFiSettingsRenderer::KeyboardY ||
+      y >= WiFiSettingsRenderer::KeyboardY +
+               4 * (WiFiSettingsRenderer::KeyboardKeyHeight +
+                    WiFiSettingsRenderer::KeyboardGapY)) {
+    return false;
+  }
+
+  const int relativeY = y - WiFiSettingsRenderer::KeyboardY;
+  const int rowStep = WiFiSettingsRenderer::KeyboardKeyHeight +
+                      WiFiSettingsRenderer::KeyboardGapY;
+  const int withinRowY = relativeY % rowStep;
+  if (withinRowY >= WiFiSettingsRenderer::KeyboardKeyHeight) return false;
+
+  const int relativeX = x - WiFiSettingsRenderer::KeyboardX;
+  if (relativeX < 0) return false;
+  const int columnStep = WiFiSettingsRenderer::KeyboardKeyWidth +
+                         WiFiSettingsRenderer::KeyboardGapX;
+  if (relativeX % columnStep >= WiFiSettingsRenderer::KeyboardKeyWidth) {
+    return false;
+  }
+
+  row = relativeY / rowStep;
+  column = relativeX / columnStep;
+  if (column >= 10) return false;
+  if (row == 2 && column == 9) return true;
+
+  static const char* alphaRows[] = {
+    "1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm.,-"
+  };
+  static const char* symbolRows[] = {
+    "!@#$%^&*()", "-_=+[]{};:", "'\"<>?/\\|", "~`^%&+=*"
+  };
+  return (wifiKeyboardSymbols
+      ? symbolRows[row] : alphaRows[row])[column] != '\0';
+}
+
+void handleWiFiSettingsTap(int x, int y) {
+  if (wifiSettingsScreen == WiFiSettingsScreen::Profiles) {
+    if (y >= WiFiSettingsRenderer::ListRowsTop &&
+        y < WiFiSettingsRenderer::ListRowsTop +
+                WiFiSettingsRenderer::ListRowsVisible *
+                    WiFiSettingsRenderer::ListRowHeight) {
+      const int contentY =
+          y - WiFiSettingsRenderer::ListRowsTop +
+          wifiListScrollPositionPx;
+      if (contentY < 0) return;
+      const uint8_t index = static_cast<uint8_t>(
+          contentY / WiFiSettingsRenderer::ListRowHeight);
+      if (index < wifiProfileStore.count()) {
+        if (wifiNetworkScanner.state() ==
+            WiFiNetworkScanner::State::Scanning) {
+          wifiUiMessage = "Please wait for the availability scan";
+          drawWiFiSettingsScreen();
+        } else {
+          selectSavedWiFiProfile(index);
+        }
+      }
+      return;
+    }
+
+    if (y >= WiFiSettingsRenderer::FooterTop &&
+        y < WiFiSettingsRenderer::FooterTop +
+                WiFiSettingsRenderer::FooterHeight) {
+      if (x < 160) startWiFiNetworkScan();
+      else closeWiFiSettings();
+    }
+    return;
+  }
+
+  if (wifiSettingsScreen == WiFiSettingsScreen::Scan) {
+    if (y >= WiFiSettingsRenderer::ListRowsTop &&
+        y < WiFiSettingsRenderer::ListRowsTop +
+                WiFiSettingsRenderer::ListRowsVisible *
+                    WiFiSettingsRenderer::ListRowHeight) {
+      const int contentY =
+          y - WiFiSettingsRenderer::ListRowsTop +
+          wifiListScrollPositionPx;
+      if (contentY >= 0) {
+        const int index =
+            contentY / WiFiSettingsRenderer::ListRowHeight;
+        if (index < wifiNetworkScanner.count()) {
+          selectScannedWiFiNetwork(static_cast<uint8_t>(index));
+        }
+      }
+      return;
+    }
+
+    if (y >= WiFiSettingsRenderer::FooterTop &&
+        y < WiFiSettingsRenderer::FooterTop +
+                WiFiSettingsRenderer::FooterHeight) {
+      if (x >= 8 && x < 153) {
+        wifiListScrollPositionPx = 0;
+        wifiListTouchCandidate = false;
+        wifiListTouchDragActive = false;
+        wifiSettingsScreen = WiFiSettingsScreen::Profiles;
+        wifiUiMessage = "";
+        drawWiFiSettingsScreen();
+      } else if (x >= 167 && x < 312) {
+        startWiFiNetworkScan();
+      }
+    }
+    return;
+  }
+
+  if (wifiSettingsScreen == WiFiSettingsScreen::ProfileDetail) {
+    if (y >= WiFiSettingsRenderer::DetailActionTop &&
+        y < WiFiSettingsRenderer::DetailActionTop +
+                WiFiSettingsRenderer::DetailActionHeight) {
+      if (x < 160) {
+        if (wifiForgetConfirmation) {
+          wifiForgetConfirmation = false;
+          wifiUiMessage = "";
+        } else {
+          wifiUiMessage = "";
+          beginWiFiProfileConnection(wifiSelectedProfile, false);
+        }
+      } else if (wifiForgetConfirmation) {
+        forgetSelectedWiFiProfile();
+      } else {
+        wifiForgetConfirmation = true;
+        wifiUiMessage = "Confirm forgetting this network";
+      }
+      drawWiFiSettingsScreen();
+      return;
+    }
+
+    if (y >= WiFiSettingsRenderer::DetailBackTop) {
+      wifiSettingsScreen = WiFiSettingsScreen::Profiles;
+      wifiForgetConfirmation = false;
+      wifiUiMessage = "";
+      drawWiFiSettingsScreen();
+    }
+    return;
+  }
+
+  if (wifiSettingsScreen == WiFiSettingsScreen::Password) {
+    if (y >= WiFiSettingsRenderer::PasswordFieldTop &&
+        y < WiFiSettingsRenderer::PasswordFieldTop + 21 &&
+        x >= 220 && x < 312) {
+      wifiPasswordVisible = !wifiPasswordVisible;
+      drawWiFiSettingsScreen();
+      return;
+    }
+
+    if (y >= WiFiSettingsRenderer::KeyboardY &&
+        y < WiFiSettingsRenderer::KeyboardY +
+                4 * (WiFiSettingsRenderer::KeyboardKeyHeight +
+                     WiFiSettingsRenderer::KeyboardGapY)) {
+      const uint8_t row = static_cast<uint8_t>(
+          (y - WiFiSettingsRenderer::KeyboardY) /
+          (WiFiSettingsRenderer::KeyboardKeyHeight +
+           WiFiSettingsRenderer::KeyboardGapY));
+      const int withinRowY =
+          (y - WiFiSettingsRenderer::KeyboardY) %
+          (WiFiSettingsRenderer::KeyboardKeyHeight +
+           WiFiSettingsRenderer::KeyboardGapY);
+      const int relativeX = x - WiFiSettingsRenderer::KeyboardX;
+      if (withinRowY < WiFiSettingsRenderer::KeyboardKeyHeight &&
+          relativeX >= 0) {
+        const uint8_t column = static_cast<uint8_t>(
+            relativeX /
+            (WiFiSettingsRenderer::KeyboardKeyWidth +
+             WiFiSettingsRenderer::KeyboardGapX));
+        const int withinKeyX =
+            relativeX %
+            (WiFiSettingsRenderer::KeyboardKeyWidth +
+             WiFiSettingsRenderer::KeyboardGapX);
+        if (column < 10 &&
+            withinKeyX < WiFiSettingsRenderer::KeyboardKeyWidth) {
+          if (row == 2 && column == 9) {
+            const size_t length = strlen(wifiPasswordInput);
+            if (length > 0) wifiPasswordInput[length - 1] = '\0';
+            wifiUiMessage = "";
+            drawWiFiSettingsScreen();
+            return;
+          }
+
+          static const char* alphaRows[] = {
+            "1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm.,-"
+          };
+          static const char* symbolRows[] = {
+            "!@#$%^&*()", "-_=+[]{};:", "'\"<>?/\\|", "~`^%&+=*"
+          };
+          const char key = (wifiKeyboardSymbols
+              ? symbolRows[row] : alphaRows[row])[column];
+          if (key != '\0') {
+            char selected = key;
+            if (!wifiKeyboardSymbols && wifiKeyboardShifted &&
+                row > 0 && key >= 'a' && key <= 'z') {
+              selected = static_cast<char>(key - ('a' - 'A'));
+            }
+            handleWiFiPasswordKey(selected);
+          }
+        }
+      }
+      return;
+    }
+
+    if (y >= WiFiSettingsRenderer::KeyboardFunctionTop &&
+        y < WiFiSettingsRenderer::KeyboardFunctionTop + 22) {
+      if (x < 72) {
+        wifiKeyboardShifted = !wifiKeyboardShifted;
+      } else if (x < 138) {
+        handleWiFiPasswordKey(' ');
+        return;
+      } else if (x < 202) {
+        const size_t length = strlen(wifiPasswordInput);
+        if (length > 0) wifiPasswordInput[length - 1] = '\0';
+      } else {
+        wifiKeyboardSymbols = !wifiKeyboardSymbols;
+      }
+      wifiUiMessage = "";
+      drawWiFiSettingsScreen();
+      return;
+    }
+
+    if (y >= WiFiSettingsRenderer::PasswordFooterTop &&
+        y < WiFiSettingsRenderer::PasswordFooterTop + 23) {
+      if (x < 160) {
+        wifiPasswordVisible = false;
+        wifiSettingsScreen = WiFiSettingsScreen::Scan;
+        wifiUiMessage = "";
+        drawWiFiSettingsScreen();
+      } else {
+        submitWiFiPassword();
+      }
+    }
+  }
+}
+
+bool processWiFiSettingsTouch(
+    const TouchSample& sample,
+    const GestureObservation& observation) {
+  int x = 0;
+  int y = 0;
+  if (observation.touchPresent) {
+    touchCoordinatesToScreen(sample, x, y);
+  }
+
+  if (wifiSettingsScreen != WiFiSettingsScreen::Closed) {
+    if (observation.touchStarted) {
+      wifiUiTouchActive = true;
+      wifiUiTouchMoved = false;
+      wifiUiTouchStartX = x;
+      wifiUiTouchStartY = y;
+      const bool onScrollableWiFiList =
+          wifiSettingsScreen == WiFiSettingsScreen::Profiles ||
+          wifiSettingsScreen == WiFiSettingsScreen::Scan;
+      wifiListTouchCandidate =
+          onScrollableWiFiList &&
+          wifiSettingsListItemCount() >
+              WiFiSettingsRenderer::ListRowsVisible &&
+          x >= 8 && x < displayManager.width() - 8 &&
+          y >= WiFiSettingsRenderer::ListRowsTop &&
+          y < WiFiSettingsRenderer::ListRowsTop +
+                  WiFiSettingsRenderer::ListRowsVisible *
+                      WiFiSettingsRenderer::ListRowHeight;
+      wifiListTouchDragActive = false;
+      wifiListDragStartScroll = wifiListScrollPositionPx;
+      wifiListDragCurrentScroll = wifiListScrollPositionPx;
+
+      const bool hadKeyFeedback = wifiKeyFeedbackActive;
+      wifiKeyFeedbackActive = false;
+      wifiKeyFeedbackHeld = false;
+      wifiHighlightedKeyRow = -1;
+      wifiHighlightedKeyColumn = -1;
+      bool hasNewKeyFeedback = false;
+      if (wifiSettingsScreen == WiFiSettingsScreen::Password) {
+        int row = 0;
+        int column = 0;
+        if (findWiFiPasswordKeyAt(x, y, row, column)) {
+          wifiKeyFeedbackActive = true;
+          wifiKeyFeedbackHeld = true;
+          wifiHighlightedKeyRow = static_cast<int8_t>(row);
+          wifiHighlightedKeyColumn = static_cast<int8_t>(column);
+          hasNewKeyFeedback = true;
+        }
+      }
+      if (hasNewKeyFeedback ||
+          (hadKeyFeedback &&
+           wifiSettingsScreen == WiFiSettingsScreen::Password)) {
+        drawWiFiSettingsScreen();
+      }
+    }
+
+    if (wifiUiTouchActive && observation.touchPresent &&
+        wifiListTouchCandidate) {
+      const int deltaX = x - wifiUiTouchStartX;
+      const int deltaY = y - wifiUiTouchStartY;
+      const int absX = abs(deltaX);
+      const int absY = abs(deltaY);
+      const int intentThresholdPx = 8;
+
+      if (absY >= intentThresholdPx && absY >= absX) {
+        wifiListTouchCandidate = false;
+        wifiListTouchDragActive = true;
+        wifiUiTouchMoved = true;
+      } else if (absX >= intentThresholdPx && absX > absY) {
+        // Horizontal movement is not a list selection; keep it from becoming
+        // an accidental tap while leaving the modal's vertical list policy clear.
+        wifiListTouchCandidate = false;
+        wifiUiTouchMoved = true;
+      }
+    }
+
+    if (wifiUiTouchActive && observation.touchPresent &&
+        wifiListTouchDragActive) {
+      const int nextScroll = ScrollController::elasticPosition(
+          ScrollController::applyDragDelta(
+              wifiListDragStartScroll, wifiUiTouchStartY, y),
+          maxWiFiListScrollPixels(),
+          SCROLL_OVERSCROLL_MAX_PX,
+          SCROLL_OVERSCROLL_RESISTANCE_DIVISOR);
+      if (nextScroll != wifiListDragCurrentScroll) {
+        wifiListDragCurrentScroll = nextScroll;
+        wifiListScrollPositionPx = nextScroll;
+        // Redraw fractional row movement as well as whole-row transitions so
+        // the contents track the finger instead of stepping between rows.
+        drawWiFiSettingsScreen();
+      }
+    }
+
+    if (wifiUiTouchActive && observation.touchPresent &&
+        (abs(x - wifiUiTouchStartX) > 14 ||
+         abs(y - wifiUiTouchStartY) > 14)) {
+      wifiUiTouchMoved = true;
+    }
+
+    if (wifiUiTouchActive && observation.touchReleased) {
+      if (wifiKeyFeedbackHeld) {
+        wifiKeyFeedbackHeld = false;
+        wifiKeyFeedbackUntilMs = millis() + 180UL;
+      }
+
+      if (wifiListTouchDragActive) {
+        const int targetScroll = ScrollController::snapToStep(
+            wifiListDragCurrentScroll,
+            WiFiSettingsRenderer::ListRowHeight,
+            maxWiFiListScrollPixels());
+        animateWiFiListSnap(
+            wifiListDragCurrentScroll, targetScroll);
+      }
+
+      wifiListTouchCandidate = false;
+      wifiListTouchDragActive = false;
+
+      if (!wifiUiTouchMoved) {
+        const bool headerWiFiTapped =
+            wifiUiTouchStartX >= HeaderRenderer::WiFiHitAreaLeft &&
+            wifiUiTouchStartX < HeaderRenderer::WiFiHitAreaRight &&
+            wifiUiTouchStartY >= HeaderRenderer::WiFiHitAreaTop &&
+            wifiUiTouchStartY < HeaderRenderer::WiFiHitAreaBottom;
+        if (headerWiFiTapped) {
+          closeWiFiSettings();
+        } else {
+          handleWiFiSettingsTap(wifiUiTouchStartX, wifiUiTouchStartY);
+        }
+      }
+      wifiUiTouchActive = false;
+      wifiUiTouchMoved = false;
+    }
+    return true;
+  }
+
+  if (observation.touchStarted &&
+      x >= HeaderRenderer::WiFiHitAreaLeft &&
+      x < HeaderRenderer::WiFiHitAreaRight &&
+      y >= HeaderRenderer::WiFiHitAreaTop &&
+      y < HeaderRenderer::WiFiHitAreaBottom) {
+    wifiHeaderTouchActive = true;
+    wifiHeaderTouchValid = true;
+    wifiHeaderTouchStartX = x;
+    wifiHeaderTouchStartY = y;
+  }
+
+  if (wifiHeaderTouchActive && observation.touchPresent &&
+      (abs(x - wifiHeaderTouchStartX) > 14 ||
+       abs(y - wifiHeaderTouchStartY) > 14)) {
+    wifiHeaderTouchValid = false;
+  }
+
+  if (wifiHeaderTouchActive && observation.touchReleased) {
+    if (wifiHeaderTouchValid) openWiFiSettings();
+    wifiHeaderTouchActive = false;
+    wifiHeaderTouchValid = false;
+    return true;
+  }
+
+  return wifiHeaderTouchActive;
+}
+
+// Advance scan and connection work from loop(), never from a drawing or touch
+// callback. Weather's staged fetch/render workflow is paused while this modal
+// settings surface is visible; the device loop and clock continue to run.
+bool weatherAppPauseWorkflow() {
+  return wifiSettingsScreen != WiFiSettingsScreen::Closed;
+}
+
+// =====================================================
 // NAVIGATION
 // =====================================================
 
@@ -1985,6 +3125,12 @@ void pollTouch() {
   if (!touchReader.readSample(sample)) return;
   const GestureObservation observation = gestureRecognizer.update(sample);
   const GestureCode gesture = observation.gesture;
+
+  // The settings modal owns all touch contacts while open. Its visible header
+  // button is also consumed as a tap target on the normal Weather screens.
+  if (processWiFiSettingsTouch(sample, observation)) {
+    return;
+  }
 
   // Always log raw transitions in demo mode, including the return to zero.
   if (observation.rawGestureChanged) {
@@ -2548,6 +3694,7 @@ void setup() {
   weatherHooks.drawLoading = weatherAppDrawLoading;
   weatherHooks.drawError = weatherAppDrawError;
   weatherHooks.refreshStarted = weatherAppRefreshStarted;
+  weatherHooks.pauseWorkflow = weatherAppPauseWorkflow;
 
   if (!weatherApp.begin(weatherHooks)) {
     Serial.println("Weather application failed to start: incomplete hooks or already active.");
@@ -2561,6 +3708,8 @@ void setup() {
 
 void loop() {
   connectivityManager.update(millis());
+  updateWiFiSignalIndicator();
+  updateWiFiSettings();
   weatherApp.update();
   delay(30);
 }

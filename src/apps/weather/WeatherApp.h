@@ -54,6 +54,7 @@ class WeatherApp {
     void (*drawForecast)();
     void (*drawError)(const char*);
     void (*refreshStarted)();
+    bool (*pauseWorkflow)();
 
     Hooks()
         : processInput(nullptr),
@@ -73,7 +74,8 @@ class WeatherApp {
           drawWeather(nullptr),
           drawForecast(nullptr),
           drawError(nullptr),
-          refreshStarted(nullptr) {}
+          refreshStarted(nullptr),
+          pauseWorkflow(nullptr) {}
   };
 
   static const uint32_t DefaultRefreshIntervalMs = 600000UL;
@@ -131,6 +133,12 @@ class WeatherApp {
     if (now - lastClockRefreshMs_ >= clockRefreshIntervalMs_) {
       lastClockRefreshMs_ = now;
       hooks_.refreshClock();
+    }
+
+    // Modal platform settings (such as Wi-Fi management) keep input and the
+    // clock alive while pausing Weather's staged fetch/render workflow.
+    if (hooks_.pauseWorkflow != nullptr && hooks_.pauseWorkflow()) {
+      return;
     }
 
     switch (state_) {
@@ -233,6 +241,23 @@ class WeatherApp {
 
   bool isReady() const {
     return active_ && state_ == State::Ready;
+  }
+
+  // Request a user-initiated refresh without waiting for association. The
+  // normal update state machine handles the connection and data stages.
+  bool requestRefresh() {
+    if (!active_ || state_ != State::Ready) {
+      return false;
+    }
+
+    const uint32_t now = hooks_.millisNow();
+    lastRefreshMs_ = now;
+    if (hooks_.refreshStarted != nullptr) {
+      hooks_.refreshStarted();
+    }
+    state_ = State::RefreshConnecting;
+    hooks_.startConnection(now);
+    return true;
   }
 
   State state() const {
