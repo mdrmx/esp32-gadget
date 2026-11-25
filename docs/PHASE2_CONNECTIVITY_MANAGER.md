@@ -253,7 +253,7 @@ During one of those operations, the loop cannot process touch input until that c
 ## 11. Follow-up slice 5 — manager-owned connection recovery
 
 **Branch:** `phase2/05-connectivity-retry-policy`  
-**Status:** Implemented; strict C++11 host runner passed. Arduino IDE Verify and firmware upload/hash verification passed on 2026-11-25 (user-confirmed). Normal boot confirmation and physical retry/recovery regression remain pending.
+**Status:** Implemented on draft PR #56. The ConnectivityManager strict C++11 runner is user-confirmed passing; the new availability-refresh policy passed a local strict C++11 compile/run. Arduino Verify/upload for the pre-refresh retry-only revision passed, but the current head needs a fresh Verify/upload. Normal boot confirmation and physical retry/recovery plus availability-badge refresh regression remain pending.
 
 ### Recovery policy
 
