@@ -144,8 +144,9 @@ The strict C++11 WeatherApp state/asset-preparation harness passed with `-Wall -
 
 ### Scope limitation — not fully asynchronous networking
 
-This slice removes the up-to-20-second Wi-Fi association wait from the application call stack. It does **not** make every subsequent operation non-blocking. The following work still runs synchronously within its individual WeatherApp update stage:
+This slice removes the up-to-20-second Wi-Fi association wait from the application call stack. It does **not** make every subsequent operation non-blocking. The following work still runs synchronously inside its individual WeatherApp hook or update stage:
 
+- a due TimeService / TimeAPI synchronisation request;
 - Google Wi-Fi scan / geolocation and IP/reverse-geocoding work in `LocationService`;
 - current-weather and hourly-forecast HTTP/TLS requests in `WeatherDataService` / `HttpRequestClient`;
 - Weather icon download and asset preparation.
