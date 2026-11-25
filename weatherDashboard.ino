@@ -26,6 +26,8 @@
 #include "src/services/ConnectivityBackend.h"
 #include "src/services/ConnectivityManager.h"
 #include "src/services/WiFiBackend.h"
+#include "src/services/WiFiProfileStore.h"
+#include "src/services/PreferencesWiFiProfileStorage.h"
 #include "src/services/LocationService.h"
 #include "src/services/WeatherDataService.h"
 #include "src/apps/weather/WeatherApp.h"
@@ -96,6 +98,13 @@ TimeService timeService;
 // advances the manager before each WeatherApp update.
 WiFiBackend wifiBackend;
 ConnectivityManager connectivityManager(wifiBackend);
+PreferencesWiFiProfileStorage wifiProfileStorage;
+typedef WiFiProfileStore<PreferencesWiFiProfileStorage> PersistentWiFiProfileStore;
+PersistentWiFiProfileStore wifiProfileStore(wifiProfileStorage);
+
+// WiFiBackend borrows these RAM strings. Keep this copy alive for the full
+// device lifetime, independently from temporary Preferences read buffers.
+PersistentWiFiProfileStore::Profile activeWiFiProfile = {};
 
 // Weather consumes this provider result; the service owns provider selection.
 LocationService locationService;
@@ -2092,6 +2101,46 @@ void pollTouch() {
 // WI-FI
 // =====================================================
 
+// Load the preferred saved profile before WeatherApp starts its first
+// connection attempt. On a genuinely empty NVS store, migrate the legacy
+// secrets.h values once. Corrupt/unknown data is left untouched and falls back
+// to the compile-time values rather than silently overwriting saved records.
+void initialiseWiFiProfiles() {
+#if !USE_DEMO_WEATHER_DATA
+  const PersistentWiFiProfileStore::Status loadStatus =
+    wifiProfileStore.begin();
+
+  if (loadStatus == PersistentWiFiProfileStore::Status::NotFound) {
+    const PersistentWiFiProfileStore::Status migrationStatus =
+      wifiProfileStore.save(WIFI_SSID, WIFI_PASSWORD, true);
+    if (migrationStatus != PersistentWiFiProfileStore::Status::Success) {
+      Serial.println(
+        "[WIFI] Could not migrate compile-time profile; using secrets.h fallback.");
+      return;
+    }
+    Serial.println("[WIFI] Imported the compile-time profile into device storage.");
+  } else if (loadStatus != PersistentWiFiProfileStore::Status::Success) {
+    Serial.println(
+      "[WIFI] Saved profiles unavailable; using secrets.h fallback.");
+    return;
+  }
+
+  PersistentWiFiProfileStore::Profile preferred = {};
+  if (wifiProfileStore.getPreferred(preferred)) {
+    activeWiFiProfile = preferred;
+    wifiSsid = activeWiFiProfile.ssid;
+    wifiPassword = activeWiFiProfile.password;
+    Serial.println("[WIFI] Loaded the saved preferred network profile.");
+  } else {
+    // An intentionally empty but valid store must not resurrect the legacy
+    // profile after its final saved network has been forgotten.
+    wifiSsid = nullptr;
+    wifiPassword = nullptr;
+    Serial.println("[WIFI] No saved preferred network profile is configured.");
+  }
+#endif
+}
+
 // Start Wi-Fi association without waiting. ConnectivityManager is polled by
 // loop(), and WeatherApp observes its state through the callbacks below.
 bool startWiFiConnection(uint32_t nowMs) {
@@ -2394,6 +2443,7 @@ void weatherAppRefreshStarted() {
 void setup() {
   Serial.begin(115200);
   delay(500);
+  initialiseWiFiProfiles();
   DEBUG_PRINTLN();
   Serial.println("Waveshare Weather Dashboard");
 
