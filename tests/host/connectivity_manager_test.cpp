@@ -45,7 +45,7 @@ public:
 
 void startsWithoutBlockingAndTransitionsWhenConnected() {
   FakeBackend backend;
-  ConnectivityManager manager(backend, 20000UL);
+  ConnectivityManager manager(backend, 20000UL, 0);
 
   CHECK(manager.connect(100U));
   CHECK(manager.state() == ConnectivityManager::State::Connecting);
@@ -60,13 +60,14 @@ void startsWithoutBlockingAndTransitionsWhenConnected() {
   CHECK(manager.isConnected());
   CHECK(manager.hasSignalStrength());
   CHECK(manager.signalStrengthDbm() == -61);
+  CHECK(manager.retryAttempts() == 0);
   CHECK(backend.updateCalls == 1);
 }
 
 void reportsCellularBackendWithoutWiFiAssumptions() {
   FakeBackend backend;
   backend.type = NetworkType::Cellular;
-  ConnectivityManager manager(backend);
+  ConnectivityManager manager(backend, 20000UL, 0);
 
   CHECK(manager.connect(10U));
   backend.connected = true;
@@ -78,7 +79,7 @@ void reportsCellularBackendWithoutWiFiAssumptions() {
 
 void startsWithBackendOwnedProfileConfiguration() {
   FakeBackend backend;
-  ConnectivityManager manager(backend);
+  ConnectivityManager manager(backend, 20000UL, 0);
 
   CHECK(manager.connect(0U));
   CHECK(manager.state() == ConnectivityManager::State::Connecting);
@@ -93,44 +94,107 @@ void rejectsDuplicatePendingAttempt() {
   CHECK(backend.beginCalls == 1);
 }
 
-void reportsBackendStartFailure() {
+void reportsBackendStartFailureWhenRetriesAreDisabled() {
   FakeBackend backend;
   backend.startResult = false;
-  ConnectivityManager manager(backend);
+  ConnectivityManager manager(backend, 20000UL, 0);
 
   CHECK(!manager.connect(100U));
   CHECK(manager.state() == ConnectivityManager::State::Failed);
+  CHECK(!manager.isConnecting());
   CHECK(manager.activeNetworkType() == NetworkType::None);
+  CHECK(backend.beginCalls == 1);
 }
 
-void timesOutAndDisconnectsBackend() {
+void retriesBackendStartFailureWithExponentialBackoff() {
   FakeBackend backend;
-  ConnectivityManager manager(backend, 500U);
+  backend.startResult = false;
+  ConnectivityManager manager(backend, 100U, 2, 10U, 40U);
 
-  CHECK(manager.connect(1000U));
-  manager.update(1499U);
+  CHECK(manager.connect(100U));
+  CHECK(manager.state() == ConnectivityManager::State::RetryWaiting);
+  CHECK(manager.isConnecting());
+  CHECK(manager.isRetryPending());
+  CHECK(manager.retryAttempts() == 1);
+  CHECK(manager.nextRetryDelayMs() == 10U);
+  CHECK(backend.beginCalls == 1);
+
+  manager.update(109U);
+  CHECK(backend.beginCalls == 1);
+  CHECK(manager.state() == ConnectivityManager::State::RetryWaiting);
+
+  manager.update(110U);
+  CHECK(backend.beginCalls == 2);
+  CHECK(manager.state() == ConnectivityManager::State::RetryWaiting);
+  CHECK(manager.retryAttempts() == 2);
+  CHECK(manager.nextRetryDelayMs() == 20U);
+
+  manager.update(129U);
+  CHECK(backend.beginCalls == 2);
+  manager.update(130U);
+  CHECK(backend.beginCalls == 3);
+  CHECK(manager.state() == ConnectivityManager::State::Failed);
+  CHECK(!manager.isConnecting());
+  CHECK(manager.retryAttempts() == 2);
+
+  manager.update(1000U);
+  CHECK(backend.beginCalls == 3);
+}
+
+void retriesTimeoutsAndStopsAfterBudget() {
+  FakeBackend backend;
+  ConnectivityManager manager(backend, 100U, 1, 10U, 20U);
+
+  CHECK(manager.connect(0U));
+  manager.update(99U);
   CHECK(manager.state() == ConnectivityManager::State::Connecting);
-  manager.update(1500U);
-  CHECK(manager.state() == ConnectivityManager::State::TimedOut);
+
+  manager.update(100U);
+  CHECK(manager.state() == ConnectivityManager::State::RetryWaiting);
+  CHECK(manager.retryAttempts() == 1);
+  CHECK(manager.nextRetryDelayMs() == 10U);
   CHECK(backend.disconnectCalls == 1);
-  CHECK(manager.activeNetworkType() == NetworkType::None);
+
+  manager.update(109U);
+  CHECK(backend.beginCalls == 1);
+  manager.update(110U);
+  CHECK(backend.beginCalls == 2);
+  CHECK(manager.state() == ConnectivityManager::State::Connecting);
+
+  manager.update(210U);
+  CHECK(manager.state() == ConnectivityManager::State::TimedOut);
+  CHECK(backend.disconnectCalls == 2);
+  CHECK(!manager.isConnecting());
+
+  manager.update(1000U);
+  CHECK(backend.beginCalls == 2);
 }
 
-void timeoutIsSafeAcrossMillisRollover() {
+void retryDeadlineIsSafeAcrossMillisRolloverAndBackoffIsCapped() {
   FakeBackend backend;
-  ConnectivityManager manager(backend, 100U);
+  backend.startResult = false;
+  ConnectivityManager manager(backend, 100U, 3, 10U, 15U);
   const uint32_t start = 0xFFFFFFF0UL;
 
   CHECK(manager.connect(start));
-  manager.update(0x00000053UL); // 99 ms elapsed across rollover.
-  CHECK(manager.state() == ConnectivityManager::State::Connecting);
-  manager.update(0x00000054UL); // 100 ms elapsed across rollover.
-  CHECK(manager.state() == ConnectivityManager::State::TimedOut);
+  CHECK(manager.nextRetryDelayMs() == 10U);
+  manager.update(0xFFFFFFF9UL);
+  CHECK(backend.beginCalls == 1);
+  manager.update(0xFFFFFFFAUL);
+  CHECK(backend.beginCalls == 2);
+  CHECK(manager.nextRetryDelayMs() == 15U);
+
+  manager.update(0x00000008UL);
+  CHECK(backend.beginCalls == 2);
+  manager.update(0x00000009UL);
+  CHECK(backend.beginCalls == 3);
+  CHECK(manager.nextRetryDelayMs() == 15U);
 }
 
-void unexpectedDisconnectAndBackgroundReconnectAreTracked() {
+void linkLossStartsRecoveryAndDriverReconnectCancelsRetry() {
   FakeBackend backend;
-  ConnectivityManager manager(backend);
+  ConnectivityManager manager(backend, 20000UL, 2, 100U, 400U);
+
   CHECK(manager.connect(10U));
   backend.connected = true;
   manager.update(20U);
@@ -138,21 +202,86 @@ void unexpectedDisconnectAndBackgroundReconnectAreTracked() {
 
   backend.connected = false;
   manager.update(30U);
-  CHECK(manager.state() == ConnectivityManager::State::Disconnected);
-  CHECK(!manager.isConnected());
-  CHECK(manager.activeNetworkType() == NetworkType::None);
+  CHECK(manager.state() == ConnectivityManager::State::RetryWaiting);
+  CHECK(manager.retryAttempts() == 1);
+  CHECK(manager.nextRetryDelayMs() == 100U);
 
-  // Simulate the Wi-Fi driver restoring the link without a new connect() call.
+  // The driver may restore the link before the manager's retry deadline.
   backend.connected = true;
-  manager.update(40U);
+  manager.update(50U);
   CHECK(manager.state() == ConnectivityManager::State::Connected);
-  CHECK(manager.isConnected());
-  CHECK(manager.activeNetworkType() == NetworkType::WiFi);
+  CHECK(manager.retryAttempts() == 0);
+  CHECK(manager.nextRetryDelayMs() == 0U);
+  CHECK(backend.beginCalls == 1);
 }
 
-void reconnectWorksAfterLossAndDisconnect() {
+void linkLossStartsManagerOwnedRetryWhenDriverDoesNotRecover() {
   FakeBackend backend;
-  ConnectivityManager manager(backend);
+  ConnectivityManager manager(backend, 20000UL, 1, 100U, 200U);
+
+  CHECK(manager.connect(0U));
+  backend.connected = true;
+  manager.update(1U);
+  backend.connected = false;
+  manager.update(2U);
+  CHECK(manager.state() == ConnectivityManager::State::RetryWaiting);
+
+  manager.update(101U);
+  CHECK(backend.beginCalls == 1);
+  manager.update(102U);
+  CHECK(backend.beginCalls == 2);
+  CHECK(manager.state() == ConnectivityManager::State::Connecting);
+}
+
+void retryWaitsUntilTheWiFiScanHasFinished() {
+  FakeBackend backend;
+  backend.startResult = false;
+  ConnectivityManager manager(backend, 100U, 2, 10U, 20U);
+
+  CHECK(manager.connect(0U));
+  CHECK(manager.isRetryPending());
+  manager.update(10U, false);
+  CHECK(backend.beginCalls == 1);
+  CHECK(manager.isRetryPending());
+
+  manager.update(10U, true);
+  CHECK(backend.beginCalls == 2);
+  CHECK(manager.isRetryPending());
+}
+
+void manualDisconnectCancelsPendingRetry() {
+  FakeBackend backend;
+  backend.startResult = false;
+  ConnectivityManager manager(backend, 100U, 2, 10U, 20U);
+
+  CHECK(manager.connect(0U));
+  CHECK(manager.isRetryPending());
+  manager.disconnect();
+  CHECK(manager.state() == ConnectivityManager::State::Disconnected);
+  CHECK(!manager.isConnecting());
+  CHECK(manager.retryAttempts() == 0);
+
+  manager.update(1000U);
+  CHECK(backend.beginCalls == 1);
+}
+
+void explicitConnectCanStartANewRecoverySequenceAfterFailure() {
+  FakeBackend backend;
+  backend.startResult = false;
+  ConnectivityManager manager(backend, 100U, 0);
+
+  CHECK(!manager.connect(0U));
+  CHECK(manager.state() == ConnectivityManager::State::Failed);
+
+  backend.startResult = true;
+  CHECK(manager.connect(200U));
+  CHECK(manager.state() == ConnectivityManager::State::Connecting);
+  CHECK(backend.beginCalls == 2);
+}
+
+void reconnectWorksAfterDisconnect() {
+  FakeBackend backend;
+  ConnectivityManager manager(backend, 20000UL, 0);
   CHECK(manager.connect(0U));
   manager.disconnect();
   CHECK(manager.state() == ConnectivityManager::State::Disconnected);
@@ -164,14 +293,19 @@ void reconnectWorksAfterLossAndDisconnect() {
 
 int main() {
   startsWithoutBlockingAndTransitionsWhenConnected();
-  startsWithBackendOwnedProfileConfiguration();
   reportsCellularBackendWithoutWiFiAssumptions();
+  startsWithBackendOwnedProfileConfiguration();
   rejectsDuplicatePendingAttempt();
-  reportsBackendStartFailure();
-  timesOutAndDisconnectsBackend();
-  timeoutIsSafeAcrossMillisRollover();
-  unexpectedDisconnectAndBackgroundReconnectAreTracked();
-  reconnectWorksAfterLossAndDisconnect();
+  reportsBackendStartFailureWhenRetriesAreDisabled();
+  retriesBackendStartFailureWithExponentialBackoff();
+  retriesTimeoutsAndStopsAfterBudget();
+  retryDeadlineIsSafeAcrossMillisRolloverAndBackoffIsCapped();
+  linkLossStartsRecoveryAndDriverReconnectCancelsRetry();
+  linkLossStartsManagerOwnedRetryWhenDriverDoesNotRecover();
+  retryWaitsUntilTheWiFiScanHasFinished();
+  manualDisconnectCancelsPendingRetry();
+  explicitConnectCanStartANewRecoverySequenceAfterFailure();
+  reconnectWorksAfterDisconnect();
 
   if (failures != 0) {
     fprintf(stderr, "%d connectivity manager test(s) failed.\n", failures);

@@ -30,6 +30,8 @@
 #include "src/services/WiFiProfileStore.h"
 #include "src/services/PreferencesWiFiProfileStorage.h"
 #include "src/services/WiFiNetworkScanner.h"
+#include "src/services/WiFiAvailabilitySnapshot.h"
+#include "src/services/WiFiAvailabilityRefreshPolicy.h"
 #include "src/services/WiFiSignalMeter.h"
 #include "src/services/Esp32WiFiScanBackend.h"
 #include "src/services/LocationService.h"
@@ -107,6 +109,8 @@ typedef WiFiProfileStore<PreferencesWiFiProfileStorage> PersistentWiFiProfileSto
 PersistentWiFiProfileStore wifiProfileStore(wifiProfileStorage);
 Esp32WiFiScanBackend wifiScanBackend;
 WiFiNetworkScanner wifiNetworkScanner(wifiScanBackend);
+WiFiAvailabilitySnapshot wifiAvailabilitySnapshot;
+WiFiAvailabilityRefreshPolicy wifiAvailabilityRefreshPolicy;
 WiFiSignalMeter wifiSignalMeter;
 uint32_t wifiSignalLastSampleMs = 0;
 
@@ -239,6 +243,9 @@ enum class WiFiConnectPhase : uint8_t {
 
 WiFiSettingsScreen wifiSettingsScreen = WiFiSettingsScreen::Closed;
 WiFiConnectPhase wifiConnectPhase = WiFiConnectPhase::None;
+bool wifiAvailabilityConnectionObserved = false;
+bool wifiAvailabilityLastConnected = false;
+bool wifiAvailabilityRefreshPending = false;
 char wifiSelectedSsid[PersistentWiFiProfileStore::MaxSsidLength + 1] = {};
 char wifiPasswordInput[PersistentWiFiProfileStore::MaxPasswordLength + 1] = {};
 bool wifiKeyboardShifted = false;
@@ -1997,22 +2004,16 @@ WiFiSettingsRenderer::Availability getWiFiProfileAvailability(
     return WiFiSettingsRenderer::Availability::Available;
   }
 
-  const WiFiNetworkScanner::State state = wifiNetworkScanner.state();
-  if (state == WiFiNetworkScanner::State::Scanning) {
-    return WiFiSettingsRenderer::Availability::Checking;
-  }
-  if (state != WiFiNetworkScanner::State::Ready) {
+  // The badges use the last successfully completed scan, not the live
+  // scanner state. A background refresh must not temporarily blank or change
+  // values that are already displayed.
+  if (!wifiAvailabilitySnapshot.hasSnapshot()) {
     return WiFiSettingsRenderer::Availability::Unknown;
   }
 
-  for (uint8_t i = 0; i < wifiNetworkScanner.count(); ++i) {
-    WiFiScanResult result = {};
-    if (wifiNetworkScanner.getAt(i, result) &&
-        strcmp(result.ssid, ssid) == 0) {
-      return WiFiSettingsRenderer::Availability::Available;
-    }
-  }
-  return WiFiSettingsRenderer::Availability::Unavailable;
+  return wifiAvailabilitySnapshot.contains(ssid)
+      ? WiFiSettingsRenderer::Availability::Available
+      : WiFiSettingsRenderer::Availability::Unavailable;
 }
 
 uint8_t wifiSettingsListItemCount() {
@@ -2216,6 +2217,21 @@ void animateWiFiListSnap(int startPixels, int targetPixels) {
   }
 }
 
+bool startWiFiSettingsScan() {
+  if (wifiNetworkScanner.state() == WiFiNetworkScanner::State::Scanning) {
+    return false;
+  }
+
+  const bool started = wifiNetworkScanner.start();
+  // Record failed starts as attempts too, so a driver error is retried on a
+  // bounded cadence rather than on every pass through loop().
+  wifiAvailabilityRefreshPolicy.noteAttempt(millis());
+  // This attempt is now after the pending link-state edge, even when the
+  // driver rejects it; the normal five-second failed-scan retry takes over.
+  wifiAvailabilityRefreshPending = false;
+  return started;
+}
+
 void openWiFiSettings() {
   wifiUiMessage = "";
   wifiForgetConfirmation = false;
@@ -2225,10 +2241,9 @@ void openWiFiSettings() {
   wifiHighlightedKeyRow = -1;
   wifiHighlightedKeyColumn = -1;
 
-  // Populate saved-profile availability from a fresh background scan.
-  if (wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning) {
-    wifiNetworkScanner.start();
-  }
+  // Populate saved-profile availability immediately; later scans refresh
+  // the badges periodically while the Profiles screen remains visible.
+  startWiFiSettingsScan();
 
   wifiListScrollPositionPx = 0;
   wifiSettingsScreen = WiFiSettingsScreen::Profiles;
@@ -2359,7 +2374,7 @@ void startWiFiNetworkScan() {
   wifiListTouchDragActive = false;
   wifiUiMessage = "";
   wifiSettingsScreen = WiFiSettingsScreen::Scan;
-  wifiNetworkScanner.start();
+  startWiFiSettingsScan();
   drawWiFiSettingsScreen();
 }
 
@@ -2559,15 +2574,58 @@ void failWiFiConnection(bool restoring) {
 }
 
 void updateWiFiSettings() {
+  const bool connected = connectivityManager.isConnected();
+  const bool connectionAvailabilityChanged =
+      wifiAvailabilityConnectionObserved &&
+      connected != wifiAvailabilityLastConnected;
+  wifiAvailabilityLastConnected = connected;
+  wifiAvailabilityConnectionObserved = true;
+  if (connectionAvailabilityChanged) {
+    wifiAvailabilityRefreshPending = true;
+  }
+
   const WiFiNetworkScanner::State previousScanState =
       wifiNetworkScanner.state();
   const uint8_t previousScanCount = wifiNetworkScanner.count();
   wifiNetworkScanner.update();
 
-  if ((wifiSettingsScreen == WiFiSettingsScreen::Scan ||
-       wifiSettingsScreen == WiFiSettingsScreen::Profiles) &&
-      (wifiNetworkScanner.state() != previousScanState ||
-       wifiNetworkScanner.count() != previousScanCount)) {
+  const bool scanCompleted =
+      previousScanState == WiFiNetworkScanner::State::Scanning &&
+      wifiNetworkScanner.state() == WiFiNetworkScanner::State::Ready;
+  if (scanCompleted) {
+    // Commit only completed results. The snapshot remains intact through
+    // active and failed scans, so periodic checks never flash CHECKING/UNKNOWN.
+    wifiAvailabilitySnapshot.capture(wifiNetworkScanner);
+  }
+
+  // Refresh every 30 seconds while Saved Profiles is visible. A real
+  // connected/disconnected edge bypasses that cadence and starts a scan now,
+  // so an access point disappearing or returning is reflected promptly.
+  // Failed scans retry after 5 seconds without discarding the last good set.
+  if (wifiAvailabilityRefreshPolicy.shouldStart(
+          millis(),
+          wifiSettingsScreen == WiFiSettingsScreen::Profiles,
+          wifiNetworkScanner.state() == WiFiNetworkScanner::State::Scanning,
+          wifiNetworkScanner.state() == WiFiNetworkScanner::State::Failed,
+          wifiAvailabilityRefreshPending)) {
+    startWiFiSettingsScan();
+  }
+
+  bool redrawProfiles = false;
+  bool redrawScanPage = false;
+  if (wifiSettingsScreen == WiFiSettingsScreen::Profiles) {
+    // No redraw when a background scan merely starts or remains in progress.
+    // Redraw on connectivity edges (connection-status text) and when a
+    // completed scan replaces the availability snapshot.
+    redrawProfiles = connectionAvailabilityChanged || scanCompleted;
+  } else if (wifiSettingsScreen == WiFiSettingsScreen::Scan) {
+    // The explicit Available Networks page retains its visible scan status.
+    redrawScanPage =
+        wifiNetworkScanner.state() != previousScanState ||
+        wifiNetworkScanner.count() != previousScanCount;
+  }
+
+  if (redrawProfiles || redrawScanPage) {
     if (wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning &&
         wifiUiMessage == "Please wait for the availability scan") {
       wifiUiMessage = "";
@@ -3707,7 +3765,11 @@ void setup() {
 // =====================================================
 
 void loop() {
-  connectivityManager.update(millis());
+  // Do not start a manager-owned association retry while the asynchronous
+  // user-facing network scan is still using the Wi-Fi radio.
+  connectivityManager.update(
+      millis(),
+      wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning);
   updateWiFiSignalIndicator();
   updateWiFiSettings();
   weatherApp.update();
