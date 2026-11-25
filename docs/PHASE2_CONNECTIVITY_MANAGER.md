@@ -1,6 +1,6 @@
 # Phase 2 — Connectivity Manager and Wi-Fi backend
 
-**Status:** Connectivity slice 1 and state-driven Weather startup/refresh are merged and validated in PRs #52 and #53. The versioned NVS profile-store slice is implemented in draft PR #54 on `phase2/03-persistent-wifi-profiles`; strict host-suite execution, Arduino Verify/upload and physical validation are pending. Phase 2 overall remains in progress.  
+**Status:** Connectivity slice 1 and state-driven Weather startup/refresh are merged and validated in PRs #52 and #53. The versioned NVS profile-store slice is implemented and physically validated in PR #54 on `phase2/03-persistent-wifi-profiles`. The initial host suites, Arduino Verify/upload and NVS credential-source isolation test passed; final automated-review hardening fixes are committed and the host runner / Verify must be repeated on the latest commit before merge. Phase 2 overall remains in progress.  
 **Base:** `main` at `ed4991e249a42d68ec59cecc6d3f0931d06af19a`  
 **Merged checkpoint:** PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
@@ -167,7 +167,7 @@ During one of those operations, the loop cannot process touch input until that c
 ## 9. Follow-up slice 3 — versioned Wi-Fi profile storage
 
 **Branch:** `phase2/03-persistent-wifi-profiles`  
-**Status:** Implemented; host-suite execution, Arduino Verify/upload and physical validation pending.
+**Status:** Implemented and physically validated; final review-fix retest outstanding.
 
 ### Storage contract
 
@@ -185,7 +185,11 @@ During one of those operations, the loop cannot process touch input until that c
 - Profile-store lifecycle, first-run state, persistence across instances, credential replacement, open networks, validation bounds, profile cap, preferred-index updates, forget, failed-write behaviour, corrupt checksum and unsupported schema.
 - Preferences adapter missing-key/oversized-key handling, failed begin/read/write, key/namespace selection and a profile-store round trip through the adapter.
 
-**Execution pending:** the runner is checked in but has not yet been executed in this environment. Arduino IDE Verify, upload/boot and physical tests on the Waveshare ESP32-S3 Touch LCD 2 are also pending.
+**Validation record (2026-11-25):** the user ran `sh scripts/test-wifi-profile-store.sh`; both strict C++11 suites passed. Arduino IDE Verify passed on the Waveshare ESP32-S3 16 MB / OPI PSRAM target using ESP32 core 3.3.12. Build: 1,172,523 bytes program storage (37%), 98,092 bytes global dynamic memory (29%) and 229,588 bytes remaining. Firmware upload completed, all flashed image hashes were verified and the board hard-reset. Physical checks confirmed normal boot and connection using the one network/password previously held in `secrets.h`, reset-button reconnect after a few seconds, and preservation of all existing Weather/Forecast interactions.
+
+**NVS source-isolation proof:** the user temporarily changed the compiled Wi-Fi SSID/password in `secrets.h` to deliberately invalid values, uploaded without erasing flash and observed `[WIFI] Loaded the saved preferred network profile.` followed by successful Google Wi-Fi positioning and OpenWeather reverse geocoding. This proves the working network connection came from the saved NVS profile rather than the compiled fallback. The original `secrets.h` was restored and the normal firmware uploaded again.
+
+**Automated review follow-up:** four review threads have been resolved. The adapter now opens Preferences read-only for reads and returns failure if stored bytes exceed the destination capacity. Both `getBytes()` and `putBytes()` in the host Preferences stub reject overlong key names before copying. These changes were committed after the reported test/build run, so rerun `sh scripts/test-wifi-profile-store.sh` and Arduino IDE Verify once against the latest PR head before merge.
 
 **Security limitation:** this implementation does not enable NVS encryption or ESP32 flash encryption. It stores Wi-Fi passphrases in the device's NVS partition; confidentiality at rest depends on the board's flash-encryption configuration. No credentials are printed to serial or included in tracked configuration files.
 
