@@ -30,6 +30,7 @@
 #include "src/services/WiFiProfileStore.h"
 #include "src/services/PreferencesWiFiProfileStorage.h"
 #include "src/services/WiFiNetworkScanner.h"
+#include "src/services/WiFiAvailabilityRefreshPolicy.h"
 #include "src/services/WiFiSignalMeter.h"
 #include "src/services/Esp32WiFiScanBackend.h"
 #include "src/services/LocationService.h"
@@ -107,6 +108,7 @@ typedef WiFiProfileStore<PreferencesWiFiProfileStorage> PersistentWiFiProfileSto
 PersistentWiFiProfileStore wifiProfileStore(wifiProfileStorage);
 Esp32WiFiScanBackend wifiScanBackend;
 WiFiNetworkScanner wifiNetworkScanner(wifiScanBackend);
+WiFiAvailabilityRefreshPolicy wifiAvailabilityRefreshPolicy;
 WiFiSignalMeter wifiSignalMeter;
 uint32_t wifiSignalLastSampleMs = 0;
 
@@ -2216,6 +2218,18 @@ void animateWiFiListSnap(int startPixels, int targetPixels) {
   }
 }
 
+bool startWiFiSettingsScan() {
+  if (wifiNetworkScanner.state() == WiFiNetworkScanner::State::Scanning) {
+    return false;
+  }
+
+  const bool started = wifiNetworkScanner.start();
+  // Record failed starts as attempts too, so a driver error is retried on a
+  // bounded cadence rather than on every pass through loop().
+  wifiAvailabilityRefreshPolicy.noteAttempt(millis());
+  return started;
+}
+
 void openWiFiSettings() {
   wifiUiMessage = "";
   wifiForgetConfirmation = false;
@@ -2225,10 +2239,9 @@ void openWiFiSettings() {
   wifiHighlightedKeyRow = -1;
   wifiHighlightedKeyColumn = -1;
 
-  // Populate saved-profile availability from a fresh background scan.
-  if (wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning) {
-    wifiNetworkScanner.start();
-  }
+  // Populate saved-profile availability immediately; later scans refresh
+  // the badges periodically while the Profiles screen remains visible.
+  startWiFiSettingsScan();
 
   wifiListScrollPositionPx = 0;
   wifiSettingsScreen = WiFiSettingsScreen::Profiles;
@@ -2359,7 +2372,7 @@ void startWiFiNetworkScan() {
   wifiListTouchDragActive = false;
   wifiUiMessage = "";
   wifiSettingsScreen = WiFiSettingsScreen::Scan;
-  wifiNetworkScanner.start();
+  startWiFiSettingsScan();
   drawWiFiSettingsScreen();
 }
 
@@ -2563,6 +2576,19 @@ void updateWiFiSettings() {
       wifiNetworkScanner.state();
   const uint8_t previousScanCount = wifiNetworkScanner.count();
   wifiNetworkScanner.update();
+
+  // Availability is a snapshot of the most recent visible-network scan.
+  // Refresh it every 30 seconds while Saved Profiles is on screen; if the
+  // driver rejects/fails a scan, retry after 5 seconds instead of leaving
+  // UNKNOWN indefinitely. The manager defers association retries only while
+  // an actual scan is in progress.
+  if (wifiAvailabilityRefreshPolicy.shouldStart(
+          millis(),
+          wifiSettingsScreen == WiFiSettingsScreen::Profiles,
+          wifiNetworkScanner.state() == WiFiNetworkScanner::State::Scanning,
+          wifiNetworkScanner.state() == WiFiNetworkScanner::State::Failed)) {
+    startWiFiSettingsScan();
+  }
 
   if ((wifiSettingsScreen == WiFiSettingsScreen::Scan ||
        wifiSettingsScreen == WiFiSettingsScreen::Profiles) &&
