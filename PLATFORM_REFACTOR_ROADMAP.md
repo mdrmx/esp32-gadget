@@ -441,7 +441,7 @@ Initially, the Connectivity Manager can have only a Wi-Fi backend. Its interface
 
 ### Phase 3 — Reusable UI and interaction components
 
-**Status: NOT STARTED**
+**Status: NOT STARTED (formal phase; several foundations were delivered early during Phase 1).** Touch sampling, typed gesture recognition, interaction arbitration and shared scroll calculations were extracted in PRs #27–#33. Before formally starting Phase 3, reconcile those completed capabilities against this phase's acceptance criteria rather than reimplementing them. Remaining work centres on separating per-view scroll state from rendering, sharing proven UI patterns where useful, and preserving graph-specific policy.
 
 Tasks:
 
@@ -770,7 +770,7 @@ When resuming work after a context reset:
 5. Confirm implementation decisions in code, PR discussion and user instruction.
 6. Report the current state and next small task before making changes.
 7. Continue from an existing branch/PR where appropriate; do not overwrite work or create a duplicate branch.
-8. Use complete, copy-paste-ready code when code is requested; use feature branches and PRs; **never merge without the user's explicit instruction**. Treat a merged PR as having passed Arduino Verify, upload/boot and required hardware regression unless the user explicitly says otherwise. Record exact build/memory figures only when supplied.
+8. Use complete, copy-paste-ready code when code is requested; use feature branches and PRs; **never merge without the user's explicit instruction**. Treat a merged PR as hardware-validated only when its PR discussion, user confirmation or other recorded project evidence confirms the required Arduino Verify, upload/boot and physical regression. If the PR body leaves those checks outstanding or no result is recorded, keep validation marked unconfirmed and request a post-merge check. Record exact build/memory figures only when supplied.
 
 **Source of truth:** the live repository is authoritative for implementation. This roadmap is authoritative for the agreed direction and staged plan. If they differ, explain the discrepancy and update the roadmap deliberately rather than silently assuming either is current.
 
