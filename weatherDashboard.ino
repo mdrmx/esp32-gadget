@@ -261,7 +261,11 @@ bool wifiPreviousProfileValid = false;
 
 WiFiSettingsRenderer::ProfileRow
     wifiProfileRows[PersistentWiFiProfileStore::MaxProfiles] = {};
-uint8_t wifiScanPage = 0;
+int wifiScanScrollPositionPx = 0;
+bool wifiScanTouchCandidate = false;
+bool wifiScanTouchDragActive = false;
+int wifiScanDragStartScroll = 0;
+int wifiScanDragCurrentScroll = 0;
 String wifiUiMessage = "";
 
 bool wifiUiTouchActive = false;
@@ -2042,6 +2046,14 @@ void drawWiFiProfilesScreen() {
       wifiProfileRows, count, wifiConnectionStatusText(), message);
 }
 
+int maxWiFiScanScrollPixels() {
+  const int maximumFirstIndex =
+      static_cast<int>(wifiNetworkScanner.count()) -
+      static_cast<int>(WiFiSettingsRenderer::ScanRowsVisible);
+  return (maximumFirstIndex > 0 ? maximumFirstIndex : 0) *
+      WiFiSettingsRenderer::ScanRowHeight;
+}
+
 void drawWiFiScanScreen() {
   WiFiScanResult results[WiFiNetworkScanner::MaxResults] = {};
   const uint8_t count = wifiNetworkScanner.count();
@@ -2049,9 +2061,14 @@ void drawWiFiScanScreen() {
     wifiNetworkScanner.getAt(i, results[i]);
   }
 
+  wifiScanScrollPositionPx = ScrollController::clampElasticPosition(
+      wifiScanScrollPositionPx, maxWiFiScanScrollPixels(), 0);
+  const uint8_t firstVisibleIndex = static_cast<uint8_t>(
+      wifiScanScrollPositionPx / WiFiSettingsRenderer::ScanRowHeight);
+
   wifiSettingsRenderer.drawScan(
       getHeaderLocationText(), timeService.headerClockText(),
-      results, count, wifiScanPage,
+      results, count, firstVisibleIndex,
       wifiNetworkScanner.state() == WiFiNetworkScanner::State::Scanning,
       wifiNetworkScanner.state() == WiFiNetworkScanner::State::Failed,
       wifiConnectionStatusText(), wifiUiMessage);
@@ -2204,6 +2221,8 @@ void closeWiFiSettings() {
   wifiSettingsScreen = WiFiSettingsScreen::Closed;
   wifiUiTouchActive = false;
   wifiHeaderTouchActive = false;
+  wifiScanTouchCandidate = false;
+  wifiScanTouchDragActive = false;
   wifiPasswordVisible = false;
   wifiKeyFeedbackActive = false;
   wifiKeyFeedbackHeld = false;
@@ -2274,7 +2293,9 @@ void selectSavedWiFiProfile(uint8_t index) {
 }
 
 void startWiFiNetworkScan() {
-  wifiScanPage = 0;
+  wifiScanScrollPositionPx = 0;
+  wifiScanTouchCandidate = false;
+  wifiScanTouchDragActive = false;
   wifiUiMessage = "";
   wifiSettingsScreen = WiFiSettingsScreen::Scan;
   wifiNetworkScanner.start();
@@ -2614,30 +2635,21 @@ void handleWiFiSettingsTap(int x, int y) {
       const uint8_t row = static_cast<uint8_t>(
           (y - WiFiSettingsRenderer::ScanRowsTop) /
           WiFiSettingsRenderer::ScanRowHeight);
-      const uint8_t index = static_cast<uint8_t>(
-          wifiScanPage * WiFiSettingsRenderer::ScanRowsVisible + row);
-      selectScannedWiFiNetwork(index);
+      const uint8_t firstVisibleIndex = static_cast<uint8_t>(
+          wifiScanScrollPositionPx / WiFiSettingsRenderer::ScanRowHeight);
+      const uint8_t index = static_cast<uint8_t>(firstVisibleIndex + row);
+      if (index < wifiNetworkScanner.count()) {
+        selectScannedWiFiNetwork(index);
+      }
       return;
     }
 
     if (y >= WiFiSettingsRenderer::FooterTop &&
         y < WiFiSettingsRenderer::FooterTop +
                 WiFiSettingsRenderer::FooterHeight) {
-      if (x < 64) {
-        if (wifiScanPage > 0) --wifiScanPage;
-        drawWiFiSettingsScreen();
-      } else if (x < 148) {
+      if (x < 160) {
         wifiSettingsScreen = WiFiSettingsScreen::Profiles;
         wifiUiMessage = "";
-        drawWiFiSettingsScreen();
-      } else if (x < 212) {
-        const uint8_t pageCount = wifiNetworkScanner.count() == 0
-            ? 1
-            : static_cast<uint8_t>(
-                  (wifiNetworkScanner.count() +
-                   WiFiSettingsRenderer::ScanRowsVisible - 1) /
-                  WiFiSettingsRenderer::ScanRowsVisible);
-        if (wifiScanPage + 1 < pageCount) ++wifiScanPage;
         drawWiFiSettingsScreen();
       } else {
         startWiFiNetworkScan();
@@ -2787,6 +2799,18 @@ bool processWiFiSettingsTouch(
       wifiUiTouchMoved = false;
       wifiUiTouchStartX = x;
       wifiUiTouchStartY = y;
+      wifiScanTouchCandidate =
+          wifiSettingsScreen == WiFiSettingsScreen::Scan &&
+          wifiNetworkScanner.count() >
+              WiFiSettingsRenderer::ScanRowsVisible &&
+          x >= 8 && x < displayManager.width() - 8 &&
+          y >= WiFiSettingsRenderer::ScanRowsTop &&
+          y < WiFiSettingsRenderer::ScanRowsTop +
+                  WiFiSettingsRenderer::ScanRowsVisible *
+                      WiFiSettingsRenderer::ScanRowHeight;
+      wifiScanTouchDragActive = false;
+      wifiScanDragStartScroll = wifiScanScrollPositionPx;
+      wifiScanDragCurrentScroll = wifiScanScrollPositionPx;
 
       const bool hadKeyFeedback = wifiKeyFeedbackActive;
       wifiKeyFeedbackActive = false;
@@ -2813,6 +2837,45 @@ bool processWiFiSettingsTouch(
     }
 
     if (wifiUiTouchActive && observation.touchPresent &&
+        wifiScanTouchCandidate) {
+      const int deltaX = x - wifiUiTouchStartX;
+      const int deltaY = y - wifiUiTouchStartY;
+      const int absX = abs(deltaX);
+      const int absY = abs(deltaY);
+      const int intentThresholdPx = 8;
+
+      if (absY >= intentThresholdPx && absY >= absX) {
+        wifiScanTouchCandidate = false;
+        wifiScanTouchDragActive = true;
+        wifiUiTouchMoved = true;
+      } else if (absX >= intentThresholdPx && absX > absY) {
+        // Horizontal movement is not a list selection; keep it from becoming
+        // an accidental tap while leaving the modal's vertical list policy clear.
+        wifiScanTouchCandidate = false;
+        wifiUiTouchMoved = true;
+      }
+    }
+
+    if (wifiUiTouchActive && observation.touchPresent &&
+        wifiScanTouchDragActive) {
+      const int previousFirstIndex =
+          wifiScanScrollPositionPx / WiFiSettingsRenderer::ScanRowHeight;
+      const int nextScroll = ScrollController::clampElasticPosition(
+          ScrollController::applyDragDelta(
+              wifiScanDragStartScroll, wifiUiTouchStartY, y),
+          maxWiFiScanScrollPixels(), 0);
+      if (nextScroll != wifiScanDragCurrentScroll) {
+        wifiScanDragCurrentScroll = nextScroll;
+        wifiScanScrollPositionPx = nextScroll;
+        const int nextFirstIndex =
+            wifiScanScrollPositionPx / WiFiSettingsRenderer::ScanRowHeight;
+        if (nextFirstIndex != previousFirstIndex) {
+          drawWiFiSettingsScreen();
+        }
+      }
+    }
+
+    if (wifiUiTouchActive && observation.touchPresent &&
         (abs(x - wifiUiTouchStartX) > 14 ||
          abs(y - wifiUiTouchStartY) > 14)) {
       wifiUiTouchMoved = true;
@@ -2823,8 +2886,29 @@ bool processWiFiSettingsTouch(
         wifiKeyFeedbackHeld = false;
         wifiKeyFeedbackUntilMs = millis() + 180UL;
       }
+
+      if (wifiScanTouchDragActive) {
+        wifiScanScrollPositionPx = ScrollController::snapToStep(
+            wifiScanDragCurrentScroll,
+            WiFiSettingsRenderer::ScanRowHeight,
+            maxWiFiScanScrollPixels());
+        drawWiFiSettingsScreen();
+      }
+
+      wifiScanTouchCandidate = false;
+      wifiScanTouchDragActive = false;
+
       if (!wifiUiTouchMoved) {
-        handleWiFiSettingsTap(wifiUiTouchStartX, wifiUiTouchStartY);
+        const bool headerWiFiTapped =
+            wifiUiTouchStartX >= HeaderRenderer::WiFiIndicatorLeft &&
+            wifiUiTouchStartX < HeaderRenderer::WiFiIndicatorRight &&
+            wifiUiTouchStartY >= HeaderRenderer::WiFiIndicatorTop &&
+            wifiUiTouchStartY < HeaderRenderer::WiFiIndicatorBottom;
+        if (headerWiFiTapped) {
+          closeWiFiSettings();
+        } else {
+          handleWiFiSettingsTap(wifiUiTouchStartX, wifiUiTouchStartY);
+        }
       }
       wifiUiTouchActive = false;
       wifiUiTouchMoved = false;
