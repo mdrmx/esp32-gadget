@@ -9,6 +9,13 @@
 // DisplayManager supplies the active physical or transition render target.
 class HeaderRenderer {
 public:
+  enum {
+    NetworkButtonLeft = 198,
+    NetworkButtonTop = 4,
+    NetworkButtonRight = 240,
+    NetworkButtonBottom = 32
+  };
+
   HeaderRenderer(
     DisplayManager& displayManager,
     TextRenderer& textRenderer
@@ -34,6 +41,7 @@ public:
   
     target->drawFastHLine(
       0, HEADER_HEIGHT, displayManager_.width(), accentColour);
+    drawNetworkButton(panelColour, accentColour);
 
   }
 
@@ -53,6 +61,7 @@ public:
       HEADER_HEIGHT,
       panelColour);
     drawClockText(clockText, accentColour);
+    drawNetworkButton(panelColour, accentColour);
   }
 
 private:
@@ -65,6 +74,20 @@ private:
     CLOCK_RIGHT_MARGIN = 10,
     CLOCK_MINIMUM_X_MARGIN = 70
   };
+
+  void drawNetworkButton(
+    uint16_t panelColour,
+    uint16_t accentColour
+  ) const {
+    Arduino_GFX* target = displayManager_.target();
+    if (target == nullptr) return;
+    target->fillRoundRect(
+      NetworkButtonLeft, NetworkButtonTop, 42, 28, 5, panelColour);
+    target->drawRoundRect(
+      NetworkButtonLeft, NetworkButtonTop, 42, 28, 5, accentColour);
+    textRenderer_.drawText("WIFI", NetworkButtonLeft + 6, 14, 1,
+                           accentColour);
+  }
 
   void drawClockText(
     const String& clockText,

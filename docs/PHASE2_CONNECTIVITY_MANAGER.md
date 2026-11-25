@@ -1,8 +1,8 @@
 # Phase 2 — Connectivity Manager and Wi-Fi backend
 
-**Status:** Connectivity slices 1–3 are merged and validated in PRs #52–#54. PR #54 merged into `main` at `4ebd4a5469f20677ee8759fc1bc3f2dae531be2b`; both strict C++11 host suites passed again after final review fixes, and the latest device startup confirmed the preferred NVS profile loaded. All five inline reviewer threads were answered and resolved. Phase 2 overall remains in progress.  
-**Base:** `main` at `ed4991e249a42d68ec59cecc6d3f0931d06af19a`  
-**Latest merged checkpoint:** PR #54 at `4ebd4a5469f20677ee8759fc1bc3f2dae531be2b`  
+**Status:** Connectivity slices 1–3 are merged and validated in PRs #52–#54. Slice 4 (on-device Wi-Fi management) is implemented on `phase2/04-wifi-network-management`; the bounded async scanner passes strict C++11 host tests. Arduino IDE Verify and physical-device validation remain pending. Phase 2 overall remains in progress.  
+**Base:** `main` at `f4ae999e3f37eb893dee777f9ec404997856b091`  
+**Latest merged checkpoint:** PR #54 at `4ebd4a5469f20677ee8759fc1bc3f2dae531be2b`; subsequent docs-only main checkpoint `f4ae999e3f37eb893dee777f9ec404997856b091`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
 
 ## 1. Design boundary
@@ -88,7 +88,7 @@ Still open as distinct follow-up validation:
 
 ## 6. Remaining implementation sequence
 
-1. **On-device network management:** scan and select networks, password entry, save/forget controls and clear connection/error feedback. The NVS store now provides the underlying save/preferred/forget operations.
+1. **On-device network management:** implemented on `phase2/04-wifi-network-management` (see Section 10). Review, Arduino IDE Verify and physical validation remain open.
 2. **Manager-owned reconnect policy:** introduce bounded backoff, link-loss recovery and a defined preferred-network policy using saved profiles. Driver-managed recovery is already observed by the manager, but this does not replace an app-level retry policy.
 3. **Network capability boundary:** move the remaining Wi-Fi scan/BSSID/RSSI operations behind a platform-owned capability and review whether HTTP request transport should be abstracted separately from connectivity state.
 4. **Runtime memory profiling:** capture internal free heap/largest block and PSRAM under representative operation; keep these separate from compile-time build footprint.
@@ -195,3 +195,35 @@ During one of those operations, the loop cannot process touch input until that c
 **Security limitation:** this implementation does not enable NVS encryption or ESP32 flash encryption. It stores Wi-Fi passphrases in the device's NVS partition; confidentiality at rest depends on the board's flash-encryption configuration. No credentials are printed to serial or included in tracked configuration files.
 
 **Not included:** Wi-Fi scan/selection/password-entry UI, manager-owned retry/backoff, profile roaming policy and a cellular backend. Those remain separate follow-up slices.
+
+## 10. Follow-up slice 4 — on-device Wi-Fi network management
+
+**Branch:** `phase2/04-wifi-network-management`  
+**Base:** `main` at `f4ae999e3f37eb893dee777f9ec404997856b091`  
+**Status:** Implemented in the feature branch; host scanner tests pass. Review, Arduino IDE Verify and physical Waveshare validation are pending.
+
+### User-facing flow
+
+- A `WIFI` control is drawn in the existing header on the Weather and Forecast screens. Tapping it opens a modal settings flow; existing swipe, scroll and forecast controls remain in the Weather touch path when the modal is closed.
+- The saved-network screen lists up to the five profiles supported by NVS and marks the preferred and currently selected profile. Each profile opens a detail screen with Connect and Forget actions. Forget requires a second explicit confirmation.
+- Scan runs asynchronously through `WiFi.scanNetworks(true, false, false, 120)`; the cooperative device loop continues to process clock, connectivity and touch updates while the driver scans. The scanner copies at most 24 visible results into fixed storage, sorts strongest RSSI first, deduplicates repeated SSIDs and releases the driver scan buffer after copying.
+- The result list is paginated four networks at a time. Open networks can be saved and selected directly. Supported WPA personal networks use a touchscreen password keyboard (masked input, letters, digits and symbols) and are saved before association. WPA-Enterprise, WEP, WAPI and other unrecognised security modes are shown as unsupported rather than attempting a connection. Hidden SSIDs are not listed.
+- A successful connection makes the selected profile preferred. A failed attempt to change away from a currently preferred network triggers a reconnect attempt to the previous preferred profile. A newly added first profile that cannot connect is removed so it does not become the boot-time preferred network.
+- Weather's staged fetch/render workflow is paused while the settings surface is open, but Weather input, time synchronisation, header-clock updates and the platform connectivity/scanner state machines continue. After a successful network change, closing settings requests a Weather refresh through `WeatherApp` rather than calling Weather services from the UI.
+
+### Boundaries and limitations
+
+- `WiFiNetworkScanner.h` owns bounded result ordering and duplicate handling behind a platform-neutral scan interface. `Esp32WiFiScanBackend.h` contains the Arduino/ESP32 Wi-Fi API calls. `WiFiSettingsRenderer.h` owns the settings-screen drawing; profile persistence, touch hit-testing and connection lifecycle remain at the sketch composition boundary for this first UI slice.
+- The existing `WiFiProfileStore` still caps storage at five profiles. The scan UI may display up to 24 discovered SSIDs over multiple pages.
+- The new scanner path is asynchronous. The existing Google Wi-Fi geolocation scan in `LocationService` is unchanged and remains a separate synchronous operation; moving Wi-Fi scan/BSSID/RSSI behind a shared platform capability is still follow-up work.
+- Manager-owned retry/backoff and roaming between preferred/saved profiles are not introduced here. Driver-managed reconnect observation remains as before.
+- Passwords are masked in the UI and are never written to serial diagnostics. The existing NVS encryption limitation remains: this code does not enable NVS or ESP32 flash encryption.
+- Networks requiring enterprise authentication, certificates, WEP/WAPI or hidden SSIDs cannot be added through this UI.
+
+### Validation
+
+- `WiFiNetworkScanner` has a strict C++11 host runner at `sh scripts/test-wifi-network-scanner.sh` (`-Wall -Wextra -Werror -pedantic`). Coverage includes asynchronous scan state, retry after failures, strongest-signal sorting, same-SSID deduplication, the 24-result cap and clearing results.
+- The host scanner suite passed after correcting its expected ordering to match strongest-first RSSI sorting.
+- Arduino IDE Verify against the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM target, firmware upload/boot and physical touch/network regression have not yet been run on this branch. Do not mark this slice as device-validated until those checks are confirmed.
+- Physical regression should cover the header entry tap, every settings screen and keyboard area, repeated scans, open and secured access points, existing-profile selection, preferred-profile update, forgetting a non-preferred profile, forgetting the preferred/last profile, failed-password rollback to the previous preferred network, reset/reboot persistence and all prior Weather/Forecast/List/Graph/gesture/scroll interactions.
+
