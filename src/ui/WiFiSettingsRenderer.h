@@ -38,15 +38,14 @@ public:
   };
 
   enum {
-    ProfileRowsTop = 78,
-    ProfileRowHeight = 24,
-    ProfileRowsVisible = 5,
-    ScanRowsTop = 72,
-    ScanRowHeight = 43,
-    ScanRowsVisible = 3,
-    // A row can move upward by at most ScanRowHeight - 1 px before
+    // Saved profiles and scan results share one list geometry so switching
+    // between the two screens does not change row scale or spacing.
+    ListRowsTop = 72,
+    ListRowHeight = 43,
+    ListRowsVisible = 3,
+    // A row can move upward by at most ListRowHeight - 1 px before
     // the next row becomes the first item in the list.
-    ScanRowsMaskTop = ScanRowsTop - ScanRowHeight + 1,
+    ListRowsMaskTop = ListRowsTop - ListRowHeight + 1,
     FooterTop = 207,
     FooterHeight = 26,
     DetailActionTop = 119,
@@ -78,35 +77,67 @@ public:
       const String& clock,
       const ProfileRow* profiles,
       uint8_t count,
+      int scrollPositionPixels,
       const String& connectionStatus,
       const String& message) const {
     if (displayManager_.target() == nullptr) return;
     beginPage(location, clock);
-    textRenderer_.drawText("WI-FI NETWORKS", 10, 43, 2, colours_.white);
-    drawStatusLine(connectionStatus, message, 62);
+    textRenderer_.drawText("WI-FI NETWORKS", 10, 46, 2, colours_.white);
+    drawStatusLine(connectionStatus, message, 63);
 
-    for (uint8_t i = 0; i < count && i < ProfileRowsVisible; ++i) {
-      const int y = ProfileRowsTop + i * ProfileRowHeight;
+    const int first = scrollPositionPixels / ListRowHeight;
+    const int rowOffset = scrollPositionPixels % ListRowHeight;
+    for (uint8_t row = 0; row <= ListRowsVisible; ++row) {
+      const int index = first + row;
+      if (index < 0 || index >= count || profiles == nullptr) continue;
+
+      const int y = ListRowsTop + row * ListRowHeight - rowOffset;
       Arduino_GFX* target = displayManager_.target();
       target->fillRoundRect(8, y, displayManager_.width() - 16,
-                            ProfileRowHeight - 2, 4, colours_.panel);
+                            ListRowHeight - 2, 4, colours_.panel);
 
-      String ssid = shortenSsid(profiles[i].ssid, 23);
-      textRenderer_.drawText(ssid, 15, y + 8, 1, colours_.white);
+      // Keep the SSID on the first line at the same size as scan results.
+      // Preferred/current and availability state share the lower line.
+      const String ssid = shortenSsidToWidth(
+          profiles[index].ssid, 2, displayManager_.width() - 30);
+      const int nameHeight = textRenderer_.measureTextHeight(ssid, 2);
+      const int nameTop = y + 1 + (22 - nameHeight) / 2;
+      textRenderer_.drawText(ssid, 15, nameTop, 2, colours_.white);
 
-      if (profiles[i].preferred) {
-        textRenderer_.drawText("PREF", 164, y + 8, 1, colours_.accent);
-      } else if (profiles[i].active) {
-        textRenderer_.drawText("CURRENT", 164, y + 8, 1, colours_.success);
+      if (profiles[index].preferred) {
+        textRenderer_.drawText(
+            "PREFERRED", 15, y + 26, 1, colours_.accent);
+      } else if (profiles[index].active) {
+        textRenderer_.drawText(
+            "CURRENT", 15, y + 26, 1, colours_.success);
       }
 
       drawAvailabilityTag(
-          profiles[i].availability, 214, y + 4, 98, 15);
+          profiles[index].availability, 214, y + 23, 98, 15);
     }
+
+    Arduino_GFX* target = displayManager_.target();
+    if (target != nullptr) {
+      target->fillRect(
+          0, ListRowsMaskTop, displayManager_.width(),
+          ListRowsTop - ListRowsMaskTop, colours_.background);
+      target->fillRect(
+          0, ListRowsTop + ListRowsVisible * ListRowHeight,
+          displayManager_.width(),
+          displayManager_.height() -
+              (ListRowsTop + ListRowsVisible * ListRowHeight),
+          colours_.background);
+    }
+
+    // Restore the fixed header after clipping list rows at either edge.
+    headerRenderer_.draw(
+        location, clock, colours_.panel, colours_.white, colours_.accent);
+    textRenderer_.drawText("WI-FI NETWORKS", 10, 46, 2, colours_.white);
+    drawStatusLine(connectionStatus, message, 63);
 
     if (count == 0) {
       textRenderer_.drawCenteredText(
-          "No saved networks", 119, 1, colours_.muted);
+          "No saved networks", 132, 1, colours_.muted);
     }
 
     drawButton("SCAN", 8, FooterTop, 145, FooterHeight,
@@ -149,17 +180,17 @@ public:
 
     // Keep a partial row in view while the touch position follows the finger.
     // The sketch bounds scrollPositionPixels to one resisted row overshoot.
-    const int first = scrollPositionPixels / ScanRowHeight;
-    const int rowOffset = scrollPositionPixels % ScanRowHeight;
-    for (uint8_t row = 0; row <= ScanRowsVisible; ++row) {
+    const int first = scrollPositionPixels / ListRowHeight;
+    const int rowOffset = scrollPositionPixels % ListRowHeight;
+    for (uint8_t row = 0; row <= ListRowsVisible; ++row) {
       const int index = first + row;
       if (index < 0 || index >= count || results == nullptr) continue;
 
       const int y =
-          ScanRowsTop + row * ScanRowHeight - rowOffset;
+          ListRowsTop + row * ListRowHeight - rowOffset;
       Arduino_GFX* target = displayManager_.target();
       target->fillRoundRect(8, y, displayManager_.width() - 16,
-                            ScanRowHeight - 2, 4, colours_.panel);
+                            ListRowHeight - 2, 4, colours_.panel);
 
       const bool requiresPassword = !results[index].open;
       drawScanNetworkName(results[index].ssid, y, requiresPassword);
@@ -167,7 +198,7 @@ public:
         // Preserve the explicit warning for security modes this manager
         // cannot join; the lock remains beside the SSID when a password is used.
         textRenderer_.drawText(
-            "UNSUPPORTED", 15, y + ScanRowHeight - 12, 1, colours_.error);
+            "UNSUPPORTED", 15, y + ListRowHeight - 12, 1, colours_.error);
       }
       drawSignalStrengthBars(results[index].rssiDbm, y);
     }
@@ -177,13 +208,13 @@ public:
     Arduino_GFX* target = displayManager_.target();
     if (target != nullptr) {
       target->fillRect(
-          0, ScanRowsMaskTop, displayManager_.width(),
-          ScanRowsTop - ScanRowsMaskTop, colours_.background);
+          0, ListRowsMaskTop, displayManager_.width(),
+          ListRowsTop - ListRowsMaskTop, colours_.background);
       target->fillRect(
-          0, ScanRowsTop + ScanRowsVisible * ScanRowHeight,
+          0, ListRowsTop + ListRowsVisible * ListRowHeight,
           displayManager_.width(),
           displayManager_.height() -
-              (ScanRowsTop + ScanRowsVisible * ScanRowHeight),
+              (ListRowsTop + ListRowsVisible * ListRowHeight),
           colours_.background);
     }
 
@@ -415,7 +446,7 @@ private:
       label += ".";
     }
 
-    const int cardHeight = ScanRowHeight - 2;
+    const int cardHeight = ListRowHeight - 2;
     const int textHeight = textRenderer_.measureTextHeight(label, 2);
     const int contentTop = rowY + (cardHeight - textHeight) / 2;
     textRenderer_.drawText(label, textX, contentTop, 2, colours_.white);
@@ -458,7 +489,7 @@ private:
     const int barHeights[] = {5, 9, 13, 17};
     const int barWidth = 4;
     const int barGap = 3;
-    const int cardHeight = ScanRowHeight - 2;
+    const int cardHeight = ListRowHeight - 2;
     const int tallestBar = barHeights[3];
     const int baseline =
         rowY + (cardHeight - tallestBar) / 2 + tallestBar;
@@ -556,12 +587,26 @@ private:
         highlighted ? colours_.background : text);
   }
 
-  static String shortenSsid(const char* ssid, size_t maximum) {
-    String value(ssid != nullptr ? ssid : "");
-    if (value.length() > maximum) {
-      value = value.substring(0, maximum - 1) + ".";
+  String shortenSsidToWidth(
+      const char* ssid,
+      int textSize,
+      int maximumWidth) const {
+    String label(ssid != nullptr ? ssid : "");
+    bool shortened = false;
+    while (label.length() > 0 &&
+           textRenderer_.measureTextWidth(label, textSize) > maximumWidth) {
+      label.remove(label.length() - 1);
+      shortened = true;
     }
-    return value;
+    if (shortened) {
+      while (label.length() > 0 &&
+             textRenderer_.measureTextWidth(label + ".", textSize) >
+                 maximumWidth) {
+        label.remove(label.length() - 1);
+      }
+      label += ".";
+    }
+    return label;
   }
 
   DisplayManager& displayManager_;
