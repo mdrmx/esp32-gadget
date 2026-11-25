@@ -93,27 +93,36 @@ public:
 
       const int y = ListRowsTop + row * ListRowHeight - rowOffset;
       Arduino_GFX* target = displayManager_.target();
-      target->fillRoundRect(8, y, displayManager_.width() - 16,
-                            ListRowHeight - 2, 4, colours_.panel);
+      const int cardWidth = displayManager_.width() - 16;
+      const int cardHeight = ListRowHeight - 2;
+      target->fillRoundRect(
+          8, y, cardWidth, cardHeight, 4, colours_.panel);
 
-      // Keep the SSID on the first line at the same size as scan results.
-      // Preferred/current and availability state share the lower line.
-      const String ssid = shortenSsidToWidth(
-          profiles[index].ssid, 2, displayManager_.width() - 30);
-      const int nameHeight = textRenderer_.measureTextHeight(ssid, 2);
-      const int nameTop = y + 1 + (22 - nameHeight) / 2;
-      textRenderer_.drawText(ssid, 15, nameTop, 2, colours_.white);
-
-      if (profiles[index].preferred) {
-        textRenderer_.drawText(
-            "PREFERRED", 15, y + 26, 1, colours_.accent);
-      } else if (profiles[index].active) {
-        textRenderer_.drawText(
-            "CURRENT", 15, y + 26, 1, colours_.success);
+      // The preferred/active profile is identified by the card outline rather
+      // than a text label, leaving the SSID and availability state uncluttered.
+      if (profiles[index].preferred || profiles[index].active) {
+        target->drawRoundRect(
+            8, y, cardWidth, cardHeight, 4, colours_.accent);
       }
 
+      // Centre the size-2 SSID and availability badge on the same horizontal
+      // line. Reserve the badge's width before shortening long SSIDs.
+      const int availabilityX = 214;
+      const int availabilityWidth = 98;
+      const int ssidX = 15;
+      const int ssidMaxWidth = availabilityX - ssidX - 8;
+      const String ssid = shortenSsidToWidth(
+          profiles[index].ssid, 2, ssidMaxWidth);
+      const int nameHeight = textRenderer_.measureTextHeight(ssid, 2);
+      const int nameTop = y + (cardHeight - nameHeight) / 2;
+      textRenderer_.drawText(ssid, ssidX, nameTop, 2, colours_.white);
+
+      const int availabilityHeight = 15;
+      const int availabilityTop =
+          y + (cardHeight - availabilityHeight) / 2;
       drawAvailabilityTag(
-          profiles[index].availability, 214, y + 23, 98, 15);
+          profiles[index].availability, availabilityX, availabilityTop,
+          availabilityWidth, availabilityHeight);
     }
 
     Arduino_GFX* target = displayManager_.target();
