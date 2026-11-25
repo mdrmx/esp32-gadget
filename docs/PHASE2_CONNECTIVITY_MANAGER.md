@@ -223,7 +223,7 @@ During one of those operations, the loop cannot process touch input until that c
 ### Validation
 
 - `WiFiNetworkScanner` has a strict C++11 host runner at `sh scripts/test-wifi-network-scanner.sh` (`-Wall -Wextra -Werror -pedantic`). Coverage includes asynchronous scan state, retry after failures, strongest-signal sorting, same-SSID deduplication, the 24-result cap and clearing results.
-- The host scanner suite passed after correcting its expected ordering to match strongest-first RSSI sorting.
+- The scanner implementation and the corresponding test cases passed a local strict C++11 compile/run (`-Wall -Wextra -Werror -pedantic`) after correcting the expected ordering to match strongest-first RSSI sorting. The checked-in shell runner provides the same repeatable command for a full repository checkout; it was not invoked from a mounted checkout in this environment.
 - Arduino IDE Verify against the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM target, firmware upload/boot and physical touch/network regression have not yet been run on this branch. Do not mark this slice as device-validated until those checks are confirmed.
 - Physical regression should cover the header entry tap, every settings screen and keyboard area, repeated scans, open and secured access points, existing-profile selection, preferred-profile update, forgetting a non-preferred profile, forgetting the preferred/last profile, failed-password rollback to the previous preferred network, reset/reboot persistence and all prior Weather/Forecast/List/Graph/gesture/scroll interactions.
 
