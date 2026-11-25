@@ -1,7 +1,8 @@
 # Phase 2 — Connectivity Manager and Wi-Fi backend
 
-**Status:** In progress — first implementation slice on `phase2/01-connectivity-manager-wifi-backend`; strict C++11 host suites and Arduino IDE Verify passed, upload/boot and physical regression pending  
+**Status:** First connectivity slice merged and validated — PR #52 merged into `main` at `bc1948019c31ce466ea97be34f205373d05c7954` on 2026-11-25. Strict C++11 host suites, Arduino IDE Verify, firmware upload/hash verification and user-confirmed physical tests passed. Phase 2 overall remains in progress.  
 **Base:** `main` at `ed4991e249a42d68ec59cecc6d3f0931d06af19a`  
+**Merged checkpoint:** PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
 
 ## 1. Design boundary
@@ -39,7 +40,7 @@ The backend owns platform-specific profile configuration. For this first slice, 
 
 ## 3. Current Weather integration
 
-`weatherDashboard.ino` now creates `WiFiBackend` and `ConnectivityManager` at the composition root.
+`weatherDashboard.ino` creates `WiFiBackend` and `ConnectivityManager` at the composition root. This implementation is now part of `main` through merged PR #52 (`bc1948019c31ce466ea97be34f205373d05c7954`).
 
 - The existing `connectWiFi()` helper delegates association start and polling to the manager.
 - Time synchronisation receives `connectivityManager.isConnected()` instead of reading `WiFi.status()` in the sketch.
@@ -65,7 +66,7 @@ This first slice does not yet implement:
 
 These are separate reviewable follow-up slices. Do not introduce FreeRTOS tasks, concurrent HTTP requests or a modem-specific network path as part of this boundary extraction.
 
-## 5. Host tests and remaining validation
+## 5. Validation record after merge
 
 Run:
 
@@ -74,22 +75,36 @@ sh scripts/test-connectivity-manager.sh
 sh scripts/test-wifi-backend.sh
 ```
 
-The two focused strict C++11 host test suites pass in the implementation workspace. They cover accepted and duplicate starts, backend failure, connected/disconnected transitions, driver-managed background reconnection without a second `connect()` call, timeout, rollover, manager reconnect after disconnect, network-type reporting, secured and open Wi-Fi profile configuration, explicit null-passphrase forwarding and RSSI reporting.
+The two focused strict C++11 host test suites passed. They cover accepted and duplicate starts, backend failure, connected/disconnected transitions, driver-managed background reconnection without a second `connect()` call, timeout, rollover, manager reconnect after disconnect, network-type reporting, secured and open Wi-Fi profile configuration, explicit null-passphrase forwarding and RSSI reporting.
 
-Arduino IDE Verify passed for the Phase 2 working tree using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN, ESP32 core 3.3.12 and esptool 5.3.1. The build generated the ESP32-S3 application image and merged 16 MB flash image. Reported footprint: 1,168,551 bytes program storage (37% of 3,145,728 bytes); 97,476 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,204 bytes. These are compile-time footprint figures, not runtime heap/PSRAM measurements.
+Arduino IDE Verify passed using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN, ESP32 core 3.3.12 and esptool 5.3.1. The build generated the ESP32-S3 application image and merged 16 MB flash image. Reported footprint: 1,168,551 bytes program storage (37% of 3,145,728 bytes); 97,476 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,204 bytes. These are compile-time footprint figures, not runtime heap/PSRAM measurements.
 
-Still required before merge:
-- Firmware upload and normal boot on the Waveshare ESP32-S3 Touch LCD 2.
-- Physical regression of successful Wi-Fi startup, time synchronisation, Google Wi-Fi/IP location selection, current weather, hourly forecast and all existing Weather/Forecast interactions.
-- A controlled unavailable-AP test confirming the existing 20-second fallback/error behaviour and confirming no new regression.
-- Record build footprint and runtime heap/PSRAM observations separately.
+Firmware was uploaded to the Waveshare ESP32-S3 Touch LCD 2. The upload log records successful writes and `Hash of data verified` for the bootloader, partition table, boot-app image and 1,168,704-byte application image, followed by hard reset via RTS. The user confirmed the physical tests passed after upload (2026-11-25).
 
-## 6. Next implementation sequence
+Still open as distinct follow-up validation:
+- Controlled unavailable-AP test confirming the existing 20-second fallback/error behaviour. This call path still blocks while the compatibility adapter is in use.
+- Physical test of Wi-Fi loss followed by a driver-managed background reconnection, confirming the manager returns to `Connected` without another `connect()` call.
+- Runtime internal free-heap/largest-block and PSRAM measurements; these are not represented by compile-time program/global-memory figures.
+
+## 6. Remaining implementation sequence
 
 1. **Non-blocking Weather startup/update integration:** remove the compatibility wait loop and make connection progress, location resolution and first data loading explicit application states.
 2. **Persistent Wi-Fi profiles:** add a versioned Preferences/NVS store with bounded profile count, safe credential replacement, preferred profile and forget semantics.
 3. **On-device network management:** scan and select networks, password entry, save/forget controls and clear connection/error feedback.
-4. **Reconnect policy:** introduce bounded backoff, link-loss recovery and a defined preferred-network policy using saved profiles.
+4. **Manager-owned reconnect policy:** introduce bounded backoff, link-loss recovery and a defined preferred-network policy using saved profiles. Driver-managed recovery is already observed by the manager, but this does not replace an app-level retry policy.
 5. **Network capability boundary:** move the remaining Wi-Fi scan/BSSID operations behind a platform-owned capability and review whether HTTP request transport should be abstracted separately from connectivity state.
 
 Keep each slice behaviour-preserving and independently testable. Keep passwords out of logs, serial diagnostics and tracked files.
+
+
+## 7. Merge and device validation record
+
+PR #52 was merged into `main` on 2026-11-25 at `bc1948019c31ce466ea97be34f205373d05c7954`.
+
+- Both strict C++11 host suites passed.
+- Arduino IDE Verify passed with ESP32 core 3.3.12 and esptool 5.3.1 using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN.
+- Build footprint: 1,168,551 bytes program storage (37% of the 3,145,728-byte application partition); 97,476 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,204 bytes.
+- Upload wrote the bootloader, partition table, boot-app image and 1,168,704-byte application image. Each write reported `Hash of data verified`; upload ended with hard reset via RTS.
+- The user confirmed the physical tests passed after upload.
+
+No new runtime free-heap, largest-block or PSRAM snapshot was supplied. Do not infer one from the program/global-memory build report. The separate controlled unavailable-AP and physical driver-managed reconnect tests remain outstanding unless later recorded.
