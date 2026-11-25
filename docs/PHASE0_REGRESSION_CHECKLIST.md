@@ -416,6 +416,22 @@ Reference values after startup on the recorded board/configuration were 213,608 
 - [ ] Do not copy live secrets into serial logs, screenshots or PR descriptions.
 - [ ] Keep TLS certificate validation visible as a separate security issue; do not silently treat `setInsecure()` as a final platform policy.
 
+## Phase 2 — Connectivity Manager and Wi-Fi backend (first slice)
+
+The manager and backend are introduced in `phase2/01-connectivity-manager-wifi-backend`. This slice preserves the current Weather startup/refresh sequence through a temporary synchronous `connectWiFi()` adapter; it does not yet claim to remove the up-to-20-second association wait from the application path.
+
+- [x] Strict C++11 manager host suite: `sh scripts/test-connectivity-manager.sh` (passed in the implementation workspace).
+- [x] Strict C++11 Wi-Fi backend host suite: `sh scripts/test-wifi-backend.sh` (passed in the implementation workspace).
+- [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12.
+- [ ] Upload/boot on the Waveshare ESP32-S3 Touch LCD 2.
+- [ ] Confirm normal Wi-Fi startup with valid `secrets.h` credentials, then confirm TimeService synchronisation and Google Wi-Fi/IP location selection remain unchanged.
+- [ ] Confirm current-weather and hourly-forecast requests load successfully after connection.
+- [ ] With the configured access point unavailable, confirm the existing loading/fallback/error sequence and 20-second connection timeout remain intact; note that this path still blocks while the compatibility adapter is in use.
+- [ ] Disconnect Wi-Fi during normal operation; confirm manager state becomes `Disconnected` and the next Weather network attempt can start a new connection.
+- [ ] Confirm Weather/Forecast, List/Graph, touch, gesture, scrolling and tab transitions remain unchanged.
+
+Do not mark physical checks as passed until they have been run on the stated firmware revision. Record compile-time program/global memory separately from on-device free-heap, largest-block and PSRAM snapshots.
+
 ## 10. Test record
 
 For each extraction PR, record:
