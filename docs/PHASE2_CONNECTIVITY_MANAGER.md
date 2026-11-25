@@ -1,6 +1,6 @@
 # Phase 2 — Connectivity Manager and Wi-Fi backend
 
-**Status:** Connectivity slice 1 and the state-driven Weather startup/refresh slice are merged and validated in PRs #52 and #53. The versioned NVS profile-store slice is implemented on `phase2/03-persistent-wifi-profiles`; strict host-suite execution, Arduino Verify/upload and physical validation are pending. Phase 2 overall remains in progress.  
+**Status:** Connectivity slice 1 and state-driven Weather startup/refresh are merged and validated in PRs #52 and #53. The versioned NVS profile-store slice is implemented in draft PR #54 on `phase2/03-persistent-wifi-profiles`; strict host-suite execution, Arduino Verify/upload and physical validation are pending. Phase 2 overall remains in progress.  
 **Base:** `main` at `ed4991e249a42d68ec59cecc6d3f0931d06af19a`  
 **Merged checkpoint:** PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
