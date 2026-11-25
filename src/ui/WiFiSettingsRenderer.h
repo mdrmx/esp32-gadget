@@ -25,7 +25,6 @@ public:
 
   enum class Availability : uint8_t {
     Unknown = 0,
-    Checking,
     Available,
     Unavailable
   };
@@ -523,11 +522,6 @@ private:
     uint16_t fill = colours_.panel;
     uint16_t text = colours_.muted;
     switch (availability) {
-      case Availability::Checking:
-        label = "CHECKING";
-        fill = colours_.panel;
-        text = colours_.accent;
-        break;
       case Availability::Available:
         label = "AVAILABLE";
         fill = colours_.success;
