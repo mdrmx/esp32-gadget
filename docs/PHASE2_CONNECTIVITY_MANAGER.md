@@ -253,7 +253,7 @@ During one of those operations, the loop cannot process touch input until that c
 ## 11. Follow-up slice 5 — manager-owned connection recovery
 
 **Branch:** `phase2/05-connectivity-retry-policy`  
-**Status:** Implemented; strict C++11 host runner, review and firmware/device verification are pending.
+**Status:** Implemented; strict C++11 host runner passed on 2026-11-25 (user-confirmed). Review and firmware/device verification are pending.
 
 ### Recovery policy
 
@@ -270,4 +270,6 @@ During one of those operations, the loop cannot process touch input until that c
 
 `sh scripts/test-connectivity-manager.sh` now covers successful association, immediate backend start failures, exponential/capped backoff, per-attempt timeouts, retry-budget exhaustion, link-loss recovery, driver reconnect during backoff, timer rollover, explicit disconnect cancellation and deferral while Wi-Fi scanning is active.
 
-**Validation still required:** execute the repository host runner, run Arduino IDE Verify with the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration, upload/boot, and perform physical regression. Include unavailable-access-point recovery, link loss/recovery, preferred-profile behaviour, manual network switching, scanning while a retry is due, open-network association and existing Weather/Forecast/touch/scroll interactions. No new firmware footprint figures or hardware validation are claimed for this branch yet.
+**Validation record:** the user ran `sh scripts/test-connectivity-manager.sh` on 2026-11-25 and confirmed `ConnectivityManager tests passed.`
+
+**Validation still required:** run Arduino IDE Verify with the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration, upload/boot, and perform physical regression. Include unavailable-access-point recovery, link loss/recovery, preferred-profile behaviour, manual network switching, scanning while a retry is due, open-network association and existing Weather/Forecast/touch/scroll interactions. No new firmware footprint figures or hardware validation are claimed for this branch yet.
