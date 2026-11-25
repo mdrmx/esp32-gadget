@@ -6,7 +6,7 @@ int failures = 0;
 
 #define CHECK(condition) do { \
   if (!(condition)) { \
-    fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #condition); \
+    fprintf(stderr, "FAIL %s:%d: %s\\n", __FILE__, __LINE__, #condition); \
     ++failures; \
   } \
 } while (0)
@@ -128,7 +128,7 @@ void timeoutIsSafeAcrossMillisRollover() {
   CHECK(manager.state() == ConnectivityManager::State::TimedOut);
 }
 
-void unexpectedDisconnectMovesBackToDisconnected() {
+void unexpectedDisconnectAndBackgroundReconnectAreTracked() {
   FakeBackend backend;
   ConnectivityManager manager(backend);
   CHECK(manager.connect(10U));
@@ -141,6 +141,13 @@ void unexpectedDisconnectMovesBackToDisconnected() {
   CHECK(manager.state() == ConnectivityManager::State::Disconnected);
   CHECK(!manager.isConnected());
   CHECK(manager.activeNetworkType() == NetworkType::None);
+
+  // Simulate the Wi-Fi driver restoring the link without a new connect() call.
+  backend.connected = true;
+  manager.update(40U);
+  CHECK(manager.state() == ConnectivityManager::State::Connected);
+  CHECK(manager.isConnected());
+  CHECK(manager.activeNetworkType() == NetworkType::WiFi);
 }
 
 void reconnectWorksAfterLossAndDisconnect() {
@@ -163,14 +170,14 @@ int main() {
   reportsBackendStartFailure();
   timesOutAndDisconnectsBackend();
   timeoutIsSafeAcrossMillisRollover();
-  unexpectedDisconnectMovesBackToDisconnected();
+  unexpectedDisconnectAndBackgroundReconnectAreTracked();
   reconnectWorksAfterLossAndDisconnect();
 
   if (failures != 0) {
-    fprintf(stderr, "%d connectivity manager test(s) failed.\n", failures);
+    fprintf(stderr, "%d connectivity manager test(s) failed.\\n", failures);
     return 1;
   }
 
-  printf("ConnectivityManager tests passed.\n");
+  printf("ConnectivityManager tests passed.\\n");
   return 0;
 }
