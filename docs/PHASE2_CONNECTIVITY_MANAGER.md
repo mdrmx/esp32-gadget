@@ -1,8 +1,8 @@
-**Status:** Connectivity slices 1–4 are merged and validated in PRs #52–#55. PR #55 merged into `main` at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12` after the user confirmed final Wi-Fi manager validation. Manager-owned bounded recovery is implemented in [draft PR #56](https://github.com/mdrmx/esp32-gadget/pull/56) on `phase2/05-connectivity-retry-policy`; the strict C++11 host runner has been extended but execution and review remain outstanding. Network capability extraction, HTTP/TLS transport review and runtime memory profiling remain. Phase 2 overall is still in progress.
+**Status:** Connectivity slices PRs #52–#56 are merged. PR #56 merged into `main` at `32a9e3908b5af96759590c94cd8a3a123a1ac223`; the user confirmed all three strict C++11 connectivity/availability suites, Arduino Verify/upload and full physical regression. The latest firmware reports 1,202,271 bytes program storage, 100,740 bytes global dynamic memory and 226,940 bytes remaining; the application image was hash-verified and the board hard-reset via RTS. PR #57 on `phase2/06-wifi-geolocation-scan-capability` extracts the Google Wi-Fi scan/BSSID/RSSI/channel path from `LocationService`; its strict C++11 host suite passed locally, while current-head Arduino Verify/upload and physical location/provider regression remain outstanding. HTTP/TLS transport review, remaining app-level Wi-Fi assumptions and runtime memory profiling remain open. Phase 2 overall is still in progress.
 
 **Merged Wi-Fi manager:** PR #55 merged into `main` at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12` after the user confirmed the final UI revision and hardware validation. It adds the saved/scan profile screens, asynchronous scanning, availability tags, password keyboard feedback, live RSSI indicator and shared touch-scroll presentation. The final selected-profile card outline, centred SSID/badge and 8 px badge inset are part of the merged implementation; no PR #55 validation gate remains open.
-**Base:** `main` at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12`  
-**Latest merged checkpoint:** PR #55 at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12`  
+**Base:** `main` at `32a9e3908b5af96759590c94cd8a3a123a1ac223`  
+**Latest merged checkpoint:** PR #56 at `32a9e3908b5af96759590c94cd8a3a123a1ac223`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
 
 ## 1. Design boundary
@@ -64,7 +64,7 @@ This first slice does not yet implement:
 - Migration from compile-time credentials.
 - Manager-initiated automatic retry/backoff policy and preferred-network selection/recovery. Driver-managed background reconnect is observed and reflected in manager state, but the manager does not itself initiate another attempt.
 - Moving all Weather connection-dependent work to an asynchronous application state machine.
-- Moving Wi-Fi scanning/BSSID collection out of `LocationService`; its Google Wi-Fi positioning path still uses the ESP32 Wi-Fi scan API.
+- Moving Wi-Fi scanning/BSSID collection out of `LocationService` was deferred from this original connectivity slice and is now addressed by PR #57 through `WiFiGeolocationScanner` plus `Esp32WiFiGeolocationScanBackend`.
 - Replacing the Wi-Fi-specific `HttpRequestClient` transport or changing the existing TLS compatibility policy.
 - Cellular modem support.
 
@@ -93,9 +93,9 @@ Still open as distinct follow-up validation:
 ## 6. Remaining implementation sequence
 
 1. **On-device network management:** merged and user-validated in PR #55 at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12` (see Section 10).
-2. **Manager-owned reconnect policy:** implemented in [draft PR #56](https://github.com/mdrmx/esp32-gadget/pull/56) on `phase2/05-connectivity-retry-policy`. The manager has a two-retry budget, 2 s / 4 s exponential delays (8 s cap), 20 s per-attempt timeout, link-loss recovery, driver-reconnect acceptance and explicit-disconnect cancellation. Host-test execution and code review are still open.
-3. **Network capability boundary:** move the remaining Wi-Fi scan/BSSID/RSSI operations behind a platform-owned capability and review whether HTTP request transport should be abstracted separately from connectivity state.
-4. **Runtime memory profiling:** capture internal free heap/largest block and PSRAM under representative operation; keep these separate from compile-time build footprint. This is still outstanding.
+2. **Manager-owned reconnect policy:** merged in PR #56 at `32a9e3908b5af96759590c94cd8a3a123a1ac223`; all three strict C++11 connectivity/availability suites, final Arduino Verify/upload and full physical regression are confirmed complete.
+3. **Google Wi-Fi geolocation capability:** implemented on [PR #57](https://github.com/mdrmx/esp32-gadget/pull/57) on `phase2/06-wifi-geolocation-scan-capability`; the scanner/adapter split and strict C++11 host suite are in place. Verify/upload and physical location/provider regression are pending.
+4. **HTTP/TLS boundary and runtime memory profiling:** review `HttpRequestClient` separately from connectivity lifecycle, then capture internal free heap/largest block and PSRAM under representative operation. These remain outstanding.
 
 Keep each slice behaviour-preserving and independently testable. Keep passwords out of logs, serial diagnostics and tracked files.
 
@@ -253,7 +253,7 @@ During one of those operations, the loop cannot process touch input until that c
 ## 11. Follow-up slice 5 — manager-owned connection recovery
 
 **Branch:** `phase2/05-connectivity-retry-policy`  
-**Status:** Implemented on draft PR #56. The ConnectivityManager strict C++11 runner is user-confirmed passing; the new availability-refresh policy passed a local strict C++11 compile/run. Arduino Verify/upload for the pre-refresh retry-only revision passed, but the current head needs a fresh Verify/upload. Normal boot confirmation and physical retry/recovery plus availability-badge refresh regression remain pending.
+**Status:** Merged in PR #56 at `32a9e3908b5af96759590c94cd8a3a123a1ac223`. The user confirmed the three strict C++11 runners, final Arduino Verify/upload and full physical retry/recovery plus saved-profile availability-refresh regression. Final build: 1,202,271 bytes program storage; 100,740 bytes global dynamic memory; 226,940 bytes remaining. The application image hash was verified and the board hard-reset via RTS.
 
 ### Recovery policy
 
@@ -283,3 +283,30 @@ The saved-profile badges are based on the most recent successfully completed vis
 **Firmware build/upload validation for the periodic-refresh revision before the retained-snapshot fix (user-supplied log, 2026-11-25):** Arduino IDE Verify passed using the recorded ESP32-S3 16 MB / OPI PSRAM FQBN, ESP32 core 3.3.12 and esptool 5.3.1. Build footprint: 1,201,603 bytes program storage (38% of the 3,145,728-byte application partition); 99,940 bytes global dynamic memory (30% of 327,680 bytes), leaving 227,740 bytes. The 1,201,744-byte application image was written and `Hash of data verified`; the upload ended with a hard reset via RTS. This is compile-time/global-memory footprint, not a runtime heap/PSRAM measurement. The retained-snapshot and connection-edge implementation was added afterward and requires a fresh Verify/upload. The supplied log does not include a serial boot confirmation or validation of the corrected in-place row refresh.
 
 **Validation still required:** run `sh scripts/test-wifi-availability-snapshot.sh` from the checkout, Verify/upload the latest retained-snapshot revision, confirm normal boot and perform physical regression. Most importantly, while Saved Profiles remains open, disconnect the currently connected network: the connection-status line should update immediately, existing badges should remain stable during the background scan, and the missing SSID should become UNAVAILABLE once results complete. Restore the AP and confirm it becomes AVAILABLE after the next completed scan, without leaving/reopening settings. Also exercise failed scans, the 30-second cadence, preferred-profile behaviour, manual switching/restoration, scanning while a retry is due, open-network association and existing Weather/Forecast/touch/scroll interactions. No new runtime free-heap/largest-block/PSRAM sample is claimed.
+
+## 12. Follow-up slice 6 — Google Wi-Fi geolocation scan capability
+
+**Branch:** `phase2/06-wifi-geolocation-scan-capability`  
+**PR:** [#57 — Extract Google Wi-Fi geolocation scan capability](https://github.com/mdrmx/esp32-gadget/pull/57)  
+**Status:** Implemented; local strict C++11 scanner tests pass. Arduino IDE Verify/upload and physical Google Wi-Fi / IP-geolocation / configured-fallback regression remain pending.
+
+### Ownership boundary
+
+- `WiFiGeolocationScanner.h` defines the platform-neutral `WiFiGeolocationAccessPoint` observation and injected `WiFiGeolocationScanBackend` contract.
+- `WiFiGeolocationScanner` owns Google-positioning candidate policy: globally administered unicast MAC eligibility, the reserved `00:00:5E` exclusion, zero-BSSID rejection, RSSI bounds, BSSID deduplication, descending RSSI order and the strongest-15 bound.
+- `Esp32WiFiGeolocationScanBackend.h` is the ESP32 adapter. It performs the existing passive synchronous scan using `WiFi.scanNetworks(false, false, true, 120)`, copies BSSID/RSSI/channel data and releases scan results with `WiFi.scanDelete()`.
+- `LocationService` receives a `WiFiGeolocationScanner&` from the sketch composition root. It no longer includes `WiFi.h` or calls `WiFi.status()`, `WiFi.scanNetworks()`, `WiFi.BSSID()`, `WiFi.RSSI()`, `WiFi.channel()` or `WiFi.scanDelete()`. Its provider orchestration is gated by the caller-supplied connection state.
+- Google request construction and the existing Google Wi-Fi → IP geolocation → configured-coordinate fallback order remain unchanged. Google still requires at least two eligible APs. This extraction does not make scanning or HTTP/TLS asynchronous.
+
+### Host validation
+
+`sh scripts/test-wifi-geolocation-scanner.sh` compiles with strict C++11, `-Wall -Wextra -Werror -pedantic`. Local run passed: `WiFiGeolocationScanner tests passed.` Coverage includes MAC filtering, reserved/zero addresses, RSSI bounds, BSSID deduplication, strongest-15 ordering, unreadable scan entries, output capacity, empty/failed scans and platform result cleanup.
+
+### Remaining device validation
+
+- [ ] Arduino IDE Verify on the exact Waveshare ESP32-S3 16 MB / OPI PSRAM target.
+- [ ] Upload/hash verification and normal boot.
+- [ ] Confirm Google Wi-Fi positioning still succeeds with at least two eligible access points and reports its returned accuracy.
+- [ ] Confirm insufficient/failed Google scans continue to IP geolocation, then configured coordinates when the IP provider also fails.
+- [ ] Confirm Weather, Forecast, input, touch, gestures and settings/network UI regression remain intact.
+
