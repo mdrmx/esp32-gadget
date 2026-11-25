@@ -58,6 +58,7 @@ void rejectsInvalidValuesWithoutChangingAverage() {
   CHECK(meter.addSample(-60));
   CHECK(!meter.addSample(0));
   CHECK(!meter.addSample(5));
+  CHECK(!meter.addSample(-127));
   CHECK(!meter.addSample(-128));
   CHECK(meter.sampleCount() == 1);
   CHECK(meter.averageRssiDbm() == -60);

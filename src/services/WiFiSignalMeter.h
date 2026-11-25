@@ -14,7 +14,7 @@ public:
 
   bool addSample(int32_t rssiDbm) {
     // ESP32 station RSSI is negative dBm; reject disconnected/invalid values.
-    if (rssiDbm >= 0 || rssiDbm < -127) return false;
+    if (rssiDbm >= 0 || rssiDbm <= -127) return false;
 
     if (sampleCount_ < WindowSize) {
       samples_[nextIndex_] = static_cast<int16_t>(rssiDbm);
