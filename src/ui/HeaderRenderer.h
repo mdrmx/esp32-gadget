@@ -9,11 +9,22 @@
 // only the indicator's presentation and keeps its hit area stable.
 class HeaderRenderer {
 public:
+  // Visible Wi-Fi glyph bounds. Keep these tight so redrawing the icon
+  // does not overwrite the adjacent clock or location text.
   enum {
     WiFiIndicatorLeft = 198,
     WiFiIndicatorTop = 4,
     WiFiIndicatorRight = 240,
     WiFiIndicatorBottom = 32
+  };
+
+  // Touch-only target: wider and taller than the glyph, but stops immediately
+  // before the clock's leftmost layout position (x = display width - 70).
+  enum {
+    WiFiHitAreaLeft = 186,
+    WiFiHitAreaTop = 0,
+    WiFiHitAreaRight = 250,
+    WiFiHitAreaBottom = 36
   };
 
   HeaderRenderer(
