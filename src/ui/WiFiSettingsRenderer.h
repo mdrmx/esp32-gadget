@@ -44,6 +44,9 @@ public:
     ScanRowsTop = 72,
     ScanRowHeight = 43,
     ScanRowsVisible = 3,
+    // A row can move upward by at most ScanRowHeight - 1 px before
+    // the next row becomes the first item in the list.
+    ScanRowsMaskTop = ScanRowsTop - ScanRowHeight + 1,
     FooterTop = 207,
     FooterHeight = 26,
     DetailActionTop = 119,
@@ -174,8 +177,8 @@ public:
     Arduino_GFX* target = displayManager_.target();
     if (target != nullptr) {
       target->fillRect(
-          0, 37, displayManager_.width(), ScanRowsTop - 37,
-          colours_.background);
+          0, ScanRowsMaskTop, displayManager_.width(),
+          ScanRowsTop - ScanRowsMaskTop, colours_.background);
       target->fillRect(
           0, ScanRowsTop + ScanRowsVisible * ScanRowHeight,
           displayManager_.width(),
@@ -184,6 +187,11 @@ public:
           colours_.background);
     }
 
+    // The moving first row can reach the header divider during a drag.
+    // Restore the complete header after clipping the overflow, so the blue
+    // separator and Wi-Fi indicator never retain pixels from a scan row.
+    headerRenderer_.draw(
+        location, clock, colours_.panel, colours_.white, colours_.accent);
     textRenderer_.drawText("AVAILABLE NETWORKS", 10, 46, 2, colours_.white);
     if (showStatus) drawStatusLine(connectionStatus, status, 63);
 
