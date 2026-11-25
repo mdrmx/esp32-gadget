@@ -164,7 +164,7 @@ public:
         // Preserve the explicit warning for security modes this manager
         // cannot join; the lock remains beside the SSID when a password is used.
         textRenderer_.drawText(
-            "UNSUPPORTED", 15, y + 22, 2, colours_.error);
+            "UNSUPPORTED", 15, y + ScanRowHeight - 12, 1, colours_.error);
       }
       drawSignalStrengthBars(results[index].rssiDbm, y);
     }
@@ -407,11 +407,14 @@ private:
       label += ".";
     }
 
-    textRenderer_.drawText(label, textX, rowY + 4, 2, colours_.white);
+    const int cardHeight = ScanRowHeight - 2;
+    const int textHeight = textRenderer_.measureTextHeight(label, 2);
+    const int contentTop = rowY + (cardHeight - textHeight) / 2;
+    textRenderer_.drawText(label, textX, contentTop, 2, colours_.white);
     if (requiresPassword && label.length() > 0) {
       const int lockX =
           textX + textRenderer_.measureTextWidth(label, 2) + lockGap;
-      drawSecurityIcon(lockX, rowY + 4, colours_.muted);
+      drawSecurityIcon(lockX, contentTop, colours_.muted);
     }
   }
 
@@ -447,7 +450,10 @@ private:
     const int barHeights[] = {5, 9, 13, 17};
     const int barWidth = 4;
     const int barGap = 3;
-    const int baseline = rowY + ScanRowHeight - 7;
+    const int cardHeight = ScanRowHeight - 2;
+    const int tallestBar = barHeights[3];
+    const int baseline =
+        rowY + (cardHeight - tallestBar) / 2 + tallestBar;
     const int startX = displayManager_.width() - 42;
     for (uint8_t bar = 0; bar < 4; ++bar) {
       const uint16_t colour = bar < activeBars
