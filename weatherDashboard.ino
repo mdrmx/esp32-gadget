@@ -2176,10 +2176,8 @@ void selectSavedWiFiProfile(uint8_t index) {
 void startWiFiNetworkScan() {
   wifiScanPage = 0;
   wifiUiMessage = "";
-  wifiLastDrawnScanState = WiFiNetworkScanner::State::Idle;
   wifiSettingsScreen = WiFiSettingsScreen::Scan;
   wifiNetworkScanner.start();
-  wifiLastDrawnScanState = wifiNetworkScanner.state();
   drawWiFiSettingsScreen();
 }
 
@@ -2386,7 +2384,6 @@ void updateWiFiSettings() {
   if (wifiSettingsScreen == WiFiSettingsScreen::Scan &&
       (wifiNetworkScanner.state() != previousScanState ||
        wifiNetworkScanner.count() != previousScanCount)) {
-    wifiLastDrawnScanState = wifiNetworkScanner.state();
     drawWiFiSettingsScreen();
   }
 
