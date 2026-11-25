@@ -41,6 +41,17 @@ void pausesWhenProfilesAreNotVisibleOrScanIsActive() {
   CHECK(policy.shouldStart(due, true, false, false));
 }
 
+void connectionTransitionsRequestAnImmediateRefresh() {
+  WiFiAvailabilityRefreshPolicy policy;
+  policy.noteAttempt(1000U);
+
+  // Link loss and driver-managed recovery invalidate the connected shortcut,
+  // so the regular 30-second interval must not delay a fresh scan.
+  CHECK(policy.shouldStart(1500U, true, false, false, true));
+  CHECK(!policy.shouldStart(1500U, false, false, false, true));
+  CHECK(!policy.shouldStart(1500U, true, true, false, true));
+}
+
 void retriesFailedScansOnTheShorterInterval() {
   WiFiAvailabilityRefreshPolicy policy;
   policy.noteAttempt(500U);
@@ -70,6 +81,7 @@ int main() {
   refreshesAtTheConfiguredInterval();
   pausesWhenProfilesAreNotVisibleOrScanIsActive();
   retriesFailedScansOnTheShorterInterval();
+  connectionTransitionsRequestAnImmediateRefresh();
   elapsedTimeIsSafeAcrossMillisRollover();
 
   if (failures != 0) {
