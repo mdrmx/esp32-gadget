@@ -88,7 +88,7 @@ The second slice was merged from [`phase2/02-nonblocking-weather-startup`](https
 
 **Remaining limitation:** the connection wait itself no longer blocks touch/input scheduling. LocationService geolocation, due TimeService/TimeAPI sync requests, current/forecast HTTP requests and Weather icon asset preparation remain synchronous when their hooks/stages run. PRs #52–#54 are merged; network scan/selection/password UI remains separate.
 
-**Remaining Phase 2 work:** validate and review manager-owned bounded retry/backoff on `phase2/05-connectivity-retry-policy`; move Wi-Fi scan/BSSID/RSSI operations out of `LocationService`; review the Wi-Fi-specific `HttpRequestClient` transport boundary; remove remaining app-level Wi-Fi assumptions; and capture runtime memory/PSRAM measurements.
+**Remaining Phase 2 work:** complete current-head Verify/upload and physical regression for manager-owned bounded retry/backoff plus periodic saved-profile availability refresh on `phase2/05-connectivity-retry-policy`; move Wi-Fi scan/BSSID/RSSI operations out of `LocationService`; review the Wi-Fi-specific `HttpRequestClient` transport boundary; remove remaining app-level Wi-Fi assumptions; and capture runtime memory/PSRAM measurements.
 
 **Saved-profile availability freshness (draft PR #56):** The Profiles screen no longer relies on a single scan from the moment settings opens. It now refreshes visible-network availability immediately on entry and every 30 seconds while the screen remains visible. Failed scans are retried after 5 seconds, and scans remain asynchronous/non-overlapping. The new policy is covered by `sh scripts/test-wifi-availability-refresh-policy.sh` (local strict C++11 pass); physical confirmation of badge transitions after an access point disappears and returns is still required.
 
@@ -118,4 +118,4 @@ The scan state machine and bounded result container are isolated in `WiFiNetwork
 
 The scanner and RSSI-meter host tests passed under strict C++11 warnings. The preceding Wi-Fi UI revision passed Arduino IDE Verify/upload on ESP32 core 3.3.12 / esptool 5.3.1 (1,195,063 bytes program storage; 99,844 bytes global dynamic memory; 227,836 bytes remaining). This UI supports open and WPA personal security only; enterprise/WEP/WAPI/hidden networks remain unsupported. NVS/flash encryption is not enabled by this code.
 
-**Next connectivity slice:** manager-owned bounded retry/backoff is being implemented on `phase2/05-connectivity-retry-policy`; see the Phase 2 design document for the policy and pending validation.
+**Active connectivity follow-up:** draft PR #56 on `phase2/05-connectivity-retry-policy` implements bounded manager-owned retry/backoff and periodic saved-profile availability refresh. The strict connectivity-manager suite is user-confirmed passing and the new refresh-policy tests passed locally; current-head Verify/upload and physical recovery/badge-refresh regression remain pending. See the Phase 2 design document for details.
