@@ -8,6 +8,7 @@ size_t Preferences::storedLength = 0;
 bool Preferences::failBegin = false;
 bool Preferences::failRead = false;
 bool Preferences::failWrite = false;
+bool Preferences::lastBeginReadOnly = false;
 unsigned int Preferences::beginCalls = 0;
 unsigned int Preferences::endCalls = 0;
 char Preferences::lastNamespace[16] = {};
@@ -19,6 +20,7 @@ bool Preferences::begin(const char* name, bool readOnly) {
   }
   active_ = true;
   readOnly_ = readOnly;
+  lastBeginReadOnly = readOnly;
   memset(lastNamespace, 0, sizeof(lastNamespace));
   memcpy(lastNamespace, name, strlen(name));
   ++beginCalls;
@@ -38,7 +40,8 @@ size_t Preferences::getBytes(
     const char* key,
     void* destination,
     size_t length) {
-  if (!active_ || failRead || key == nullptr || destination == nullptr ||
+  if (!active_ || failRead || key == nullptr ||
+      strlen(key) >= sizeof(lastKey) || destination == nullptr ||
       length > storedLength) {
     return 0;
   }
@@ -53,7 +56,8 @@ size_t Preferences::putBytes(
     const void* source,
     size_t length) {
   if (!active_ || readOnly_ || failWrite || key == nullptr ||
-      source == nullptr || length > sizeof(storedBytes)) {
+      strlen(key) >= sizeof(lastKey) || source == nullptr ||
+      length > sizeof(storedBytes)) {
     return 0;
   }
   memset(lastKey, 0, sizeof(lastKey));
@@ -76,6 +80,7 @@ void Preferences::reset() {
   failBegin = false;
   failRead = false;
   failWrite = false;
+  lastBeginReadOnly = false;
   beginCalls = 0;
   endCalls = 0;
   memset(lastNamespace, 0, sizeof(lastNamespace));
@@ -100,15 +105,18 @@ void readsMissingAndOversizedRecordsSafely() {
   CHECK(storage.read(buffer, sizeof(buffer), length));
   CHECK(length == 0);
   CHECK(Preferences::endCalls == 1);
+  CHECK(Preferences::lastBeginReadOnly);
   CHECK(strcmp(Preferences::lastNamespace, "wifi_profiles") == 0);
   CHECK(strcmp(Preferences::lastKey, "profiles") == 0);
 
   const uint8_t largeRecord[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
   CHECK(storage.write(largeRecord, sizeof(largeRecord)));
   memset(buffer, 0, sizeof(buffer));
-  CHECK(storage.read(buffer, sizeof(buffer), length));
+  CHECK(!storage.read(buffer, sizeof(buffer), length));
   CHECK(length == sizeof(largeRecord));
   CHECK(buffer[0] == 0);
+  CHECK(Preferences::lastBeginReadOnly);
+  CHECK(Preferences::endCalls == 3);
 }
 
 void checksBeginReadWriteAndEndFailures() {
@@ -132,6 +140,7 @@ void checksBeginReadWriteAndEndFailures() {
   Preferences::failWrite = false;
   CHECK(storage.write(record, sizeof(record)));
   CHECK(Preferences::storedLength == sizeof(record));
+  CHECK(!Preferences::lastBeginReadOnly);
   CHECK(Preferences::endCalls == 2);
 
   Preferences::failRead = true;
