@@ -4,7 +4,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 
 ## Current refactor progress
 
-> **Progress snapshot:** the Weather rendering and asset-cache extraction sequence is complete through PR #51, including post-merge host, firmware and physical validation. Phase 2 slice 1 was merged in PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`; host suites, Arduino Verify, upload/hash verification and user-confirmed physical tests passed. Phase 2 slice 2 is implemented on `phase2/02-nonblocking-weather-startup`: startup and periodic refresh now advance through WeatherApp states without a synchronous Wi-Fi association wait. A strict C++11 state-machine host harness passed; this follow-up is awaiting review and physical validation. LocationService geolocation, due TimeService/TimeAPI sync, HTTP/TLS requests and icon-asset preparation remain synchronous in their individual stages. Phase 1 remains in progress for the broader module-boundary/platform ownership review, and Phase 2 remains in progress for persistent Wi-Fi profiles, network UI and manager-owned retry/backoff. The canonical architecture and handover remain in [PLATFORM_REFACTOR_ROADMAP.md](PLATFORM_REFACTOR_ROADMAP.md).
+> **Progress snapshot:** the Weather rendering and asset-cache extraction sequence is complete through PR #51, including post-merge host, firmware and physical validation. Phase 2 slice 1 was merged in PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`; host suites, Arduino Verify, upload/hash verification and user-confirmed physical tests passed. Phase 2 slice 2 is implemented and device-validated on `phase2/02-nonblocking-weather-startup` in open PR #53: the strict C++11 state-machine harness, Arduino IDE Verify, upload/boot and user-confirmed physical regression passed. Verify reports 1,169,075 bytes program storage and 97,492 bytes global dynamic memory, leaving 230,188 bytes; runtime heap/PSRAM measurements remain separate and unrecorded. Wi-Fi association no longer waits synchronously in the WeatherApp call stack. LocationService geolocation, due TimeService/TimeAPI sync, HTTP/TLS requests and icon-asset preparation remain synchronous in their individual stages. Phase 1 remains in progress for the broader module-boundary/platform ownership review, and Phase 2 remains in progress for persistent Wi-Fi profiles, network UI and manager-owned retry/backoff. The canonical architecture and handover remain in [PLATFORM_REFACTOR_ROADMAP.md](PLATFORM_REFACTOR_ROADMAP.md).
 
 ### Completed
 
@@ -65,7 +65,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 For the detailed module boundaries, regression procedures and hardware baseline, see the [Platform Refactor Roadmap](PLATFORM_REFACTOR_ROADMAP.md) and [Phase 0 regression checklist](docs/PHASE0_REGRESSION_CHECKLIST.md).
 
 
-## Phase 2 — Shared connectivity (first slice merged; second slice in review)
+## Phase 2 — Shared connectivity (first slice merged; second slice validated on branch)
 
 The first implementation slice was developed on [`phase2/01-connectivity-manager-wifi-backend`](https://github.com/mdrmx/esp32-gadget/tree/phase2/01-connectivity-manager-wifi-backend) and merged into `main` in [PR #52](https://github.com/mdrmx/esp32-gadget/pull/52) at `bc1948019c31ce466ea97be34f205373d05c7954`.
 
@@ -77,14 +77,16 @@ The first implementation slice was developed on [`phase2/01-connectivity-manager
 
 Both focused strict C++11 host suites passed. Arduino IDE Verify passed using ESP32 core 3.3.12 / esptool 5.3.1; the ESP32-S3 application image and merged 16 MB flash image were generated. Build footprint: 1,168,551 bytes program storage (37%), 97,476 bytes global dynamic memory (29%), leaving 230,204 bytes. The upload log confirms bootloader, partition table and firmware were written and hash-verified, followed by hard reset via RTS. The user confirmed the physical tests passed.
 
-The next slice is implemented on [`phase2/02-nonblocking-weather-startup`](https://github.com/mdrmx/esp32-gadget/tree/phase2/02-nonblocking-weather-startup):
+The second slice is implemented on [`phase2/02-nonblocking-weather-startup`](https://github.com/mdrmx/esp32-gadget/tree/phase2/02-nonblocking-weather-startup) in [PR #53](https://github.com/mdrmx/esp32-gadget/pull/53):
 
 - `WeatherApp` now advances through connection, location, current-weather, forecast, asset-preparation and ready states from its regular `update()` call.
 - Periodic refresh uses a separate state sequence and waits for a pending connection without blocking the application loop.
 - Removed `connectWiFi()` and its synchronous 20-second polling loop; fetch adapters now consume connectivity state rather than independently starting Wi-Fi.
 - The strict C++11 WeatherApp state/asset-preparation host harness passed.
 
-**Remaining limitation:** the connection wait itself no longer blocks touch/input scheduling. LocationService geolocation, a due TimeService/TimeAPI sync request, current/forecast HTTP requests and Weather icon asset preparation are still synchronous when their hooks/stages run; converting those operations into asynchronous jobs is separate work. This branch is not yet merged or physically validated.
+**Firmware/device validation (2026-11-25):** Arduino IDE Verify passed using ESP32 core 3.3.12 / esptool 5.3.1 and the Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN. Build: 1,169,075 bytes program storage, 97,492 bytes global dynamic memory and 230,188 bytes remaining. The 1,171,456-byte application image was written and hash-verified; bootloader, partition and boot-app writes were verified and the board hard-reset via RTS. The user confirmed all physical regression tests passed. Runtime free-heap/largest-block/PSRAM sampling remains outstanding and is not inferred from the build figures.
+
+**Remaining limitation:** the connection wait itself no longer blocks touch/input scheduling. LocationService geolocation, a due TimeService/TimeAPI sync request, current/forecast HTTP requests and Weather icon asset preparation are still synchronous when their hooks/stages run; converting those operations into asynchronous jobs is separate work. PR #53 remains open and unmerged.
 
 **Remaining Phase 2 work:** persistent NVS profiles, safe migration from compile-time credentials, network scan/selection/password-entry/save/forget UI, manager-owned retry/backoff, moving Wi-Fi scan/BSSID operations out of `LocationService`, and transport-boundary review for the Wi-Fi-specific `HttpRequestClient`.
 
