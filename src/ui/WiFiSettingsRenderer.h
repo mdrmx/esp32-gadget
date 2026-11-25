@@ -42,8 +42,8 @@ public:
     ProfileRowHeight = 24,
     ProfileRowsVisible = 5,
     ScanRowsTop = 76,
-    ScanRowHeight = 31,
-    ScanRowsVisible = 4,
+    ScanRowHeight = 43,
+    ScanRowsVisible = 3,
     FooterTop = 207,
     FooterHeight = 26,
     DetailActionTop = 119,
@@ -156,17 +156,15 @@ public:
                             ScanRowHeight - 2, 4, colours_.panel);
 
       textRenderer_.drawText(
-          shortenSsid(results[index].ssid, 27), 15, y + 5, 1,
+          shortenSsid(results[index].ssid, 21), 15, y + 4, 2,
           colours_.white);
       const char* security = !results[index].supported
           ? "UNSUPPORTED"
           : (results[index].open ? "OPEN" : "SECURE");
-      textRenderer_.drawText(security, 15, y + 18, 1,
+      textRenderer_.drawText(security, 15, y + 22, 2,
                              results[index].supported
                                  ? colours_.muted : colours_.error);
-      textRenderer_.drawText(
-          String(results[index].rssiDbm) + " dBm",
-          247, y + 9, 1, colours_.accent);
+      drawSignalStrengthBars(results[index].rssiDbm, y);
     }
 
     // Rows may move beyond the viewport while the finger pulls against an
@@ -378,6 +376,38 @@ public:
   }
 
 private:
+  // Four ascending bars use the same RSSI thresholds as the header icon.
+  // A muted bar remains visible below the current signal level.
+  void drawSignalStrengthBars(int rssiDbm, int rowY) const {
+    Arduino_GFX* target = displayManager_.target();
+    if (target == nullptr) return;
+
+    uint8_t activeBars = 0;
+    if (rssiDbm >= -55) {
+      activeBars = 4;
+    } else if (rssiDbm >= -67) {
+      activeBars = 3;
+    } else if (rssiDbm >= -75) {
+      activeBars = 2;
+    } else if (rssiDbm >= -85) {
+      activeBars = 1;
+    }
+
+    const int barHeights[] = {5, 9, 13, 17};
+    const int barWidth = 4;
+    const int barGap = 3;
+    const int baseline = rowY + ScanRowHeight - 7;
+    const int startX = displayManager_.width() - 42;
+    for (uint8_t bar = 0; bar < 4; ++bar) {
+      const uint16_t colour = bar < activeBars
+          ? colours_.accent : colours_.muted;
+      target->fillRoundRect(
+          startX + bar * (barWidth + barGap),
+          baseline - barHeights[bar],
+          barWidth, barHeights[bar], 1, colour);
+    }
+  }
+
   void drawAvailabilityTag(
       Availability availability,
       int x,
