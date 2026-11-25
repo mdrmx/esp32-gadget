@@ -208,7 +208,7 @@ private:
 
     if (!scanResult.succeeded) {
       Serial.printf(
-        "[LOCATION] Wi-Fi scan failed with code %d; trying IP geolocation.\\n",
+        "[LOCATION] Wi-Fi scan failed with code %d; trying IP geolocation.\n",
         scanResult.networksFound);
       return false;
     }
@@ -216,7 +216,7 @@ private:
     const int16_t scanCount = scanResult.networksFound;
     const uint8_t candidateCount = scanResult.accessPointCount;
     Serial.printf(
-      "[LOCATION] Wi-Fi scan found %d networks; %u usable BSSIDs.\\n",
+      "[LOCATION] Wi-Fi scan found %d networks; %u usable BSSIDs.\n",
       scanCount, (unsigned)candidateCount);
 
     // Google requires at least two distinct stationary access points.
