@@ -88,7 +88,7 @@ The second slice was merged from [`phase2/02-nonblocking-weather-startup`](https
 
 **Remaining limitation:** the connection wait itself no longer blocks touch/input scheduling. LocationService geolocation, due TimeService/TimeAPI sync requests, current/forecast HTTP requests and Weather icon asset preparation remain synchronous when their hooks/stages run. PRs #52–#54 are merged; network scan/selection/password UI remains separate.
 
-**Remaining Phase 2 work:** review and device validation of the Wi-Fi manager UI on `phase2/04-wifi-network-management`, manager-owned retry/backoff, moving Wi-Fi scan/BSSID operations out of `LocationService`, and transport-boundary review for the Wi-Fi-specific `HttpRequestClient`.
+**Remaining Phase 2 work:** validate and review manager-owned bounded retry/backoff on `phase2/05-connectivity-retry-policy`; move Wi-Fi scan/BSSID/RSSI operations out of `LocationService`; review the Wi-Fi-specific `HttpRequestClient` transport boundary; remove remaining app-level Wi-Fi assumptions; and capture runtime memory/PSRAM measurements.
 
 See [Phase 2 connectivity design](docs/PHASE2_CONNECTIVITY_MANAGER.md) and the [canonical roadmap](PLATFORM_REFACTOR_ROADMAP.md).
 
