@@ -91,7 +91,8 @@ public:
   }
 
   // Redraw when the averaged RSSI crosses a level boundary or the connection
-  // state changes. The former WIFI button's 42x28 touch hit area is preserved.
+  // state changes. The expanded 64x36 Wi-Fi touch target is independent of the
+  // smaller visible glyph bounds above.
   void drawWiFiIndicator(
     uint16_t panelColour,
     uint16_t iconColour,
