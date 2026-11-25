@@ -337,21 +337,21 @@ PR #48 is merged and fully validated. The following PR extracts only graph drawi
 - [x] User confirmed firmware upload/boot and physical Waveshare metric viewport regression, including row order/value formatting, partial-card clipping, metric drag/overscroll/snap, canvas/direct fallback and Weather/Forecast transition composition; all existing interactions remained intact.
 - [x] Merged into `main` at `9bcddc503ab6a0d1eb15b1d32ecba9c255db80ca`.
 
-## PR #51 — ForecastListViewportRenderer extraction (merged; validation not recorded)
+## PR #51 — ForecastListViewportRenderer extraction (passed; merged)
 
-`ForecastListViewportRenderer` extracts Forecast List-mode viewport composition into `src/ui/ForecastListViewportRenderer.h`. It selects the neighbouring partial rows plus settled visible rows, bounds the requested base offset, calculates row placement and delegates clipped card rendering to `ForecastListItemRenderer`. The direct-display fallback intentionally retains the existing settled-row layout. Weather keeps forecast model access/time-label formatting, List/Graph selection, scroll state/clamping, touch/gesture/animation policy, canvas selection/clear/flush, Graph rendering, controls/footer and full screen/transition composition.
+`ForecastListViewportRenderer` extracts Forecast List-mode viewport composition into `src/ui/ForecastListViewportRenderer.h`. It selects neighbouring partial rows plus settled visible rows, bounds the requested base offset, calculates row placement and delegates clipped card rendering to `ForecastListItemRenderer`. The direct-display fallback intentionally retains the existing settled-row layout. Weather keeps forecast model access/time-label formatting, List/Graph selection, scroll state/clamping, touch/gesture/animation policy, canvas selection/clear/flush, Graph rendering, controls/footer and full screen/transition composition.
 
-- [x] Add a strict C++11 host test and runner for buffered neighbour-row selection and clipping, settled fallback row selection, base-offset bounds, failed item reads and null/invalid-input no-op guards.
-- [ ] Run `sh scripts/test-forecast-list-viewport-renderer.sh` with strict C++11 warnings.
-- [ ] Arduino IDE Verify using Arduino IDE 2.3.10, ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN.
-- [ ] Upload and confirm normal boot on the Waveshare ESP32-S3 Touch LCD 2.
-- [ ] Confirm Forecast List row order and compact time labels remain unchanged; the first and last pages have no missing/duplicate cards.
-- [ ] Confirm partially visible top/bottom cards clip within the List viewport during drag, without text escaping the viewport.
-- [ ] Confirm the direct-display / transition fallback draws the same settled rows as before when the forecast canvas is unavailable.
-- [ ] Drag the list in both directions; confirm existing movement, bounded overscroll and nearest-row snapping remain unchanged.
-- [ ] Switch List/Graph and Weather/Forecast repeatedly; confirm graph drawing, selector controls, footer, tab transition and all touch/gesture interactions remain unchanged.
+- [x] Strict C++11 host runner passed on merged `main`: `sh scripts/test-forecast-list-viewport-renderer.sh` → `ForecastListViewportRenderer tests passed.` (user-confirmed 2026-11-25).
+- [x] Companion Weather metrics viewport host runner passed on merged `main`: `sh scripts/test-weather-metrics-viewport-renderer.sh` → `WeatherMetricsViewportRenderer tests passed.`
+- [x] Arduino IDE Verify passed using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN, ESP32 core 3.3.12 and esptool 5.3.1.
+- [x] Verify build: 1,167,139 bytes program storage (37% of the 3,145,728-byte application partition); 97,444 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,236 bytes.
+- [x] The ESP32-S3 application image and merged 16 MB flash image were generated. The log shows cached object reuse followed by successful link and image generation; this is not described as a forced clean rebuild.
+- [x] User confirmed firmware upload and normal boot on the Waveshare ESP32-S3 Touch LCD 2.
+- [x] User confirmed physical Forecast List row order and compact time labels; first/last-page card continuity; top/bottom partial-card clipping; direct-display/transition fallback; bidirectional drag, bounded overscroll and snapping.
+- [x] User confirmed List/Graph and Weather/Forecast switching, graph drawing, selector controls, footer, header, tab transitions and all existing touch/gesture interactions remain unchanged.
+- [x] Merged into `main` at `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276`.
 
-PR #51 merged into `main` at `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276`. The PR description left the host-runner execution, Arduino Verify, upload/boot and physical Waveshare regression unchecked at merge. Run/confirm each check against this merged main revision before marking the regression gate complete.
+**Validation note:** the PR body left the host-runner execution, Arduino Verify, upload/boot and physical regression unchecked at merge. These post-merge results were subsequently confirmed by the user on 2026-11-25. Build footprint figures do not replace the separate runtime heap/PSRAM profile.
 
 ## 5. Clock and location
 
