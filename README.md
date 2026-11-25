@@ -63,3 +63,20 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 - [x] User confirmed existing Weather/Forecast interactions remain working; build / memory figures are recorded against the verified firmware build.
 
 For the detailed module boundaries, regression procedures and hardware baseline, see the [Platform Refactor Roadmap](PLATFORM_REFACTOR_ROADMAP.md) and [Phase 0 regression checklist](docs/PHASE0_REGRESSION_CHECKLIST.md).
+
+
+## Phase 2 — Shared connectivity (in progress)
+
+The first implementation slice is being developed on [`phase2/01-connectivity-manager-wifi-backend`](https://github.com/mdrmx/esp32-gadget/tree/phase2/01-connectivity-manager-wifi-backend).
+
+- Adds a transport-neutral `ConnectivityBackend` contract and `NetworkType`.
+- Adds an ESP32 `WiFiBackend` and a `ConnectivityManager` with non-blocking start/update calls, a 20-second connection timeout, link-loss detection and awareness of backend/driver background reconnection. Wi-Fi profiles with null or empty passwords retain `nullptr` for open-network association.
+- Adds strict C++11 host runners:
+  - `sh scripts/test-connectivity-manager.sh`
+  - `sh scripts/test-wifi-backend.sh`
+
+Both focused strict C++11 host suites passed in the implementation workspace. Arduino IDE Verify also passed for the Phase 2 working tree using ESP32 core 3.3.12 / esptool 5.3.1; the ESP32-S3 application image and merged 16 MB flash image were generated. Build footprint: 1,168,551 bytes program storage (37%), 97,476 bytes global dynamic memory (29%), leaving 230,204 bytes. Firmware upload/boot and physical Waveshare regression are still pending.
+
+**Transitional limitation:** the existing `connectWiFi()` call sites use a temporary synchronous compatibility adapter that pumps the manager while waiting. The manager API is non-blocking, but Weather startup/refresh can still block during association. The manager mirrors a background reconnect reported by the Wi-Fi driver, but does not initiate retries/backoff itself. The next slice will move startup work into WeatherApp's regular update lifecycle. Persistent NVS profiles and network-management UI are not yet implemented.
+
+See [Phase 2 connectivity design](docs/PHASE2_CONNECTIVITY_MANAGER.md) and the [canonical roadmap](PLATFORM_REFACTOR_ROADMAP.md).

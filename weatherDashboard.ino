@@ -23,6 +23,9 @@
 #include "src/hardware/DisplayManager.h"
 #include "src/hardware/Cst816Reader.h"
 #include "src/services/TimeService.h"
+#include "src/services/ConnectivityBackend.h"
+#include "src/services/ConnectivityManager.h"
+#include "src/services/WiFiBackend.h"
 #include "src/services/LocationService.h"
 #include "src/services/WeatherDataService.h"
 #include "src/apps/weather/WeatherApp.h"
@@ -87,6 +90,11 @@ bool locationCoordinatesResolved = false;
 // =====================================================
 
 TimeService timeService;
+
+// Platform connectivity owns Wi-Fi association state. Weather only uses the
+// compatibility adapter below until its startup path is moved fully async.
+WiFiBackend wifiBackend;
+ConnectivityManager connectivityManager(wifiBackend);
 
 // Weather consumes this provider result; the service owns provider selection.
 LocationService locationService;
@@ -380,7 +388,7 @@ void maybeSyncTimeFromAPI() {
   return;
 #else
   const TimeService::SyncResult result =
-    timeService.syncIfDue(WiFi.status() == WL_CONNECTED, millis());
+    timeService.syncIfDue(connectivityManager.isConnected(), millis());
 
   // The header redraw cache is presentation state. Invalidate it only after
   // the service has successfully changed the device clock.
@@ -2084,29 +2092,49 @@ void pollTouch() {
 // =====================================================
 
 bool connectWiFi() {
-  if (WiFi.status() == WL_CONNECTED) {
+  if (connectivityManager.isConnected()) {
     maybeSyncTimeFromAPI();
     return true;
   }
-  drawLoading("Connecting Wi-Fi...");
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(wifiSsid, wifiPassword);
 
-  unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000UL) {
+  if (!wifiBackend.configure(wifiSsid, wifiPassword)) {
+    DEBUG_PRINTLN("Wi-Fi profile is not configured");
+    return false;
+  }
+
+  drawLoading("Connecting Wi-Fi...");
+  if (!connectivityManager.connect(millis())) {
+    DEBUG_PRINTLN("Wi-Fi connection could not be started");
+    return false;
+  }
+
+  // Temporary compatibility bridge: ConnectivityManager itself is fully
+  // non-blocking, but the existing synchronous startup/refresh call sites
+  // still pump it here to preserve their current sequencing. A later Phase 2
+  // slice moves this state machine entirely into the regular application loop.
+  while (connectivityManager.isConnecting()) {
+    connectivityManager.update(millis());
+    if (!connectivityManager.isConnecting()) {
+      break;
+    }
+
     delay(500);
     DEBUG_PRINT(".");
   }
   DEBUG_PRINTLN();
 
-  if (WiFi.status() == WL_CONNECTED) {
+  if (connectivityManager.isConnected()) {
     DEBUG_PRINTLN("Wi-Fi connected");
     DEBUG_PRINTLN(WiFi.localIP());
     maybeSyncTimeFromAPI();
     return true;
   }
 
-  DEBUG_PRINTLN("Wi-Fi connection timed out");
+  if (connectivityManager.state() == ConnectivityManager::State::TimedOut) {
+    DEBUG_PRINTLN("Wi-Fi connection timed out");
+  } else {
+    DEBUG_PRINTLN("Wi-Fi connection failed");
+  }
   return false;
 }
 
@@ -2395,7 +2423,7 @@ void setup() {
 
     // LocationService preserves Google Wi-Fi -> IP -> configured fallback.
     const LocationService::Result locationResult = locationService.resolve(
-      WiFi.status() == WL_CONNECTED,
+      connectivityManager.isConnected(),
       googleGeolocationApiKey,
       apiKey,
       locationLat,
@@ -2448,6 +2476,7 @@ void setup() {
 // =====================================================
 
 void loop() {
+  connectivityManager.update(millis());
   weatherApp.update();
   delay(30);
 }
