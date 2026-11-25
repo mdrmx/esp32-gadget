@@ -69,7 +69,7 @@ public:
   // Call regularly from the device loop. All elapsed-time checks use unsigned
   // subtraction so connection timeouts and retry deadlines survive millis()
   // rollover.
-  void update(uint32_t nowMs) {
+  void update(uint32_t nowMs, bool allowRetryStart = true) {
     backend_.update();
 
     if (state_ == State::Connecting) {
@@ -94,7 +94,8 @@ public:
         return;
       }
 
-      if (elapsed(nowMs, retryStartedAtMs_) >= nextRetryDelayMs_) {
+      if (allowRetryStart &&
+          elapsed(nowMs, retryStartedAtMs_) >= nextRetryDelayMs_) {
         startAttempt(nowMs);
       }
       return;
