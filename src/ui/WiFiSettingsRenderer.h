@@ -609,6 +609,14 @@ private:
     return label;
   }
 
+  static String shortenSsid(const char* ssid, size_t maximum) {
+    String value(ssid != nullptr ? ssid : "");
+    if (value.length() > maximum) {
+      value = value.substring(0, maximum - 1) + ".";
+    }
+    return value;
+  }
+
   DisplayManager& displayManager_;
   HeaderRenderer& headerRenderer_;
   TextRenderer& textRenderer_;
