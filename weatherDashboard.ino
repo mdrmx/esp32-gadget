@@ -91,8 +91,9 @@ bool locationCoordinatesResolved = false;
 
 TimeService timeService;
 
-// Platform connectivity owns Wi-Fi association state. Weather only uses the
-// compatibility adapter below until its startup path is moved fully async.
+// Platform connectivity owns Wi-Fi association lifecycle. WeatherApp starts
+// and observes connection state through injected hooks; the platform loop
+// advances the manager before each WeatherApp update.
 WiFiBackend wifiBackend;
 ConnectivityManager connectivityManager(wifiBackend);
 
@@ -2258,9 +2259,10 @@ bool fetchForecast() {
 // WEATHER APPLICATION ADAPTERS
 // =====================================================
 
-// These adapters keep the first WeatherApp boundary independent from Arduino
-// APIs and the existing global renderers. Subsequent slices can replace them
-// with explicit app-owned views and state without changing the platform loop.
+// WeatherApp's hooks keep its lifecycle independent from Arduino APIs while
+// these adapters connect it to the existing touch/time services and
+// sketch-owned data/renderers. WeatherApp owns startup/refresh sequencing;
+// platform and renderer resources remain with their existing owners.
 void weatherAppProcessInput() {
   pollTouch();
 }
