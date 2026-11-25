@@ -245,6 +245,7 @@ WiFiSettingsScreen wifiSettingsScreen = WiFiSettingsScreen::Closed;
 WiFiConnectPhase wifiConnectPhase = WiFiConnectPhase::None;
 bool wifiAvailabilityConnectionObserved = false;
 bool wifiAvailabilityLastConnected = false;
+bool wifiAvailabilityRefreshPending = false;
 char wifiSelectedSsid[PersistentWiFiProfileStore::MaxSsidLength + 1] = {};
 char wifiPasswordInput[PersistentWiFiProfileStore::MaxPasswordLength + 1] = {};
 bool wifiKeyboardShifted = false;
@@ -2225,6 +2226,9 @@ bool startWiFiSettingsScan() {
   // Record failed starts as attempts too, so a driver error is retried on a
   // bounded cadence rather than on every pass through loop().
   wifiAvailabilityRefreshPolicy.noteAttempt(millis());
+  // This attempt is now after the pending link-state edge, even when the
+  // driver rejects it; the normal five-second failed-scan retry takes over.
+  wifiAvailabilityRefreshPending = false;
   return started;
 }
 
@@ -2576,6 +2580,9 @@ void updateWiFiSettings() {
       connected != wifiAvailabilityLastConnected;
   wifiAvailabilityLastConnected = connected;
   wifiAvailabilityConnectionObserved = true;
+  if (connectionAvailabilityChanged) {
+    wifiAvailabilityRefreshPending = true;
+  }
 
   const WiFiNetworkScanner::State previousScanState =
       wifiNetworkScanner.state();
@@ -2600,7 +2607,7 @@ void updateWiFiSettings() {
           wifiSettingsScreen == WiFiSettingsScreen::Profiles,
           wifiNetworkScanner.state() == WiFiNetworkScanner::State::Scanning,
           wifiNetworkScanner.state() == WiFiNetworkScanner::State::Failed,
-          connectionAvailabilityChanged)) {
+          wifiAvailabilityRefreshPending)) {
     startWiFiSettingsScan();
   }
 
