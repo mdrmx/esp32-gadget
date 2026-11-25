@@ -6,7 +6,7 @@ int failures = 0;
 
 #define CHECK(condition) do { \
   if (!(condition)) { \
-    fprintf(stderr, "FAIL %s:%d: %s\\n", __FILE__, __LINE__, #condition); \
+    fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #condition); \
     ++failures; \
   } \
 } while (0)
@@ -174,10 +174,10 @@ int main() {
   reconnectWorksAfterLossAndDisconnect();
 
   if (failures != 0) {
-    fprintf(stderr, "%d connectivity manager test(s) failed.\\n", failures);
+    fprintf(stderr, "%d connectivity manager test(s) failed.\n", failures);
     return 1;
   }
 
-  printf("ConnectivityManager tests passed.\\n");
+  printf("ConnectivityManager tests passed.\n");
   return 0;
 }
