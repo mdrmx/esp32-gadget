@@ -6,7 +6,7 @@ int failures = 0;
 
 #define CHECK(condition) do { \
   if (!(condition)) { \
-    fprintf(stderr, "FAIL %s:%d: %s\\n", __FILE__, __LINE__, #condition); \
+    fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #condition); \
     ++failures; \
   } \
 } while (0)
@@ -61,6 +61,19 @@ void startsWithoutBlockingAndTransitionsWhenConnected() {
   CHECK(manager.hasSignalStrength());
   CHECK(manager.signalStrengthDbm() == -61);
   CHECK(backend.updateCalls == 1);
+}
+
+void reportsCellularBackendWithoutWiFiAssumptions() {
+  FakeBackend backend;
+  backend.type = NetworkType::Cellular;
+  ConnectivityManager manager(backend);
+
+  CHECK(manager.connect(10U));
+  backend.connected = true;
+  manager.update(20U);
+  CHECK(manager.activeNetworkType() == NetworkType::Cellular);
+  CHECK(manager.hasSignalStrength());
+  CHECK(manager.signalStrengthDbm() == -61);
 }
 
 void startsWithBackendOwnedProfileConfiguration() {
@@ -145,6 +158,7 @@ void reconnectWorksAfterLossAndDisconnect() {
 int main() {
   startsWithoutBlockingAndTransitionsWhenConnected();
   startsWithBackendOwnedProfileConfiguration();
+  reportsCellularBackendWithoutWiFiAssumptions();
   rejectsDuplicatePendingAttempt();
   reportsBackendStartFailure();
   timesOutAndDisconnectsBackend();
@@ -153,10 +167,10 @@ int main() {
   reconnectWorksAfterLossAndDisconnect();
 
   if (failures != 0) {
-    fprintf(stderr, "%d connectivity manager test(s) failed.\\n", failures);
+    fprintf(stderr, "%d connectivity manager test(s) failed.\n", failures);
     return 1;
   }
 
-  printf("ConnectivityManager tests passed.\\n");
+  printf("ConnectivityManager tests passed.\n");
   return 0;
 }
