@@ -5,11 +5,11 @@
 **Related inventory:** [Phase 0, Step 1 — Code inventory](PHASE0_STEP1_CODE_INVENTORY.md)  
 **Repository:** `mdrmx/esp32-gadget`  
 **Primary runtime entry point:** `weatherDashboard.ino`  
-**Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h`, `src/apps/weather/WeatherAssetCache.h` (merged in PR #48), `src/ui/ForecastGraphRenderer.h` (merged in PR #49), `src/ui/WeatherMetricsViewportRenderer.h` (merged in PR #50), `src/ui/ForecastListViewportRenderer.h` (merged in PR #51), `src/ui/TextRenderer.h`, `src/ui/HeaderRenderer.h`, `src/ui/StatusScreenRenderer.h` (PR #44), `src/ui/ForecastListItemRenderer.h` (PR #45), `src/ui/WeatherMetricCardRenderer.h` (PR #46) and `src/ui/WeatherConditionsRenderer.h` (merged in PR #47).
+**Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/ConnectivityBackend.h`, `src/services/ConnectivityManager.h`, `src/services/WiFiBackend.h` (Phase 2 implementation branch), `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h`, `src/apps/weather/WeatherAssetCache.h` (merged in PR #48), `src/ui/ForecastGraphRenderer.h` (merged in PR #49), `src/ui/WeatherMetricsViewportRenderer.h` (merged in PR #50), `src/ui/ForecastListViewportRenderer.h` (merged in PR #51), `src/ui/TextRenderer.h`, `src/ui/HeaderRenderer.h`, `src/ui/StatusScreenRenderer.h` (PR #44), `src/ui/ForecastListItemRenderer.h` (PR #45), `src/ui/WeatherMetricCardRenderer.h` (PR #46) and `src/ui/WeatherConditionsRenderer.h` (merged in PR #47).
 **Source checkpoint:** merged firmware baseline `main` at PR #51 merge `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276` (including PR #50 at `9bcddc503ab6a0d1eb15b1d32ecba9c255db80ca`, PR #49 at `90311b142993465c37c6460b2a79ff56ac136c25` and PR #48 at `e59a8e508670959e99115c33dbff38c200503e9a`).
 **Extraction status:** `WeatherConditionsRenderer` (PR #47), `WeatherAssetCache` (PR #48), `ForecastGraphRenderer` (PR #49), `WeatherMetricsViewportRenderer` (PR #50) and `ForecastListViewportRenderer` (PR #51) are merged into `main`. The user confirmed both strict C++11 viewport host runners pass on merged `main`: `sh scripts/test-weather-metrics-viewport-renderer.sh` and `sh scripts/test-forecast-list-viewport-renderer.sh`. The user also confirmed Arduino IDE Verify, upload/boot and physical Waveshare regression passed for the merged PR #50/#51 baseline on 2026-11-25. `ForecastGraphRenderer` owns graph drawing, `WeatherMetricsViewportRenderer` owns Weather metric row selection/placement/card delegation, and `ForecastListViewportRenderer` owns Forecast List row-window selection/placement/clipping plus settled fallback. Weather retains forecast/metric data, selection, scroll/gesture/animation policy, canvas lifecycle and full screen composition. Latest Verify reports 1,167,139 bytes program storage (37%), 97,444 bytes global dynamic memory (29%) and 230,236 bytes remaining. The build log reused cached objects and completed linking and image generation; these figures are compile-time footprint, not a runtime heap/PSRAM snapshot. No CI status checks were reported for PR #51's merge commit; the later manual checks and user confirmation are the validation evidence.
 
-**Review date:** 2026-11-25
+**Review date:** 2026-11-25 (Phase 2 connectivity slice in progress on branch)
 
 ---
 
@@ -351,14 +351,14 @@ This is another example of implicit display ownership: screen renderers do not r
 
 ### 7.1 Connectivity
 
-`connectWiFi()` is the only connection-establishment helper, but it is not a platform-independent connectivity service.
+`ConnectivityManager` now owns the connection attempt state and timeout behind the transport-neutral `ConnectivityBackend` contract. `WiFiBackend` implements the ESP32 station operations; Weather does not call `WiFi.mode()` or `WiFi.begin()` directly.
 
-- If `WiFi.status()` is already connected, it checks time synchronisation and returns true.
-- Otherwise it draws a Wi-Fi loading message, switches to station mode, calls `WiFi.begin(wifiSsid, wifiPassword)` and polls connection status for up to 20 seconds, sleeping 500 ms between checks.
-- On success it logs the IP address, checks time synchronisation and returns true.
-- On timeout it returns false.
+- `connectivityManager.connect(millis())` starts the backend connection attempt and returns without waiting.
+- `connectivityManager.update(millis())` polls connection state, marks connection success, detects link loss and enforces the 20-second timeout. The device loop calls this on every pass.
+- `maybeSyncTimeFromAPI()` and the initial `LocationService.resolve()` orchestration receive the manager's current connection state.
+- The existing `connectWiFi()` helper is a temporary compatibility adapter: it configures `WiFiBackend`, starts the manager, then pumps `update()` with the existing 500 ms delay until connection or timeout. This preserves current startup/refresh sequencing but means those call paths still block; the full non-blocking WeatherApp integration is a subsequent Phase 2 slice.
 
-Credentials are still read from compile-time values supplied by the ignored `secrets.h`. The sketch has no Preferences / NVS network profile store, no network-selection UI and no alternate network backend.
+Credentials are still read from compile-time values supplied by the ignored `secrets.h`. There is no Preferences / NVS network-profile store, network-selection UI, automatic reconnect/backoff policy or cellular backend yet. `LocationService` still uses direct Wi-Fi scan/BSSID/RSSI APIs for Google Wi-Fi positioning, and `HttpRequestClient` remains tied to `WiFiClientSecure`; those are separate boundaries from connection lifecycle.
 
 ### 7.2 Location resolution
 
@@ -576,6 +576,7 @@ Phase 1 remains in progress. The immediate work is the broader module-boundary a
 
 - **2026-11-24:** Reconciled the runtime map after PR #50 merged at `9bcddc503ab6a0d1eb15b1d32ecba9c255db80ca`; `WeatherMetricsViewportRenderer` is now part of the main baseline. Added a branch-specific PR #51 note for `ForecastListViewportRenderer`, explicitly keeping it separate from merged `main` until review and merge.
 - **2026-11-25:** Updated the runtime checkpoint after PR #51 merged at `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276`; `ForecastListViewportRenderer` is part of `main`. The user subsequently confirmed both viewport strict C++11 host runners, Arduino IDE Verify, upload/boot and physical Waveshare regression passed. Recorded the latest program/global-memory figures and refreshed the Phase 0 close-out handover.
+- **2026-11-25 — Phase 2 branch update:** recorded the first Connectivity Manager slice. `ConnectivityBackend`, `ConnectivityManager` and `WiFiBackend` now own the transport-neutral contract, connection state/timeout and ESP32 station adapter. The Weather sketch routes connection state through the manager and polls it in `loop()`. The temporary synchronous compatibility adapter remains and is explicitly documented as a blocker to full non-blocking startup; host tests pass in the implementation workspace, while Arduino Verify and physical validation remain pending.
 
 - **2026-10-31 — Version 1.0:** Initial Step 2 runtime trace. Documents startup, loop scheduling, touch ownership and gesture arbitration, rendering paths, network / location / time flows, blocking operations and candidate platform boundaries. Static source inspection only.
 - **2026-11-01 — Version 1.1:** Updated remaining-work guidance after the Step 4 physical baseline; marked build/toolchain and initial blocking-operation verification complete, clarified that memory profiling is the next Phase 0 activity, and recorded the demo-mode documentation discrepancy as resolved.
