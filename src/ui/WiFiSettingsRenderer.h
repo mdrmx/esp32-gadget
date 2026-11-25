@@ -117,7 +117,7 @@ public:
       const String& clock,
       const WiFiScanResult* results,
       uint8_t count,
-      uint8_t page,
+      uint8_t firstVisibleIndex,
       bool scanning,
       bool failed,
       const String& connectionStatus,
@@ -139,7 +139,7 @@ public:
     if (message.length() > 0) status = message;
     drawStatusLine(connectionStatus, status, 62);
 
-    const uint8_t first = static_cast<uint8_t>(page * ScanRowsVisible);
+    const uint8_t first = firstVisibleIndex;
     for (uint8_t row = 0; row < ScanRowsVisible; ++row) {
       const uint8_t index = static_cast<uint8_t>(first + row);
       if (index >= count || results == nullptr) break;
@@ -163,19 +163,9 @@ public:
           247, y + 9, 1, colours_.accent);
     }
 
-    const uint8_t pageCount = count == 0
-        ? 1
-        : static_cast<uint8_t>((count + ScanRowsVisible - 1) /
-                               ScanRowsVisible);
-    drawButton("PREV", 8, FooterTop, 54, FooterHeight,
-               page > 0 ? colours_.panel : colours_.background,
-               page > 0 ? colours_.white : colours_.muted);
-    drawButton("SAVED", 69, FooterTop, 76, FooterHeight,
+    drawButton("SAVED", 8, FooterTop, 145, FooterHeight,
                colours_.panel, colours_.white);
-    drawButton("NEXT", 152, FooterTop, 56, FooterHeight,
-               page + 1 < pageCount ? colours_.panel : colours_.background,
-               page + 1 < pageCount ? colours_.white : colours_.muted);
-    drawButton("RESCAN", 215, FooterTop, 97, FooterHeight,
+    drawButton("RESCAN", 167, FooterTop, 145, FooterHeight,
                colours_.accent, colours_.background);
   }
 
