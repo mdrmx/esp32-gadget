@@ -3707,7 +3707,11 @@ void setup() {
 // =====================================================
 
 void loop() {
-  connectivityManager.update(millis());
+  // Do not start a manager-owned association retry while the asynchronous
+  // user-facing network scan is still using the Wi-Fi radio.
+  connectivityManager.update(
+      millis(),
+      wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning);
   updateWiFiSignalIndicator();
   updateWiFiSettings();
   weatherApp.update();
