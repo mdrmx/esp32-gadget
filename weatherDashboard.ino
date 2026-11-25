@@ -2138,9 +2138,10 @@ bool weatherAppHasConnection() {
 // WEATHER DATA SERVICE ADAPTERS
 // =====================================================
 
-// Keep Wi-Fi lifecycle and status/message selection in the Weather sketch.
-// StatusScreenRenderer owns the presentation; WeatherDataService receives
-// only the selected location and API key.
+// ConnectivityManager and WiFiBackend own association lifecycle; these
+// adapters only check connection state and retain Weather status-message
+// selection in the sketch. StatusScreenRenderer owns presentation composition;
+// WeatherDataService receives only the selected location and API key.
 bool fetchWeather() {
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();
