@@ -19,7 +19,8 @@ bool Preferences::begin(const char* name, bool readOnly) {
   }
   active_ = true;
   readOnly_ = readOnly;
-  strncpy(lastNamespace, name, sizeof(lastNamespace) - 1);
+  memset(lastNamespace, 0, sizeof(lastNamespace));
+  memcpy(lastNamespace, name, strlen(name));
   ++beginCalls;
   return true;
 }
@@ -28,7 +29,8 @@ size_t Preferences::getBytesLength(const char* key) {
   if (!active_ || key == nullptr || strlen(key) >= sizeof(lastKey)) {
     return 0;
   }
-  strncpy(lastKey, key, sizeof(lastKey) - 1);
+  memset(lastKey, 0, sizeof(lastKey));
+  memcpy(lastKey, key, strlen(key));
   return storedLength;
 }
 
@@ -40,7 +42,8 @@ size_t Preferences::getBytes(
       length > storedLength) {
     return 0;
   }
-  strncpy(lastKey, key, sizeof(lastKey) - 1);
+  memset(lastKey, 0, sizeof(lastKey));
+  memcpy(lastKey, key, strlen(key));
   memcpy(destination, storedBytes, length);
   return length;
 }
@@ -53,7 +56,8 @@ size_t Preferences::putBytes(
       source == nullptr || length > sizeof(storedBytes)) {
     return 0;
   }
-  strncpy(lastKey, key, sizeof(lastKey) - 1);
+  memset(lastKey, 0, sizeof(lastKey));
+  memcpy(lastKey, key, strlen(key));
   memcpy(storedBytes, source, length);
   storedLength = length;
   return length;
