@@ -453,7 +453,7 @@ Only mark a check as passed when the procedure has actually been performed on th
 ## Phase 2 — WeatherApp non-blocking startup/refresh slice (PR #53)
 
 **Branch:** `phase2/02-nonblocking-weather-startup`  
-**Status:** Firmware, upload/boot and physical regression passed (user-confirmed 2026-11-25). PR #53 remains open and unmerged.
+**Status:** Firmware, upload/boot and physical regression passed (user-confirmed 2026-11-25). PR #53 is merged at `7650072bc0ab4e778f97e05519ec475e8f33fba4`.
 
 - [x] Replace the synchronous Weather startup wait with explicit `WeatherApp` states: connection, location, current weather, forecast, asset preparation and ready.
 - [x] Keep `ConnectivityManager.update(millis())` in the platform loop and keep Weather input/time hooks running while association is pending.
@@ -474,3 +474,29 @@ Only mark a check as passed when the procedure has actually been performed on th
 - [ ] Record runtime internal free heap/largest block and PSRAM separately from compile-time footprint. This remains a separate memory-profile measurement, not an outstanding firmware or physical-regression gate.
 
 **Scope limitation:** Wi-Fi association is now state-driven and does not block the WeatherApp call stack. A due TimeService/TimeAPI request, LocationService geolocation, current/forecast HTTP/TLS requests and icon asset downloads remain synchronous within their individual hooks/stages; input processing is delayed while one of those operations is executing. This slice does not claim a fully asynchronous networking stack.
+
+
+## Phase 2 — versioned Wi-Fi profile storage (implementation branch)
+
+**Branch:** `phase2/03-persistent-wifi-profiles`  
+**Status:** Implementation and host suites added; host execution, Arduino Verify/upload and physical validation are pending.
+
+- [x] Add a platform-independent `WiFiProfileStore` with a fixed maximum of five profiles, a versioned binary schema and CRC32 validation.
+- [x] Support preferred-profile selection, duplicate-SSID credential replacement, bounded profile capacity, forget semantics and open-network credentials.
+- [x] Add the ESP32 Preferences/NVS adapter using one versioned blob key.
+- [x] Import the legacy `secrets.h` network only when the NVS profile key is absent; do not overwrite corrupt/unsupported records or repopulate a valid empty store.
+- [x] Copy the selected credentials to a device-lifetime RAM object before configuring the backend, preserving the borrowed-pointer lifetime.
+- [x] Add strict C++11 host suites for profile lifecycle/format validation and the Preferences adapter: `sh scripts/test-wifi-profile-store.sh`.
+- [ ] Run `sh scripts/test-wifi-profile-store.sh`; confirm both suites pass with `-Wall -Wextra -Werror -pedantic`.
+- [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12.
+- [ ] Upload/boot on the Waveshare ESP32-S3 Touch LCD 2.
+- [ ] First-boot migration: verify the compile-time profile is imported once, then retained and selected on subsequent boots.
+- [ ] Existing NVS profile: verify the preferred stored profile is used instead of compile-time credentials.
+- [ ] Empty profile store: verify no compile-time profile is silently restored.
+- [ ] Corrupt/unsupported profile blob: verify stored bytes are not overwritten and the documented compile-time fallback is used.
+- [ ] Verify secure-network and open-network association, plus reconnect after initial association.
+- [ ] Confirm all existing Weather/Forecast, touch, scroll, graph, time and location behaviour remains intact.
+
+**Security limitation:** the code does not enable NVS encryption or ESP32 flash encryption. Credential confidentiality at rest depends on the board's flash-encryption configuration. No profile passwords should appear in logs, diagnostics or PR descriptions.
+
+**Scope boundary:** this slice provides the persistence and credential-lifetime foundation only. Network scanning, selection/password-entry UI, manager-owned retry/backoff and roaming policy remain separate work.
