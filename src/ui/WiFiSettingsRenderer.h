@@ -127,19 +127,22 @@ public:
     textRenderer_.drawText("AVAILABLE NETWORKS", 10, 43, 2, colours_.white);
 
     String status;
+    bool showStatus = false;
     if (scanning) {
       status = "Scanning nearby networks...";
+      showStatus = true;
     } else if (failed) {
       status = "Scan failed - tap RESCAN";
+      showStatus = true;
     } else if (count == 0) {
       status = "No visible networks found";
-    } else if (count > ScanRowsVisible) {
-      status = String(count) + " found - swipe to scroll";
-    } else {
-      status = String(count) + " networks found - strongest first";
+      showStatus = true;
     }
-    if (message.length() > 0) status = message;
-    drawStatusLine(connectionStatus, status, 62);
+    if (message.length() > 0) {
+      status = message;
+      showStatus = true;
+    }
+    if (showStatus) drawStatusLine(connectionStatus, status, 62);
 
     // Keep a partial row in view while the touch position follows the finger.
     // The sketch bounds scrollPositionPixels to one resisted row overshoot.
@@ -158,12 +161,16 @@ public:
       textRenderer_.drawText(
           shortenSsid(results[index].ssid, 21), 15, y + 4, 2,
           colours_.white);
-      const char* security = !results[index].supported
-          ? "UNSUPPORTED"
-          : (results[index].open ? "OPEN" : "SECURE");
-      textRenderer_.drawText(security, 15, y + 22, 2,
-                             results[index].supported
-                                 ? colours_.muted : colours_.error);
+      if (results[index].supported) {
+        drawSecurityIcon(
+            16, y, results[index].open,
+            results[index].open ? colours_.success : colours_.muted);
+      } else {
+        // Preserve the explicit unsupported warning for security modes that
+        // this manager cannot join; supported OPEN/SECURE labels become icons.
+        textRenderer_.drawText(
+            "UNSUPPORTED", 15, y + 22, 2, colours_.error);
+      }
       drawSignalStrengthBars(results[index].rssiDbm, y);
     }
 
@@ -183,7 +190,7 @@ public:
     }
 
     textRenderer_.drawText("AVAILABLE NETWORKS", 10, 43, 2, colours_.white);
-    drawStatusLine(connectionStatus, status, 62);
+    if (showStatus) drawStatusLine(connectionStatus, status, 62);
 
     drawButton("SAVED", 8, FooterTop, 145, FooterHeight,
                colours_.panel, colours_.white);
@@ -376,6 +383,36 @@ public:
   }
 
 private:
+  // Draw compact padlock symbols with display primitives; no bitmap assets
+  // or extra flash resources are needed. Open networks have a raised shackle.
+  void drawSecurityIcon(
+      int x,
+      int rowY,
+      bool open,
+      uint16_t colour) const {
+    Arduino_GFX* target = displayManager_.target();
+    if (target == nullptr) return;
+
+    const int shackleTop = rowY + 18;
+    const int bodyTop = rowY + 28;
+    if (open) {
+      // Open shackle: left stem, crown and a raised free end on the right.
+      target->drawLine(x + 4, bodyTop + 1, x + 4, shackleTop + 7, colour);
+      target->drawLine(x + 4, shackleTop + 7, x + 7, shackleTop + 3, colour);
+      target->drawLine(x + 7, shackleTop + 3, x + 12, shackleTop + 3, colour);
+      target->drawLine(x + 12, shackleTop + 3, x + 14, shackleTop + 6, colour);
+    } else {
+      // The body is drawn after the rounded shackle to mask its lower edge.
+      target->drawRoundRect(
+          x + 3, shackleTop, 11, 16, 5, colour);
+    }
+
+    target->fillRoundRect(x, bodyTop, 18, 10, 2, colour);
+    // Simple key slot, contrasting against the body.
+    target->drawLine(x + 9, bodyTop + 3, x + 9, bodyTop + 7,
+                     colours_.background);
+  }
+
   // Four ascending bars use the same RSSI thresholds as the header icon.
   // A muted bar remains visible below the current signal level.
   void drawSignalStrengthBars(int rssiDbm, int rowY) const {
