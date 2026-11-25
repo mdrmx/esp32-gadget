@@ -6,10 +6,10 @@
 **Repository:** `mdrmx/esp32-gadget`  
 **Primary runtime entry point:** `weatherDashboard.ino`  
 **Service/application/UI modules:** `src/services/HttpRequestClient.h`, `src/services/ConnectivityBackend.h` (merged PR #52), `src/services/ConnectivityManager.h` (merged PR #52), `src/services/WiFiBackend.h` (merged PR #52), `src/services/TimeService.h`, `src/services/LocationService.h`, `src/services/WeatherDataService.h`, `src/apps/weather/WeatherApp.h`, `src/apps/weather/WeatherViewState.h`, `src/apps/weather/WeatherAssetCache.h` (merged in PR #48), `src/ui/ForecastGraphRenderer.h` (merged in PR #49), `src/ui/WeatherMetricsViewportRenderer.h` (merged in PR #50), `src/ui/ForecastListViewportRenderer.h` (merged in PR #51), `src/ui/TextRenderer.h`, `src/ui/HeaderRenderer.h`, `src/ui/StatusScreenRenderer.h` (PR #44), `src/ui/ForecastListItemRenderer.h` (PR #45), `src/ui/WeatherMetricCardRenderer.h` (PR #46) and `src/ui/WeatherConditionsRenderer.h` (merged in PR #47).
-**Source checkpoint:** merged firmware baseline `main` at PR #52 merge `bc1948019c31ce466ea97be34f205373d05c7954` (including the PR #51 viewport renderer and earlier PR #48–#50 rendering extractions). The Phase 2 connectivity files and sketch integration described in Section 7.1 are part of merged `main` through PR #52.
-**Extraction status:** `WeatherConditionsRenderer` (PR #47), `WeatherAssetCache` (PR #48), `ForecastGraphRenderer` (PR #49), `WeatherMetricsViewportRenderer` (PR #50), `ForecastListViewportRenderer` (PR #51) and the connectivity contract/manager/Wi-Fi backend (PR #52) are merged into `main`. The user confirmed both strict C++11 viewport host runners and the two Phase 2 connectivity host runners passed. Arduino IDE Verify, firmware upload/hash verification and physical Waveshare regression are also confirmed for PR #52. `ForecastGraphRenderer` owns graph drawing, `WeatherMetricsViewportRenderer` owns Weather metric row selection/placement/card delegation, `ForecastListViewportRenderer` owns Forecast List row-window selection/placement/clipping plus settled fallback, and the Phase 2 modules own the network backend contract and connection state. Weather retains forecast/metric data, selection, scroll/gesture/animation policy, canvas lifecycle and full screen composition. Latest Verify reports 1,168,551 bytes program storage (37%), 97,476 bytes global dynamic memory (29%) and 230,204 bytes remaining. The upload log reports a 1,168,704-byte application image written with hash verification; these figures are compile-time footprint / firmware image size, not a runtime heap/PSRAM snapshot.
+**Source checkpoint:** merged firmware baseline `main` remains PR #52 merge `bc1948019c31ce466ea97be34f205373d05c7954` (including the PR #51 viewport renderer and earlier PR #48–#50 rendering extractions). The connectivity contract/manager/Wi-Fi backend and original synchronous Weather integration are in `main`; PR #53's state-driven Weather startup/refresh implementation is on `phase2/02-nonblocking-weather-startup`, firmware/device-validated but not yet merged.
+**Extraction status:** `WeatherConditionsRenderer` (PR #47), `WeatherAssetCache` (PR #48), `ForecastGraphRenderer` (PR #49), `WeatherMetricsViewportRenderer` (PR #50), `ForecastListViewportRenderer` (PR #51) and the connectivity contract/manager/Wi-Fi backend (PR #52) are merged into `main`. The user confirmed both strict C++11 viewport host runners and the two Phase 2 connectivity host runners passed. Arduino IDE Verify, firmware upload/hash verification and physical Waveshare regression are confirmed for PR #52. PR #53's follow-up state-driven Weather startup/refresh implementation on `phase2/02-nonblocking-weather-startup` has also passed the strict C++11 WeatherApp state harness, Arduino IDE Verify, upload/boot and user-confirmed physical regression; it remains unmerged. Its Verify reports 1,169,075 bytes program storage (37%), 97,492 bytes global dynamic memory (29%) and 230,188 bytes remaining; the 1,171,456-byte application image was written and hash-verified. These compile-time and image-size figures are not runtime heap/PSRAM measurements. The state machine removes Wi-Fi association waiting from the application call stack but leaves geolocation, HTTP/TLS, due TimeAPI sync and icon preparation synchronous.
 
-**Review date:** 2026-11-25 (Phase 2 connectivity slice merged in PR #52 and device-validated)
+**Review date:** 2026-11-25 (PR #52 merged/device-validated; PR #53 state-driven startup branch firmware/device-validated, awaiting merge)
 
 ---
 
@@ -47,33 +47,23 @@ There is no application manager or platform service layer in the current sketch.
 
 ```mermaid
 flowchart TD
-    A["ESP32 starts"] --> B["setup()"]
-    B --> C["Initialise display, buffers, touch and TimeService"]
-    C --> D{"USE_DEMO_WEATHER_DATA?"}
-    D -->|Yes| E["Set fixed demo clock"]
-    D -->|No| F["connectWiFi()"]
-    F --> G["LocationService.resolve()"]
-    G --> H["Google Wi-Fi positioning"]
-    H -->|Unavailable / fails| I["IP geolocation"]
-    H -->|Success| J["Reverse geocode place name"]
-    I -->|Success| J
-    I -->|Fails| K["Keep configured coordinates"]
-    J --> L["Return LocationFix + display name"]
-    K --> L
-    L --> M["fetchWeather()"]
-    M --> N["fetchForecast()"]
-    E --> N
-    N --> O["Draw Weather or error screen"]
-    O --> P["loop()"]
-    P --> Q["pollTouch()"]
-    Q --> R["maybeSyncTimeFromAPI()"]
-    R --> S["Refresh clock label when due"]
-    S --> T{"10-minute refresh due?"}
-    T -->|Yes| U["fetchWeather() then fetchForecast()"]
-    U --> V["Redraw active tab"]
-    V --> W["delay(30)"]
-    T -->|No| W
-    W --> P
+    A["ESP32 starts"] --> B["setup(): display / buffers / touch / TimeService"]
+    B --> C["Bind WeatherApp hooks + begin()"]
+    C --> D["Start Wi-Fi through ConnectivityManager; return"]
+    D --> E["loop(): update ConnectivityManager, then WeatherApp"]
+    E --> F{"Connection pending?"}
+    F -->|Yes| G["Keep input / time / clock hooks running"]
+    G --> E
+    F -->|No: connected or failed| H["Resolve LocationFix or configured fallback"]
+    H --> I["Fetch current weather"]
+    I --> J["Fetch hourly forecast"]
+    J --> K["Prepare Weather icon asset if needed"]
+    K --> L["Draw Weather or error"]
+    L --> M{"10-minute refresh due?"}
+    M -->|Yes| N["Start one connection attempt; state-driven refresh"]
+    N --> E
+    M -->|No| O["delay(30)"]
+    O --> E
 ```
 
 The main global state groups and their current responsibilities are:
@@ -93,80 +83,66 @@ These groups are all held in file-scope variables. Their current ownership is th
 
 ## 3. Startup sequence — `setup()`
 
-The live startup path is ordered and synchronous.
+The merged PR #52 baseline had a synchronous Wi-Fi association before WeatherApp startup. On the follow-up branch `phase2/02-nonblocking-weather-startup`, connection acquisition is state-driven; location and data work still run synchronously in separate WeatherApp update stages.
 
 1. **Serial, display and canvas startup.** Serial starts, the display is initialised, logical dimensions are read and the forecast, weather-metrics and tab-transition canvases are allocated with their existing fallback behaviour.
 2. **Memory diagnostics.** The sketch reports framebuffer memory regions plus PSRAM and internal-heap summaries.
 3. **Touch-controller detection.** The CST816 reader initialises the touch interface. If the controller is unavailable, display and network startup continue while touch polling returns immediately.
 4. **Time service setup.** `timeService.begin()` configures the Europe/London timezone/DST rule. This does not itself establish a valid clock. The existing `maybeSyncTimeFromAPI()` caller delegates synchronisation and retry policy to `TimeService::syncIfDue()`.
-5. **Demo or live startup.** In demo mode, `TimeService::setDemoTime()` sets the fixed development timestamp and no initial Wi-Fi/location requests are made. In live mode, the sketch displays a startup loading message and calls `connectWiFi()`. If connected, it calls `LocationService::resolve()`, which owns Google Wi-Fi → IP → configured-coordinate fallback and returns a `LocationFix` plus display name.
-6. **Weather application startup.** After platform and location setup, the sketch injects its existing Weather operations into `WeatherApp::Hooks` and calls `WeatherApp::begin()`.
-7. **Initial Weather data and render.** `WeatherApp::begin()` calls current-weather fetch then forecast fetch, draws Weather or an error state according to `weatherAvailable`, and records the refresh timestamp after initial retrieval/rendering.
+5. **Demo or live startup.** In demo mode, `TimeService::setDemoTime()` sets the fixed development timestamp and the Wi-Fi/location callbacks take the offline fixture path. In live mode, `setup()` injects platform and Weather operations into `WeatherApp::Hooks`; it does not wait for Wi-Fi or resolve location.
+6. **Weather application startup.** `WeatherApp::begin()` starts one connection attempt through the injected callback, draws the connecting state and returns to the device setup path. The platform `loop()` continues polling `ConnectivityManager` and calling `WeatherApp::update()`.
+7. **Initial Weather data and render.** While the connection is pending, Weather continues input, time-sync and clock hooks. When connected or the attempt fails/times out, the app advances through location resolution, current-weather fetch, forecast fetch, optional Weather icon preparation and first render. Each stage is scheduled on a separate update call; the LocationService, HTTP/TLS and asset-preparation calls themselves remain synchronous during their stage.
 
 ### Startup flow detail
 
 ```mermaid
 flowchart TD
-    A["setup()"] --> B["Display init + backlight"]
-    B --> C["Allocate forecast / metrics / transition canvases"]
-    C --> D["Report framebuffer regions and heap"]
-    D --> E["Initialise I2C and detect CST816"]
-    E --> F["TimeService.begin(): set Europe/London TZ"]
-    F --> G{"Demo mode?"}
-    G -->|Yes| H["TimeService.setDemoTime()"]
-    G -->|No| I["drawLoading: Starting up"]
-    I --> J["connectWiFi()"]
-    J -->|Connected| K["LocationService.resolve()"]
-    J -->|Not connected| L["Keep configured LocationFix"]
-    K --> M{"Provider result"}
-    M -->|Google Wi-Fi| N["GoogleWifi fix"]
-    M -->|IP fallback| O["IpGeolocation fix"]
-    M -->|Both fail| L
-    N --> P["Copy fix + display name to Weather"]
-    O --> P
-    L --> P
-    P --> Q["WeatherApp.begin(hooks)"]
-    H --> Q
-    Q --> R["fetchCurrentWeather()"]
-    R --> S["fetchForecast()"]
-    S --> T{"weatherAvailable?"}
-    T -->|Yes| U["drawWeather()"]
-    T -->|No| V["drawError()"]
-    U --> W["Set refresh timestamp"]
-    V --> W
+    A["setup()"] --> B["Display / buffers / touch / TimeService"]
+    B --> C["Configured fallback LocationFix"]
+    C --> D["WeatherApp.begin(hooks)"]
+    D --> E["Start Wi-Fi attempt (live mode)"]
+    E --> F["Return to loop()"]
+    F --> G["ConnectivityManager.update()"]
+    G --> H["WeatherApp.update(): input / time / clock"]
+    H --> I{"Wi-Fi pending?"}
+    I -->|Yes| F
+    I -->|No: success or timeout/failure| J["Resolve location or configured fallback"]
+    J --> K["Fetch current weather"]
+    K --> L["Fetch forecast"]
+    L --> M["Prepare Weather assets if available"]
+    M --> N{"weatherAvailable?"}
+    N -->|Yes| O["drawWeather()"]
+    N -->|No| P["drawError()"]
+    O --> Q["Ready / periodic refresh"]
+    P --> Q
+    Q --> F
 ```
 
 ### Important startup nuance
 
-`connectWiFi()` may itself call `maybeSyncTimeFromAPI()` once a connection is available. The first TimeAPI request can therefore happen inside the startup connection path, before location resolution. The later `fetchWeather()` and `fetchForecast()` calls each invoke `connectWiFi()` again; when Wi-Fi is already connected this is a status check plus a time-sync check, not another `WiFi.begin()` association attempt.
+On the follow-up branch, `WeatherApp::begin()` only starts the connection attempt; `loop()` polls the Connectivity Manager and then calls `WeatherApp::update()`. The app runs the time-sync hook during the pending-connection state, but TimeService sees the current disconnected status and does not have to wait for association. When association succeeds, the next update advances to location resolution and then to current/forecast retrieval.
 
-If the initial connection attempt fails, the live startup path still calls `fetchWeather()` and `fetchForecast()`. Each of those functions calls `connectWiFi()` again, so the sketch can make further connection attempts rather than stopping after the first startup failure.
+If the initial connection attempt fails or times out, the resolver selects the configured fallback coordinates and does not make another IP-geolocation request without a network. The current-weather adapter follows the existing stale-data / Wi-Fi-unavailable path and the forecast adapter marks forecast unavailable. The periodic refresh flow may initiate a new single connection attempt on its next scheduled cycle; the fetch adapters themselves do not start additional Wi-Fi attempts.
 
 ## 4. Main loop and scheduling
 
-The device `loop()` is now a small platform adapter: it calls `weatherApp.update()` and retains the 30 ms pacing delay. `WeatherApp` runs the Weather-owned input/time/render/refresh sequence through injected hooks. The operations remain synchronous and some can block.
+The device `loop()` is the platform scheduler: it calls `connectivityManager.update(millis())`, then `weatherApp.update()`, and retains the 30 ms pacing delay. `WeatherApp` runs the Weather-owned input/time/connection/startup/refresh sequence through injected hooks. During pending Wi-Fi association, input and time hooks continue on each loop pass. Location, HTTP/TLS, icon-asset and rendering operations remain synchronous when their individual state executes.
 
 ```mermaid
 flowchart TD
-    A["loop() begins"] --> B["weatherApp.update()"]
-    B --> C["pollTouch() via injected hook"]
-    C --> D["maybeSyncTimeFromAPI()"]
-    D --> E{"Clock refresh due?"}
-    E -->|Yes| F["refreshHeaderClock()"]
-    E -->|No| G{"10-minute Weather refresh due?"}
-    F --> G
-    G -->|Yes| H["Set app refresh timestamp"]
-    H --> I["fetchWeather()"]
-    I --> J["fetchForecast()"]
-    J --> K{"Current tab"}
-    K -->|Forecast| L["drawForecast()"]
-    K -->|Weather and data available| M["drawWeather()"]
-    K -->|Weather and no data| N["drawError()"]
-    L --> O["delay(30)"]
-    M --> O
-    N --> O
-    G -->|No| O
-    O --> A
+    A["loop() begins"] --> B["ConnectivityManager.update(millis())"]
+    B --> C["WeatherApp.update()"]
+    C --> D["Input + TimeService hooks"]
+    D --> E{"Startup/refresh state?"}
+    E -->|Connecting| F["Check manager state; return if pending"]
+    E -->|Location / fetch / render| G["Advance one stage"]
+    E -->|Ready| H{"10-minute refresh due?"}
+    H -->|Yes| I["Start connection attempt"]
+    H -->|No| J["delay(30)"]
+    F --> J
+    G --> J
+    I --> J
+    J --> A
 ```
 
 | Activity | Trigger / cadence | Behaviour |
@@ -351,14 +327,17 @@ This is another example of implicit display ownership: screen renderers do not r
 
 ### 7.1 Connectivity
 
-`ConnectivityManager` now owns the connection attempt state and timeout behind the transport-neutral `ConnectivityBackend` contract. `WiFiBackend` implements the ESP32 station operations; Weather does not call `WiFi.mode()` or `WiFi.begin()` directly.
+`ConnectivityManager` owns the connection attempt state and timeout behind the transport-neutral `ConnectivityBackend` contract. `WiFiBackend` implements the ESP32 station operations; Weather does not call `WiFi.mode()` or `WiFi.begin()` directly.
 
-- `connectivityManager.connect(millis())` starts the backend connection attempt and returns without waiting.
-- `connectivityManager.update(millis())` polls connection state, marks connection success, detects link loss, mirrors backend/driver background reconnection and enforces the 20-second timeout. The device loop calls this on every pass.
-- `maybeSyncTimeFromAPI()` and the initial `LocationService.resolve()` orchestration receive the manager's current connection state.
-- The existing `connectWiFi()` helper is a temporary compatibility adapter: it configures `WiFiBackend`, starts the manager, then pumps `update()` with the existing 500 ms delay until connection or timeout. This preserves current startup/refresh sequencing but means those call paths still block; the full non-blocking WeatherApp integration is a subsequent Phase 2 slice.
+- `connectivityManager.connect(nowMs)` starts the backend connection attempt and returns without waiting.
+- `connectivityManager.update(millis())` is called by the platform loop on every pass. It polls connection state, marks connection success, detects link loss, mirrors backend/driver background reconnection and enforces the 20-second timeout.
+- In the merged PR #52 baseline, `connectWiFi()` wrapped these APIs in a synchronous compatibility wait. The follow-up branch `phase2/02-nonblocking-weather-startup` removes that helper entirely.
+- In the follow-up branch, `WeatherApp::begin()` calls an injected connection-start hook and returns. The platform loop then updates the manager and WeatherApp. During `Connecting`, Weather continues to run its input, time-sync and clock hooks. Once connected or the attempt ends, Weather advances through location, current-weather, forecast, asset-preparation and initial-render states.
+- The same state-driven connection check is used during periodic refresh. Current/forecast data adapters read the current connection state and do not initiate new association attempts.
 
 Credentials are still read from compile-time values supplied by the ignored `secrets.h`. There is no Preferences / NVS network-profile store, network-selection UI, manager-initiated retry/backoff policy or cellular backend yet. Open-network passwords are passed as `nullptr` to the ESP32 Wi-Fi driver. `LocationService` still uses direct Wi-Fi scan/BSSID/RSSI APIs for Google Wi-Fi positioning, and `HttpRequestClient` remains tied to `WiFiClientSecure`; those are separate boundaries from connection lifecycle.
+
+**Follow-up branch scope limit:** this removes the Wi-Fi association wait from the WeatherApp call stack, not all network blocking. `LocationService` geolocation, TimeService's due TimeAPI request, current/forecast HTTP/TLS requests and icon asset downloads remain synchronous while their individual hooks/stages execute.
 
 ### 7.2 Location resolution
 
@@ -379,9 +358,10 @@ The header continues to prefer `locationDisplayName`, then `weatherCity`, then t
 
 `fetchWeather()` loads the local fixture immediately in demo mode. In live mode it:
 
-1. Calls `connectWiFi()`; if this fails, it displays stale Weather data when available or a Wi-Fi error when no data exists.
-2. Displays a loading message.
-3. GETs OpenWeather current conditions using the stored latitude / longitude, API key and metric units.
+1. The WeatherApp state machine first waits for the platform connection attempt to complete or fail; `fetchWeather()` does not start Wi-Fi itself.
+2. In live mode, if there is no current network, the adapter displays stale Weather data when available or a Wi-Fi error when no data exists.
+3. When connected, it displays a loading message.
+4. GETs OpenWeather current conditions using the stored latitude / longitude, API key and metric units.
 4. Parses the response and updates current-weather globals: place / condition / icon, temperature, feels-like, humidity, pressure, wind speed, cloud cover, visibility and rainfall.
 5. Updates `locationTimezoneOffset` from the response. If location was not resolved earlier, it may adopt the coordinates supplied by the current-weather response.
 6. Sets `weatherAvailable` true when parsing succeeds.
@@ -392,7 +372,7 @@ The response wind speed is converted from metres per second to kilometres per ho
 
 `fetchForecast()` also bypasses the network in demo mode. In live mode it:
 
-1. Calls `connectWiFi()`.
+1. The WeatherApp state machine has already completed its connection stage; `fetchForecast()` does not start or wait for Wi-Fi itself.
 2. Resets forecast count, error text and the current UV / precipitation-probability availability flags.
 3. Requests the OpenWeather One Call 4.0 one-hour timeline endpoint.
 4. Follows the response's `next` URL for up to three pages, stopping at the 48-record capacity, an empty next URL or a page failure.
@@ -407,9 +387,9 @@ The list displays up to three records at once. The graph uses six visible hourly
 
 ```mermaid
 flowchart TD
-    A["Configured fallback coordinates"] --> B["connectWiFi()"]
+    A["Configured fallback coordinates"] --> B["WeatherApp connection state"]
     B -->|Connected| C["LocationService.resolve()"]
-    B -->|Not connected| D["ConfiguredFallback LocationFix"]
+    B -->|Not connected / failed| D["ConfiguredFallback LocationFix"]
     C --> E["Google Wi-Fi positioning"]
     E -->|Missing key / insufficient scan / error| F["IP geolocation"]
     E -->|Valid fix| G["GoogleWifi LocationFix"]
@@ -445,11 +425,11 @@ Hourly timestamps are formatted using `locationTimezoneOffset` from the OpenWeat
 
 The current implementation runs touch processing, time synchronisation, network requests and rendering sequentially on the Arduino loop / call stack. The sketch does not define an asynchronous request queue or a dedicated application-level network task.
 
-The following are source-configured bounds / timeouts. They are not guarantees of total operation duration, and nested calls can make a complete startup or refresh much longer.
+The following are source-configured bounds / timeouts. They are not guarantees of total operation duration, and nested calls can make a complete startup or refresh much longer. On the follow-up branch the Wi-Fi association timeout is checked from `loop()` without a blocking wait. Time sync, location, HTTP/TLS and icon requests still block the loop while their individual operation executes.
 
 | Operation | Source-configured wait / timeout |
 |---|---:|
-| Wi-Fi association in `connectWiFi()` | Up to 20 s; 500 ms polling delay |
+| Wi-Fi association | 20 s manager timeout; application loop does not wait/poll with a blocking delay on the follow-up branch |
 | TimeAPI.io request | 5 s connect timeout and 5 s request timeout |
 | Google Geolocation request | 10 s connect timeout and 12 s request timeout |
 | IP geolocation request | 8 s connect timeout and 8 s request timeout |
@@ -470,10 +450,10 @@ Other intentional blocking work includes:
 
 ### Consequences for the platform refactor
 
-- A time-sync check inside `loop()` can perform HTTPS work and delay subsequent touch samples.
+- A time-sync check inside `WeatherApp.update()` can perform HTTPS work after the network becomes available and delay subsequent touch samples. While Wi-Fi association is pending, TimeService receives the disconnected state and does not need to wait for the connection.
 - A Weather refresh performs current conditions and forecast retrieval serially. The forecast may require multiple paginated HTTP requests.
 - On `main` after PR #48, icon downloads and heap allocation occur in the explicit WeatherApp pre-render asset-preparation hook after data retrieval, and only when the Weather view is selected. `drawWeather()` is limited to a matching cache lookup plus PNG decode/display and uses the no-icon fallback on a miss.
-- `connectWiFi()` draws UI as a side effect, while fetch functions also draw loading / error / stale-data states. Network and presentation responsibilities are mixed.
+- On the merged PR #52 baseline, `connectWiFi()` draws UI as a side effect. The follow-up branch removes that helper and starts connection from the WeatherApp state machine; fetch functions still retain some loading/error/stale-data presentation side effects.
 - Touch handlers call renderers and animation functions directly; some of those paths include explicit delays.
 - The loop's 30 ms delay does not bound touch latency because the work before it is not time-bounded by the loop itself.
 
@@ -570,13 +550,18 @@ Current handover:
 5. [x] **Regression procedure:** the physical Weather, forecast list/graph, touch, clock, location and network checks are maintained in [the regression checklist](PHASE0_REGRESSION_CHECKLIST.md); PR #50 and #51 validation results are recorded there.
 6. [x] **Module-boundary plan:** the [module-boundary plan](PHASE0_MODULE_BOUNDARY_PLAN.md) now distinguishes implemented module ownership from remaining platform boundaries and records the validated PR #50/#51 results.
 
-Phase 1 remains in progress for the broader module-boundary and shared state/resource ownership review. The first Phase 2 connectivity slice was merged via PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`; host tests, Arduino Verify, firmware upload/hash verification and user-confirmed physical tests passed. The temporary synchronous Weather compatibility adapter remains, so the next Phase 2 slice is to move startup/location/first-data sequencing into explicit WeatherApp update states and remove that blocking adapter, then introduce persistent Wi-Fi profiles and network-management UI. Keep runtime memory profiling distinct from compile-size reporting.
+Phase 1 remains in progress for the broader module-boundary and shared state/resource ownership review. The first Phase 2 connectivity slice is merged via PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954` and passed host, Verify, upload/hash and user-confirmed physical checks. The second slice is implemented on `phase2/02-nonblocking-weather-startup` in PR #53 and has passed strict C++11 state-machine testing, Arduino IDE Verify, firmware upload/boot and user-confirmed physical regression; it is awaiting merge. Its build reports 1,169,075 bytes program storage and 97,492 bytes global dynamic memory (230,188 bytes remaining). The HTTP/geolocation, due TimeAPI and icon stages remain synchronous. Runtime heap/largest-block/PSRAM measurements remain distinct from compile-size reporting. Persistent Wi-Fi profiles and network-management UI are the next major Phase 2 capabilities.
 
 ## 14. Change history
 
 - **2026-11-24:** Reconciled the runtime map after PR #50 merged at `9bcddc503ab6a0d1eb15b1d32ecba9c255db80ca`; `WeatherMetricsViewportRenderer` is now part of the main baseline. Added a branch-specific PR #51 note for `ForecastListViewportRenderer`, explicitly keeping it separate from merged `main` until review and merge.
 - **2026-11-25:** Updated the runtime checkpoint after PR #51 merged at `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276`; `ForecastListViewportRenderer` is part of `main`. The user subsequently confirmed both viewport strict C++11 host runners, Arduino IDE Verify, upload/boot and physical Waveshare regression passed. Recorded the latest program/global-memory figures and refreshed the Phase 0 close-out handover.
-- **2026-11-25 — Phase 2 PR #52 merge:** recorded the merged Connectivity Manager slice at `bc1948019c31ce466ea97be34f205373d05c7954`. `ConnectivityBackend`, `ConnectivityManager` and `WiFiBackend` own the transport-neutral contract, connection state/timeout and ESP32 station adapter. The manager observes driver-managed background reconnection; open-network credentials are passed as a null password. Both strict C++11 host suites and Arduino Verify passed; the upload log confirms bootloader/partition/application writes with hash verification and hard reset, and the user confirmed physical tests passed. The temporary synchronous compatibility adapter remains a blocker to fully non-blocking startup; NVS profiles, network UI and manager-owned retry/backoff remain open.
+- **2026-11-25 — Phase 2 PR #52 merge:** recorded the merged Connectivity Manager slice at `bc1948019c31ce466ea97be34f205373d05c7954`. `ConnectivityBackend`, `ConnectivityManager` and `WiFiBackend` own the transport-neutral contract, connection state/timeout and ESP32 station adapter. The manager observes driver-managed background reconnection; open-network credentials are passed as a null password. Both strict C++11 host suites and Arduino Verify passed; the upload log confirms bootloader/partition/application writes with hash verification and hard reset, and the user confirmed physical tests passed.
+- **2026-11-25 — Phase 2 slice 2 initial branch update (before device validation):** `phase2/02-nonblocking-weather-startup` removed the synchronous association compatibility helper and moved connection, location, current-weather, forecast, asset-preparation and render sequencing into `WeatherApp` states. Input/time hooks continue while connection is pending; current/forecast fetch adapters do not start new Wi-Fi associations. The strict C++11 WeatherApp state harness had passed at this checkpoint; Arduino Verify/upload/boot and physical regression were subsequently completed and are recorded in the PR #53 validation entry below. TimeService's due TimeAPI request, LocationService geolocation, HTTP/TLS and icon asset preparation remain synchronous when executed.
+- **2026-11-25 — PR #53 validation:** recorded Arduino IDE Verify on the exact Waveshare ESP32-S3 FQBN with ESP32 core 3.3.12 / esptool 5.3.1 (1,169,075 bytes program storage; 97,492 bytes global dynamic memory; 230,188 bytes remaining), verified upload of the 1,171,456-byte application image and the user-confirmed successful physical regression. Runtime heap/largest-block/PSRAM measurements remain outstanding.
 
 - **2026-10-31 — Version 1.0:** Initial Step 2 runtime trace. Documents startup, loop scheduling, touch ownership and gesture arbitration, rendering paths, network / location / time flows, blocking operations and candidate platform boundaries. Static source inspection only.
 - **2026-11-01 — Version 1.1:** Updated remaining-work guidance after the Step 4 physical baseline; marked build/toolchain and initial blocking-operation verification complete, clarified that memory profiling is the next Phase 0 activity, and recorded the demo-mode documentation discrepancy as resolved.
+
+
+- **2026-11-25 — Phase 2 slice 2 implementation note (initial validation checkpoint):** documented `phase2/02-nonblocking-weather-startup`. The WeatherApp state machine starts Wi-Fi through an injected platform callback, continues input/time hooks while association is pending and advances through location, current weather, forecast, optional asset preparation and render states. Refresh also waits on manager state without a synchronous association loop. The sketch no longer defines `connectWiFi()`, and fetch adapters do not start connections. Strict C++11 WeatherApp state/asset tests passed in a local host harness. The Arduino Verify, upload/boot and physical checks were subsequently completed as recorded in the PR #53 validation entry above. LocationService, HTTP/TLS and icon asset operations remain synchronous within their scheduled stages.

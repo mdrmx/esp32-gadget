@@ -2,7 +2,7 @@
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-BUILD_DIR=$(mktemp -d "${TMPDIR:-/tmp}/weather-app-assets.XXXXXX")
+BUILD_DIR=$(mktemp -d "${TMPDIR:-/tmp}/weather-app-state.XXXXXX")
 
 trap 'rm -rf "$BUILD_DIR"' EXIT
 trap 'exit 1' HUP INT TERM
@@ -12,6 +12,6 @@ CXX="${CXX:-g++}"
   -DNDEBUG \
   -I"$ROOT_DIR" \
   "$ROOT_DIR/tests/host/weather_app_asset_preparation_test.cpp" \
-  -o "$BUILD_DIR/weather_app_asset_preparation_test"
+  -o "$BUILD_DIR/weather_app_state_test"
 
-"$BUILD_DIR/weather_app_asset_preparation_test"
+"$BUILD_DIR/weather_app_state_test"
