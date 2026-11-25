@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.60  
+**Version:** 4.61  
 **Last reviewed:** 2026-11-25  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#51 are merged into `main`; the PR #50 and #51 renderer validation gates are complete. Phase 2 connectivity slice 1 is merged in PR #52 and slice 2 is merged in PR #53 at `7650072bc0ab4e778f97e05519ec475e8f33fba4`, with host, Arduino Verify, upload/hash verification and user-confirmed physical validation recorded. The third Phase 2 slice is implemented on `phase2/03-persistent-wifi-profiles`: a bounded, versioned Preferences/NVS profile store, preferred-profile selection, replace/forget operations and first-boot-only `secrets.h` migration are integrated. Strict C++11 host suites have been added but not yet executed; Arduino Verify and device validation remain pending. Network scan/selection/password UI and manager-owned retry/backoff remain future slices. Location resolution, due TimeAPI sync, HTTP/TLS and icon preparation still run synchronously in their scheduled hooks/stages. Phase 1 remains in progress for broader module-boundary, state/resource ownership and runtime memory-profile close-out.
+**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#51 are merged into `main`; the PR #50 and #51 renderer validation gates are complete. Phase 2 connectivity slice 1 is merged in PR #52 and slice 2 is merged in PR #53 at `7650072bc0ab4e778f97e05519ec475e8f33fba4`, with host, Arduino Verify, upload/hash verification and user-confirmed physical validation recorded. The third Phase 2 slice is implemented in draft PR [#54](https://github.com/mdrmx/esp32-gadget/pull/54) on `phase2/03-persistent-wifi-profiles`: a bounded, versioned Preferences/NVS profile store, preferred-profile selection, replace/forget operations and first-boot-only `secrets.h` migration are integrated. Strict C++11 host suites have been added but not yet executed; Arduino Verify and device validation remain pending. Network scan/selection/password UI and manager-owned retry/backoff remain future slices. Location resolution, due TimeAPI sync, HTTP/TLS and icon preparation still run synchronously in their scheduled hooks/stages. Phase 1 remains in progress for broader module-boundary, state/resource ownership and runtime memory-profile close-out.
 
 ---
 
@@ -417,7 +417,7 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
 
 ### Phase 2 — Wi-Fi management and shared connectivity
 
-**Status: IN PROGRESS — connectivity backend and state-driven Weather startup slices are merged and validated in PRs #52 and #53; versioned NVS profile storage is implemented on `phase2/03-persistent-wifi-profiles` and awaiting host/build/device validation; network-management UI, retry policy and full Phase 2 acceptance remain open.**
+**Status: IN PROGRESS — connectivity backend and state-driven Weather startup slices are merged and validated in PRs #52 and #53; versioned NVS profile storage is implemented in draft PR #54 on `phase2/03-persistent-wifi-profiles` and awaiting host/build/device validation; network-management UI, retry policy and full Phase 2 acceptance remain open.**
 
 **Completed in the current slice:**
 
@@ -823,6 +823,8 @@ When resuming work after a context reset:
 The roadmap document itself is a planning and handover artefact. Its creation does not count as completion of Phase 0.
 
 ## 12. Change history
+
+- **2026-11-25 — Version 4.61:** Opened draft PR #54 on `phase2/03-persistent-wifi-profiles` for versioned bounded Preferences/NVS Wi-Fi profile storage and first-boot `secrets.h` migration. GitHub reports a clean merge base and no branch divergence. Strict C++11 host runners are checked in but have not been executed in the current environment; Arduino Verify, upload/boot and physical validation remain pending. No CI workflow/status checks are configured for this branch.
 
 - **2026-11-25 — Version 4.60:** Implemented the next Phase 2 slice on `phase2/03-persistent-wifi-profiles`. Added a versioned binary `WiFiProfileStore` with a fixed five-profile limit, CRC32 validation, preferred selection, same-SSID credential replacement, forget semantics and safe refusal of corrupt/unsupported schemas. Added `PreferencesWiFiProfileStorage` and composition-root integration that imports `secrets.h` only when no stored record exists, then keeps a device-lifetime RAM copy for `WiFiBackend`'s borrowed pointers. Added strict C++11 host suites for store semantics and the Preferences adapter; execution is pending. Arduino Verify, upload/boot and physical validation are also pending. Explicitly documented that this code does not enable NVS/flash encryption and that network-management UI/retry policy remain separate work.
 
