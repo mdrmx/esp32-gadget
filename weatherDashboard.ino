@@ -2062,13 +2062,13 @@ void drawWiFiScanScreen() {
   }
 
   wifiScanScrollPositionPx = ScrollController::clampElasticPosition(
-      wifiScanScrollPositionPx, maxWiFiScanScrollPixels(), 0);
-  const uint8_t firstVisibleIndex = static_cast<uint8_t>(
-      wifiScanScrollPositionPx / WiFiSettingsRenderer::ScanRowHeight);
+      wifiScanScrollPositionPx,
+      maxWiFiScanScrollPixels(),
+      SCROLL_OVERSCROLL_MAX_PX);
 
   wifiSettingsRenderer.drawScan(
       getHeaderLocationText(), timeService.headerClockText(),
-      results, count, firstVisibleIndex,
+      results, count, wifiScanScrollPositionPx,
       wifiNetworkScanner.state() == WiFiNetworkScanner::State::Scanning,
       wifiNetworkScanner.state() == WiFiNetworkScanner::State::Failed,
       wifiConnectionStatusText(), wifiUiMessage);
@@ -2154,6 +2154,47 @@ void drawWiFiSettingsScreen() {
   // Arduino_Canvas is a full-screen 320x240 staging buffer (origin 0,0).
   // Its flush writes one RGB565 bitmap rather than issuing per-widget writes.
   frameCanvas->flush();
+}
+
+// Draw a scan-list frame at a finger-following or animation position. The same
+// bounded overscroll used by Weather's cards is retained through the renderer.
+void drawWiFiScanAtScrollPosition(int pixels) {
+  wifiScanScrollPositionPx = ScrollController::clampElasticPosition(
+      pixels,
+      maxWiFiScanScrollPixels(),
+      SCROLL_OVERSCROLL_MAX_PX);
+  if (wifiSettingsScreen == WiFiSettingsScreen::Scan) {
+    drawWiFiSettingsScreen();
+  }
+}
+
+// Match the metric-card settle animation: six eased frames at 8 ms intervals.
+// If the shared full-screen staging canvas is unavailable, settle in one frame.
+void animateWiFiScanSnap(int startPixels, int targetPixels) {
+  targetPixels = constrain(targetPixels, 0, maxWiFiScanScrollPixels());
+
+  if (startPixels != targetPixels &&
+      displayManager.tabTransitionCanvas() != nullptr) {
+    const int animationFrames = 6;
+    const int animationDelayMs = 8;
+    for (int frame = 1; frame <= animationFrames; ++frame) {
+      const float progress =
+          static_cast<float>(frame) / animationFrames;
+      const float easedProgress =
+          progress * progress * (3.0f - 2.0f * progress);
+      const int pixels = startPixels +
+          static_cast<int>((targetPixels - startPixels) * easedProgress);
+      drawWiFiScanAtScrollPosition(pixels);
+      delay(animationDelayMs);
+    }
+  } else if (startPixels != targetPixels) {
+    drawWiFiScanAtScrollPosition(targetPixels);
+  }
+
+  wifiScanScrollPositionPx = targetPixels;
+  if (wifiSettingsScreen == WiFiSettingsScreen::Scan) {
+    drawWiFiSettingsScreen();
+  }
 }
 
 void openWiFiSettings() {
@@ -2858,20 +2899,18 @@ bool processWiFiSettingsTouch(
 
     if (wifiUiTouchActive && observation.touchPresent &&
         wifiScanTouchDragActive) {
-      const int previousFirstIndex =
-          wifiScanScrollPositionPx / WiFiSettingsRenderer::ScanRowHeight;
-      const int nextScroll = ScrollController::clampElasticPosition(
+      const int nextScroll = ScrollController::elasticPosition(
           ScrollController::applyDragDelta(
               wifiScanDragStartScroll, wifiUiTouchStartY, y),
-          maxWiFiScanScrollPixels(), 0);
+          maxWiFiScanScrollPixels(),
+          SCROLL_OVERSCROLL_MAX_PX,
+          SCROLL_OVERSCROLL_RESISTANCE_DIVISOR);
       if (nextScroll != wifiScanDragCurrentScroll) {
         wifiScanDragCurrentScroll = nextScroll;
         wifiScanScrollPositionPx = nextScroll;
-        const int nextFirstIndex =
-            wifiScanScrollPositionPx / WiFiSettingsRenderer::ScanRowHeight;
-        if (nextFirstIndex != previousFirstIndex) {
-          drawWiFiSettingsScreen();
-        }
+        // Redraw fractional row movement as well as whole-row transitions so
+        // the contents track the finger instead of stepping between rows.
+        drawWiFiSettingsScreen();
       }
     }
 
@@ -2888,11 +2927,12 @@ bool processWiFiSettingsTouch(
       }
 
       if (wifiScanTouchDragActive) {
-        wifiScanScrollPositionPx = ScrollController::snapToStep(
+        const int targetScroll = ScrollController::snapToStep(
             wifiScanDragCurrentScroll,
             WiFiSettingsRenderer::ScanRowHeight,
             maxWiFiScanScrollPixels());
-        drawWiFiSettingsScreen();
+        animateWiFiScanSnap(
+            wifiScanDragCurrentScroll, targetScroll);
       }
 
       wifiScanTouchCandidate = false;
