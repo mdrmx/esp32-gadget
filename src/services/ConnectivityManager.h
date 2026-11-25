@@ -72,7 +72,11 @@ public:
       return;
     }
 
-    if (state_ == State::Connected && !backend_.isConnected()) {
+    // The backend/driver may reconnect without another connect() call. Mirror
+    // that recovered link in the manager so application services see it.
+    if (backend_.isConnected()) {
+      state_ = State::Connected;
+    } else if (state_ == State::Connected) {
       state_ = State::Disconnected;
     }
   }
