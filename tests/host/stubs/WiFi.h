@@ -18,6 +18,7 @@ public:
         beginCalls(0),
         disconnectCalls(0),
         lastMode(0),
+        lastPasswordWasNull(false),
         lastSsid(),
         lastPassword() {}
 
@@ -29,6 +30,7 @@ public:
 
   wl_status_t begin(const char* ssid, const char* password) {
     ++beginCalls;
+    lastPasswordWasNull = password == nullptr;
     snprintf(lastSsid, sizeof(lastSsid), "%s", ssid != nullptr ? ssid : "");
     snprintf(lastPassword, sizeof(lastPassword), "%s", password != nullptr ? password : "");
     return currentStatus;
@@ -49,6 +51,7 @@ public:
   int beginCalls;
   int disconnectCalls;
   int lastMode;
+  bool lastPasswordWasNull;
   char lastSsid[40];
   char lastPassword[80];
 };
