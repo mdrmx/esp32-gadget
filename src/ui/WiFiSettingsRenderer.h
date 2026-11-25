@@ -107,7 +107,7 @@ public:
 
       // Centre the size-2 SSID and availability badge on the same horizontal
       // line. Reserve the badge's width before shortening long SSIDs.
-      const int availabilityX = 214;
+      const int availabilityX = 206;
       const int availabilityWidth = 98;
       const int ssidX = 15;
       const int ssidMaxWidth = availabilityX - ssidX - 8;
