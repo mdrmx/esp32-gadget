@@ -11,9 +11,9 @@ public:
   WiFiBackend() : ssid_(nullptr), password_(nullptr) {}
 
   // The supplied strings are borrowed, not copied. Keep them alive for as long
-  // as this backend may start/restart the selected profile. The current sketch
-  // uses static secrets.h-backed strings; a future NVS profile store will own
-  // and supply its selected profile lifetime.
+  // as this backend may start/restart the selected profile. The composition root
+  // copies the selected NVS profile into device-lifetime RAM before configuring
+  // this backend; secrets.h remains the first-boot migration/fallback source.
   bool configure(const char* ssid, const char* password) {
     if (ssid == nullptr || ssid[0] == '\0') {
       ssid_ = nullptr;
@@ -53,8 +53,8 @@ public:
   }
 
   void disconnect() override {
-    // Retain the driver's saved credentials; profile persistence is a later
-    // Phase 2 slice owned by the settings/profile store.
+    // Disconnect the active station only. Saved profiles remain owned by the
+    // Preferences-backed WiFiProfileStore and are not forgotten here.
     WiFi.disconnect();
   }
 

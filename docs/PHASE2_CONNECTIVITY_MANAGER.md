@@ -1,6 +1,6 @@
 # Phase 2 — Connectivity Manager and Wi-Fi backend
 
-**Status:** Slice 1 merged and validated in PR #52. Slice 2 is implemented and firmware/device-validated on `phase2/02-nonblocking-weather-startup` in PR #53; awaiting merge. Phase 2 overall remains in progress.  
+**Status:** Connectivity slice 1 and state-driven Weather startup/refresh are merged and validated in PRs #52 and #53. The versioned NVS profile-store slice is implemented and physically validated in PR #54 on `phase2/03-persistent-wifi-profiles`. The initial host suites, Arduino Verify/upload and NVS credential-source isolation test passed; final automated-review hardening fixes are committed and the host runner / Verify must be repeated on the latest commit before merge. Phase 2 overall remains in progress.  
 **Base:** `main` at `ed4991e249a42d68ec59cecc6d3f0931d06af19a`  
 **Merged checkpoint:** PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
@@ -34,7 +34,7 @@ Connected --disconnect------------> Disconnected
 TimedOut / Failed --connect-------> Connecting (new attempt)
 ```
 
-The default connection timeout is 20 seconds, matching the previous sketch-level connection wait. Elapsed-time arithmetic is unsigned and is tested across `millis()` rollover. A timeout disconnects the backend. When the manager is no longer in `Connecting`, it mirrors the backend's live connection state, so a driver-managed reconnection returns the manager to `Connected` without another `connect()` call. This observes reconnection performed by the underlying backend/driver; it is not a manager-owned retry or backoff policy. The manager does not retain profile credentials; profile selection and credential lifetime remain outside the manager.
+The default connection timeout is 20 seconds, matching the previous sketch-level connection wait. Elapsed-time arithmetic is unsigned and is tested across `millis()` rollover. A timeout disconnects the backend. When the manager is no longer in `Connecting`, it mirrors the backend's live connection state, so a driver-managed reconnection returns the manager to `Connected` without another `connect()` call. This observes reconnection performed by the underlying backend/driver; it is not a manager-owned retry or backoff policy. The manager does not retain profile credentials; profile selection and credential lifetime remain outside the manager. The NVS follow-up keeps the selected profile in a device-lifetime RAM object before configuring the backend, because `WiFiBackend` borrows its credential pointers.
 
 The backend owns platform-specific profile configuration. For this first slice, `WiFiBackend::configure()` borrows the SSID/password strings. A null or empty password is normalised to `nullptr` and passed directly to `WiFi.begin(ssid, password)`, explicitly supporting open access points. The current sketch supplies static values from the ignored `secrets.h`, whose lifetime is process-wide. When NVS-backed profiles are introduced, the profile store must keep the selected strings alive for as long as the backend may use them or the backend must take explicit ownership.
 
@@ -88,13 +88,12 @@ Still open as distinct follow-up validation:
 
 ## 6. Remaining implementation sequence
 
-1. **Persistent Wi-Fi profiles:** add a versioned Preferences/NVS store with bounded profile count, safe credential replacement, preferred profile and forget semantics.
-2. **On-device network management:** scan and select networks, password entry, save/forget controls and clear connection/error feedback.
-3. **Manager-owned reconnect policy:** introduce bounded backoff, link-loss recovery and a defined preferred-network policy using saved profiles. Driver-managed recovery is already observed by the manager, but this does not replace an app-level retry policy.
-4. **Network capability boundary:** move the remaining Wi-Fi scan/BSSID operations behind a platform-owned capability and review whether HTTP request transport should be abstracted separately from connectivity state.
+1. **On-device network management:** scan and select networks, password entry, save/forget controls and clear connection/error feedback. The NVS store now provides the underlying save/preferred/forget operations.
+2. **Manager-owned reconnect policy:** introduce bounded backoff, link-loss recovery and a defined preferred-network policy using saved profiles. Driver-managed recovery is already observed by the manager, but this does not replace an app-level retry policy.
+3. **Network capability boundary:** move the remaining Wi-Fi scan/BSSID/RSSI operations behind a platform-owned capability and review whether HTTP request transport should be abstracted separately from connectivity state.
+4. **Runtime memory profiling:** capture internal free heap/largest block and PSRAM under representative operation; keep these separate from compile-time build footprint.
 
 Keep each slice behaviour-preserving and independently testable. Keep passwords out of logs, serial diagnostics and tracked files.
-
 
 ## 7. Merge and device validation record
 
@@ -112,7 +111,7 @@ No new runtime free-heap, largest-block or PSRAM snapshot was supplied at the PR
 ## 8. Follow-up slice 2 — state-driven Weather startup and refresh
 
 **Branch:** `phase2/02-nonblocking-weather-startup`  
-**Status:** Firmware and physical-device validation passed (user-confirmed 2026-11-25); PR #53 remains open and unmerged.
+**Status:** Merged in PR #53 at `7650072bc0ab4e778f97e05519ec475e8f33fba4`; firmware and physical-device validation passed (user-confirmed 2026-11-25).
 
 The Weather application no longer calls a synchronous connection helper. `WeatherApp::begin()` binds its hooks, draws the connection status and requests a connection start, then returns. `WeatherApp::update()` advances the lifecycle through explicit states:
 
@@ -163,3 +162,35 @@ During one of those operations, the loop cannot process touch input until that c
 ### Separate runtime-memory measurement
 
 - [ ] Capture runtime free internal heap, largest free block and PSRAM separately. The global dynamic-memory build figure above is not a runtime heap/PSRAM snapshot; this measurement remains a separate profiling task and is not a failed firmware-validation gate.
+
+
+## 9. Follow-up slice 3 — versioned Wi-Fi profile storage
+
+**Branch:** `phase2/03-persistent-wifi-profiles`  
+**Status:** Implemented and physically validated; final review-fix retest outstanding.
+
+### Storage contract
+
+- `WiFiProfileStore` is independent of Arduino/ESP32 APIs and receives a small storage adapter. It supports a fixed maximum of five saved profiles.
+- Each profile stores a 1–32 byte SSID and either an empty passphrase for an open network or an 8–63 byte passphrase. The store identifies a profile by SSID; saving an existing SSID replaces its credentials rather than creating a duplicate.
+- One versioned binary record stores the profile set and preferred-profile index. The record has an explicit little-endian header, schema version 1, fixed-size slots and CRC32 validation.
+- Corrupt or unsupported records fail closed: the store remains unavailable for writes instead of silently clearing or replacing the record. Forgetting the preferred profile selects the first remaining profile; forgetting the last profile persists an intentionally empty set.
+- `PreferencesWiFiProfileStorage` uses the ESP32 Preferences API and a single NVS blob key. The store changes its in-memory profile set only after the storage adapter confirms the full write.
+- At boot, a missing NVS record triggers one-time import of `WIFI_SSID` / `WIFI_PASSWORD` from the ignored `secrets.h`. Existing corrupt/unsupported records are preserved and use the compile-time fallback. A valid empty store does not repopulate the fallback.
+- The selected profile is copied into a device-lifetime RAM object before `WiFiBackend::configure()`, because the backend borrows the credential pointers.
+
+### Host coverage added
+
+`sh scripts/test-wifi-profile-store.sh` compiles two strict C++11 suites with `-Wall -Wextra -Werror -pedantic`:
+- Profile-store lifecycle, first-run state, persistence across instances, credential replacement, open networks, validation bounds, profile cap, preferred-index updates, forget, failed-write behaviour, corrupt checksum and unsupported schema.
+- Preferences adapter missing-key/oversized-key handling, failed begin/read/write, key/namespace selection and a profile-store round trip through the adapter.
+
+**Validation record (2026-11-25):** the user ran `sh scripts/test-wifi-profile-store.sh`; both strict C++11 suites passed. Arduino IDE Verify passed on the Waveshare ESP32-S3 16 MB / OPI PSRAM target using ESP32 core 3.3.12. Build: 1,172,523 bytes program storage (37%), 98,092 bytes global dynamic memory (29%) and 229,588 bytes remaining. Firmware upload completed, all flashed image hashes were verified and the board hard-reset. Physical checks confirmed normal boot and connection using the one network/password previously held in `secrets.h`, reset-button reconnect after a few seconds, and preservation of all existing Weather/Forecast interactions.
+
+**NVS source-isolation proof:** the user temporarily changed the compiled Wi-Fi SSID/password in `secrets.h` to deliberately invalid values, uploaded without erasing flash and observed `[WIFI] Loaded the saved preferred network profile.` followed by successful Google Wi-Fi positioning and OpenWeather reverse geocoding. This proves the working network connection came from the saved NVS profile rather than the compiled fallback. The original `secrets.h` was restored and the normal firmware uploaded again.
+
+**Automated review follow-up:** four review threads have been resolved. The adapter now opens Preferences read-only for reads and returns failure if stored bytes exceed the destination capacity. Both `getBytes()` and `putBytes()` in the host Preferences stub reject overlong key names before copying. These changes were committed after the reported test/build run, so rerun `sh scripts/test-wifi-profile-store.sh` and Arduino IDE Verify once against the latest PR head before merge.
+
+**Security limitation:** this implementation does not enable NVS encryption or ESP32 flash encryption. It stores Wi-Fi passphrases in the device's NVS partition; confidentiality at rest depends on the board's flash-encryption configuration. No credentials are printed to serial or included in tracked configuration files.
+
+**Not included:** Wi-Fi scan/selection/password-entry UI, manager-owned retry/backoff, profile roaming policy and a cellular backend. Those remain separate follow-up slices.

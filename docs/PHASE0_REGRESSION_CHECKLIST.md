@@ -453,7 +453,7 @@ Only mark a check as passed when the procedure has actually been performed on th
 ## Phase 2 — WeatherApp non-blocking startup/refresh slice (PR #53)
 
 **Branch:** `phase2/02-nonblocking-weather-startup`  
-**Status:** Firmware, upload/boot and physical regression passed (user-confirmed 2026-11-25). PR #53 remains open and unmerged.
+**Status:** Firmware, upload/boot and physical regression passed (user-confirmed 2026-11-25). PR #53 is merged at `7650072bc0ab4e778f97e05519ec475e8f33fba4`.
 
 - [x] Replace the synchronous Weather startup wait with explicit `WeatherApp` states: connection, location, current weather, forecast, asset preparation and ready.
 - [x] Keep `ConnectivityManager.update(millis())` in the platform loop and keep Weather input/time hooks running while association is pending.
@@ -474,3 +474,37 @@ Only mark a check as passed when the procedure has actually been performed on th
 - [ ] Record runtime internal free heap/largest block and PSRAM separately from compile-time footprint. This remains a separate memory-profile measurement, not an outstanding firmware or physical-regression gate.
 
 **Scope limitation:** Wi-Fi association is now state-driven and does not block the WeatherApp call stack. A due TimeService/TimeAPI request, LocationService geolocation, current/forecast HTTP/TLS requests and icon asset downloads remain synchronous within their individual hooks/stages; input processing is delayed while one of those operations is executing. This slice does not claim a fully asynchronous networking stack.
+
+
+## Phase 2 — versioned Wi-Fi profile storage (implementation branch)
+
+**Branch:** `phase2/03-persistent-wifi-profiles`  
+**Status:** Implementation and physical validation passed on 2026-11-25. All four automated-review code/test fixes are committed, all five inline review threads are resolved, and both strict C++11 host suites have now been rerun successfully on the latest PR head. Final Arduino IDE Verify on that commit remains outstanding before merge.
+
+- [x] Add a platform-independent `WiFiProfileStore` with a fixed maximum of five profiles, a versioned binary schema and CRC32 validation.
+- [x] Support preferred-profile selection, duplicate-SSID credential replacement, bounded profile capacity, forget semantics and open-network credentials.
+- [x] Add the ESP32 Preferences/NVS adapter using one versioned blob key.
+- [x] Import the legacy `secrets.h` network only when the NVS profile key is absent; do not overwrite corrupt/unsupported records or repopulate a valid empty store.
+- [x] Copy the selected credentials to a device-lifetime RAM object before configuring the backend, preserving the borrowed-pointer lifetime.
+- [x] Add strict C++11 host suites for profile lifecycle/format validation and the Preferences adapter: `sh scripts/test-wifi-profile-store.sh`.
+- [x] Run `sh scripts/test-wifi-profile-store.sh` before the review fixes; both strict C++11 suites passed.
+- [x] **Final post-review rerun:** the user reran `sh scripts/test-wifi-profile-store.sh` on the latest PR head after the read-only Preferences, oversized-read and host-stub key-bound changes. Both `WiFiProfileStore tests passed.` and `PreferencesWiFiProfileStorage tests passed.` were reported.
+- [x] Arduino IDE Verify on the pre-review-hardening implementation revision using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN and ESP32 core 3.3.12; the tested build reported 1,172,523 bytes program storage (37%) and 98,092 bytes global dynamic memory (29%), leaving 229,588 bytes.
+- [ ] Repeat Arduino IDE Verify on the latest review-fix commit before merge.
+- [x] Upload/boot on the Waveshare ESP32-S3 Touch LCD 2; bootloader, partition table, boot-app and application writes completed with hash verification, followed by hard reset.
+- [x] First-boot migration: the device booted and connected using the one network/password previously held in `secrets.h`; the migration was followed by a subsequent reset/reconnect.
+- [x] Existing NVS profile: startup logged `[WIFI] Loaded the saved preferred network profile.`
+- [ ] Empty profile store: device UI does not yet expose a forget-last-profile action. The store's valid-empty behaviour is covered by the host suite; no compile-time fallback is restored for an intentionally empty loaded store.
+- [ ] Corrupt/unsupported profile blob: not injected into live device NVS; store tests cover rejection and preservation, and code uses the compile-time fallback on unavailable/corrupt data.
+- [x] Verify secured-network association and reconnect after initial association. Open-network association remains untested on hardware; open-profile persistence/validation is covered by host tests.
+- [x] Confirm all existing Weather/Forecast, touch, scroll, graph, time and location behaviour remains intact; user confirmed all existing interactions were preserved.
+- [x] **NVS source-isolation proof:** temporarily replaced the compiled `secrets.h` SSID/password with deliberately invalid values, uploaded without erasing flash, and observed the saved-profile startup message followed by successful Google Wi-Fi positioning and OpenWeather reverse geocoding. This demonstrated live network access using the NVS profile rather than the compile-time fallback.
+- [x] Restored the original local `secrets.h` and uploaded the normal firmware again.
+- [x] Repeat the host runner after the final review-fix commits; both suites passed.
+- [ ] Repeat Arduino IDE Verify after the final review-fix commits.
+
+**Security limitation:** the code does not enable NVS encryption or ESP32 flash encryption. Credential confidentiality at rest depends on the board's flash-encryption configuration. No profile passwords should appear in logs, diagnostics or PR descriptions.
+
+**Review follow-up:** five inline review threads covering four distinct code/test requests have been resolved. Oversized Preferences reads now return failure, Preferences opens read-only for reads, and the test stub checks key lengths before copying in `getBytes()` and `putBytes()`. The post-review host suites have passed; only final Arduino IDE Verify remains outstanding before merge.
+
+**Scope boundary:** this slice provides the persistence and credential-lifetime foundation only. Network scanning, selection/password-entry UI, manager-owned retry/backoff and roaming policy remain separate work.
