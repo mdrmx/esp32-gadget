@@ -15,7 +15,7 @@ class WiFiProfileStore {
   static const size_t MaxPasswordLength = 63;
   static const uint8_t NoPreferredProfile = 0xFF;
 
-  static const uint32_t StorageMagic = 0x57494649UL; // "WIFI"
+  static const uint32_t StorageMagic = 0x49464957UL; // Stored little-endian as "WIFI".
   static const uint16_t CurrentSchemaVersion = 1;
 
   static const size_t EncodedHeaderSize = 10;
