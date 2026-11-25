@@ -337,7 +337,7 @@ PR #48 is merged and fully validated. The following PR extracts only graph drawi
 - [x] User confirmed firmware upload/boot and physical Waveshare metric viewport regression, including row order/value formatting, partial-card clipping, metric drag/overscroll/snap, canvas/direct fallback and Weather/Forecast transition composition; all existing interactions remained intact.
 - [x] Merged into `main` at `9bcddc503ab6a0d1eb15b1d32ecba9c255db80ca`.
 
-## PR #51 — ForecastListViewportRenderer extraction (in progress)
+## PR #51 — ForecastListViewportRenderer extraction (merged; validation not recorded)
 
 `ForecastListViewportRenderer` extracts Forecast List-mode viewport composition into `src/ui/ForecastListViewportRenderer.h`. It selects the neighbouring partial rows plus settled visible rows, bounds the requested base offset, calculates row placement and delegates clipped card rendering to `ForecastListItemRenderer`. The direct-display fallback intentionally retains the existing settled-row layout. Weather keeps forecast model access/time-label formatting, List/Graph selection, scroll state/clamping, touch/gesture/animation policy, canvas selection/clear/flush, Graph rendering, controls/footer and full screen/transition composition.
 
@@ -351,7 +351,7 @@ PR #48 is merged and fully validated. The following PR extracts only graph drawi
 - [ ] Drag the list in both directions; confirm existing movement, bounded overscroll and nearest-row snapping remain unchanged.
 - [ ] Switch List/Graph and Weather/Forecast repeatedly; confirm graph drawing, selector controls, footer, tab transition and all touch/gesture interactions remain unchanged.
 
-Arduino Verify, upload/boot and physical Waveshare regression are pending for PR #51. Do not mark these checks complete until they have been run on the PR #51 firmware revision.
+PR #51 merged into `main` at `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276`. The PR description left the host-runner execution, Arduino Verify, upload/boot and physical Waveshare regression unchecked at merge. Run/confirm each check against this merged main revision before marking the regression gate complete.
 
 ## 5. Clock and location
 
