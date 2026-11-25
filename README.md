@@ -2,9 +2,9 @@
 
 A Weather-first ESP32-S3 touch-device project, being incrementally refactored into a small application platform for the Waveshare ESP32-S3 Touch LCD 2.
 
-## Temporary refactor progress
+## Current refactor progress
 
-> **Temporary tracker:** keep this section while the Phase 1 Weather rendering and asset-cache boundaries are being extracted. Remove it once the agreed Phase 1 sequence is complete. The canonical architecture and handover remain in [PLATFORM_REFACTOR_ROADMAP.md](PLATFORM_REFACTOR_ROADMAP.md).
+> **Progress snapshot:** the Weather rendering and asset-cache extraction sequence is complete through PR #51, including post-merge host, firmware and physical validation. Phase 1 overall remains in progress while the broader module-boundary and platform ownership review is completed. The canonical architecture and handover remain in [PLATFORM_REFACTOR_ROADMAP.md](PLATFORM_REFACTOR_ROADMAP.md).
 
 ### Completed
 
@@ -19,7 +19,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 
 ### Latest merged — PR #51
 
-- **[PR #51 — Forecast List viewport renderer](https://github.com/mdrmx/esp32-gadget/pull/51):** merged into `main` at `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276`. `ForecastListViewportRenderer` owns List-mode visible-row selection, positioning, neighbouring-row clipping and the settled direct fallback, reusing `ForecastListItemRenderer`. Weather retains forecast data/formatting, List/Graph selection, scroll and gesture policy, canvas lifecycle, Graph composition, controls and transitions. The PR description left the repository host test, Arduino Verify and upload/boot/physical regression unchecked at merge; confirm these against the merged `main` revision before treating PR #51 as fully validated. No build/memory figures are recorded for PR #51.
+- **[PR #51 — Forecast List viewport renderer](https://github.com/mdrmx/esp32-gadget/pull/51):** merged into `main` at `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276` and fully validated after merge. `ForecastListViewportRenderer` owns List-mode visible-row selection, positioning, neighbouring-row clipping and the settled direct fallback, reusing `ForecastListItemRenderer`. Weather retains forecast data/formatting, List/Graph selection, scroll and gesture policy, canvas lifecycle, Graph composition, controls and transitions. The strict C++11 host runner passed; Arduino IDE Verify passed; the user confirmed firmware upload/boot and the complete physical Waveshare regression, with all existing interactions preserved. Latest Verify build: 1,167,139 bytes program storage (37%), 97,444 bytes global dynamic memory (29%), 230,236 bytes remaining. The PR description's unchecked-at-merge boxes are superseded by these post-merge results.
 
 ### Phase 1 sequence
 
@@ -32,7 +32,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 - [x] Weather icon asset-cache ownership and pre-render preparation
 - [x] Forecast graph renderer — extracted, fully validated and merged into `main` in PR #49
 - [x] Weather metrics viewport renderer — extracted and fully validated in merged PR #50
-- [x] Forecast List viewport renderer — extracted and merged in PR #51 (post-merge validation still to confirm)
+- [x] Forecast List viewport renderer — extracted, host-tested, firmware-verified and physically validated after merge in PR #51
 
 ### PR #50 validation record (complete; merged)
 
@@ -42,13 +42,17 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 - [x] User confirmed upload/boot and physical metric viewport regression: metric ordering/formatting, partial-card clipping, drag/overscroll/snap, canvas/direct fallback and tab transitions; all existing interactions remained intact.
 - [x] Merged into `main` at `9bcddc503ab6a0d1eb15b1d32ecba9c255db80ca`.
 
-### PR #51 validation record (merged; results not recorded)
+### PR #51 validation record (complete; merged)
 
-- [ ] Run `sh scripts/test-forecast-list-viewport-renderer.sh` with strict C++11 warnings.
-- [ ] Arduino IDE Verify using Arduino IDE 2.3.10, ESP32 core 3.3.12 and the recorded Waveshare ESP32-S3 FQBN.
-- [ ] Upload/boot and physically verify Forecast List row order, three-row layout, partially visible edge-card clipping, scroll drag/overscroll/snap and transition/no-canvas fallback.
-- [ ] Confirm List/Graph switching, graph drawing and controls, Weather metrics, header, footer and all existing touch/gesture interactions remain unchanged.
-- PR #51 is merged into `main` at `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276`. The PR description left these checks unchecked at merge; run them against the merged revision and update this record before calling it fully validated.
+- [x] Checked-in strict C++11 repository runner: `sh scripts/test-forecast-list-viewport-renderer.sh` → `ForecastListViewportRenderer tests passed.` (user-confirmed 2026-11-25).
+- [x] The companion Weather metrics viewport runner also passes on merged `main`: `sh scripts/test-weather-metrics-viewport-renderer.sh` → `WeatherMetricsViewportRenderer tests passed.`
+- [x] Arduino IDE Verify passed using ESP32 core 3.3.12, esptool 5.3.1 and the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN.
+- [x] Verify build: 1,167,139 bytes program storage (37% of 3,145,728 bytes); 97,444 bytes global dynamic memory (29%), leaving 230,236 bytes.
+- [x] ESP32-S3 firmware image and merged 16 MB flash image generated successfully. The Verify log reused cached object files; it completed the link and image-generation stages.
+- [x] User confirmed firmware upload/boot and physical Waveshare regression passed, including Forecast List row order/layout, partial-edge clipping, scroll/overscroll/snap, List/Graph and Weather/Forecast switching, direct fallback, controls, graph, header/footer, touch/gesture behaviour and tab transitions; all existing interactions remained intact (2026-11-25).
+- [x] Merged into `main` at `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276`.
+
+**Validation note:** the PR description left several checks unchecked at merge. The post-merge results above supersede those unchecked boxes. Program-storage/global-memory figures are build output, not a new runtime heap/PSRAM snapshot.
 
 ### PR #49 validation record (all checks passed)
 
