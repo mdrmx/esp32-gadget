@@ -59,7 +59,6 @@ public:
       return result;
     }
 
-    WiFiGeolocationAccessPoint candidates[MaxAccessPoints] = {};
     uint8_t candidateCount = 0;
     const uint8_t capacity = outputCapacity < MaxAccessPoints
       ? outputCapacity
@@ -73,17 +72,14 @@ public:
       if (!isEligible(candidate)) {
         continue;
       }
-      if (containsBssid(candidates, candidateCount, candidate.bssid)) {
+      if (containsBssid(output, candidateCount, candidate.bssid)) {
         continue;
       }
-      insertStrongest(candidates, candidateCount, capacity, candidate);
+      insertStrongest(output, candidateCount, capacity, candidate);
     }
 
-    // Copy selected observations before the ESP32 driver frees its scan data.
-    for (uint8_t i = 0; i < candidateCount; ++i) {
-      output[i] = candidates[i];
-    }
-
+    // The caller-provided bounded buffer owns the selected records before the
+    // ESP32 driver releases its scan result allocation.
     result.accessPointCount = candidateCount;
     result.succeeded = true;
     backend_.clearResults();
