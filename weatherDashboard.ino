@@ -2091,9 +2091,14 @@ void pollTouch() {
 // WI-FI
 // =====================================================
 
-bool connectWiFi() {
+// Start Wi-Fi association without waiting. ConnectivityManager is polled by
+// loop(), and WeatherApp observes its state through the callbacks below.
+bool startWiFiConnection(uint32_t nowMs) {
+#if USE_DEMO_WEATHER_DATA
+  (void)nowMs;
+  return true;
+#else
   if (connectivityManager.isConnected()) {
-    maybeSyncTimeFromAPI();
     return true;
   }
 
@@ -2102,40 +2107,30 @@ bool connectWiFi() {
     return false;
   }
 
-  drawLoading("Connecting Wi-Fi...");
-  if (!connectivityManager.connect(millis())) {
+  const bool started = connectivityManager.connect(nowMs);
+  if (!started && !connectivityManager.isConnecting() &&
+      !connectivityManager.isConnected()) {
     DEBUG_PRINTLN("Wi-Fi connection could not be started");
-    return false;
   }
+  return started || connectivityManager.isConnecting() ||
+         connectivityManager.isConnected();
+#endif
+}
 
-  // Temporary compatibility bridge: ConnectivityManager itself is fully
-  // non-blocking, but the existing synchronous startup/refresh call sites
-  // still pump it here to preserve their current sequencing. A later Phase 2
-  // slice moves this state machine entirely into the regular application loop.
-  while (connectivityManager.isConnecting()) {
-    connectivityManager.update(millis());
-    if (!connectivityManager.isConnecting()) {
-      break;
-    }
-
-    delay(500);
-    DEBUG_PRINT(".");
-  }
-  DEBUG_PRINTLN();
-
-  if (connectivityManager.isConnected()) {
-    DEBUG_PRINTLN("Wi-Fi connected");
-    DEBUG_PRINTLN(WiFi.localIP());
-    maybeSyncTimeFromAPI();
-    return true;
-  }
-
-  if (connectivityManager.state() == ConnectivityManager::State::TimedOut) {
-    DEBUG_PRINTLN("Wi-Fi connection timed out");
-  } else {
-    DEBUG_PRINTLN("Wi-Fi connection failed");
-  }
+bool weatherAppConnectionPending() {
+#if USE_DEMO_WEATHER_DATA
   return false;
+#else
+  return connectivityManager.isConnecting();
+#endif
+}
+
+bool weatherAppHasConnection() {
+#if USE_DEMO_WEATHER_DATA
+  return true;
+#else
+  return connectivityManager.isConnected();
+#endif
 }
 
 // =====================================================
@@ -2149,7 +2144,7 @@ bool fetchWeather() {
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();
 #endif
-  if (!connectWiFi()) {
+  if (!weatherAppHasConnection()) {
     if (weatherAvailable) drawWeather();
     else drawError("Wi-Fi unavailable");
     return false;
@@ -2219,7 +2214,7 @@ bool fetchForecast() {
 #if USE_DEMO_WEATHER_DATA
   return loadDemoWeatherData();
 #endif
-  if (!connectWiFi()) {
+  if (!weatherAppHasConnection()) {
     weatherDataService.setForecastUnavailable("Wi-Fi unavailable");
     return false;
   }
@@ -2280,6 +2275,68 @@ void weatherAppRefreshClock() {
 
 uint32_t weatherAppMillisNow() {
   return (uint32_t)millis();
+}
+
+bool weatherAppStartConnection(uint32_t nowMs) {
+  return startWiFiConnection(nowMs);
+}
+
+bool weatherAppConnectionPendingForApp() {
+  return weatherAppConnectionPending();
+}
+
+bool weatherAppIsConnected() {
+  return weatherAppHasConnection();
+}
+
+void weatherAppResolveLocation() {
+#if !USE_DEMO_WEATHER_DATA
+  // Avoid an additional IP-geolocation timeout if Wi-Fi association failed.
+  if (!weatherAppHasConnection()) {
+    currentLocationFix =
+      LocationService::configuredFallback(locationLat, locationLon);
+    locationCoordinatesResolved = false;
+    locationDisplayName = "";
+    return;
+  }
+
+  const char* googleGeolocationApiKey = nullptr;
+#if defined(GOOGLE_GEOLOCATION_API_KEY)
+  googleGeolocationApiKey = GOOGLE_GEOLOCATION_API_KEY;
+#endif
+
+  // LocationService preserves Google Wi-Fi -> IP -> configured fallback.
+  const LocationService::Result locationResult = locationService.resolve(
+    weatherAppHasConnection(),
+    googleGeolocationApiKey,
+    apiKey,
+    locationLat,
+    locationLon);
+
+  currentLocationFix = locationResult.fix;
+  locationLat = currentLocationFix.latitude;
+  locationLon = currentLocationFix.longitude;
+  locationDisplayName = locationResult.displayName;
+  locationCoordinatesResolved =
+    currentLocationFix.valid &&
+    currentLocationFix.source !=
+      LocationService::Source::ConfiguredFallback;
+
+  Serial.printf(
+    "[LOCATION] Selected source: %s (valid=%d, observed=%lu ms)\n",
+    LocationService::sourceName(currentLocationFix.source),
+    currentLocationFix.valid,
+    (unsigned long)currentLocationFix.observedAtMs);
+  if (currentLocationFix.hasAccuracyRadius) {
+    Serial.printf(
+      "[LOCATION] Selected accuracy radius: about %.0f m\n",
+      (double)currentLocationFix.accuracyRadiusMeters);
+  }
+#endif
+}
+
+void weatherAppDrawLoading(const char* message) {
+  drawLoading(message != nullptr ? String(message) : String("Loading..."));
 }
 
 bool weatherAppFetchCurrentWeather() {
@@ -2413,48 +2470,16 @@ void setup() {
   // during offline UI development. The clock advances normally after setup.
   timeService.setDemoTime(2026, 10, 28, 18, 0, 0);
   DEBUG_PRINTLN("DEMO MODE ENABLED: network and API calls are disabled.");
-#else
-  drawLoading("Starting up...");
-  if (connectWiFi()) {
-    const char* googleGeolocationApiKey = nullptr;
-#if defined(GOOGLE_GEOLOCATION_API_KEY)
-    googleGeolocationApiKey = GOOGLE_GEOLOCATION_API_KEY;
-#endif
-
-    // LocationService preserves Google Wi-Fi -> IP -> configured fallback.
-    const LocationService::Result locationResult = locationService.resolve(
-      connectivityManager.isConnected(),
-      googleGeolocationApiKey,
-      apiKey,
-      locationLat,
-      locationLon);
-
-    currentLocationFix = locationResult.fix;
-    locationLat = currentLocationFix.latitude;
-    locationLon = currentLocationFix.longitude;
-    locationDisplayName = locationResult.displayName;
-    locationCoordinatesResolved =
-      currentLocationFix.valid &&
-      currentLocationFix.source !=
-        LocationService::Source::ConfiguredFallback;
-
-    Serial.printf(
-      "[LOCATION] Selected source: %s (valid=%d, observed=%lu ms)\n",
-      LocationService::sourceName(currentLocationFix.source),
-      currentLocationFix.valid,
-      (unsigned long)currentLocationFix.observedAtMs);
-    if (currentLocationFix.hasAccuracyRadius) {
-      Serial.printf(
-        "[LOCATION] Selected accuracy radius: about %.0f m\n",
-        (double)currentLocationFix.accuracyRadiusMeters);
-    }
-  }
 #endif
   WeatherApp::Hooks weatherHooks;
   weatherHooks.processInput = weatherAppProcessInput;
   weatherHooks.syncTime = weatherAppSyncTime;
   weatherHooks.refreshClock = weatherAppRefreshClock;
   weatherHooks.millisNow = weatherAppMillisNow;
+  weatherHooks.startConnection = weatherAppStartConnection;
+  weatherHooks.connectionPending = weatherAppConnectionPendingForApp;
+  weatherHooks.isConnected = weatherAppIsConnected;
+  weatherHooks.resolveLocation = weatherAppResolveLocation;
   weatherHooks.fetchCurrentWeather = weatherAppFetchCurrentWeather;
   weatherHooks.fetchForecast = weatherAppFetchForecast;
   weatherHooks.prepareWeatherAssets = weatherAppPrepareWeatherAssets;
@@ -2462,6 +2487,7 @@ void setup() {
   weatherHooks.activeView = weatherAppActiveView;
   weatherHooks.drawWeather = weatherAppDrawWeather;
   weatherHooks.drawForecast = weatherAppDrawForecast;
+  weatherHooks.drawLoading = weatherAppDrawLoading;
   weatherHooks.drawError = weatherAppDrawError;
   weatherHooks.refreshStarted = weatherAppRefreshStarted;
 
