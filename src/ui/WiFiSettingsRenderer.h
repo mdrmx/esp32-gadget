@@ -117,7 +117,7 @@ public:
       const String& clock,
       const WiFiScanResult* results,
       uint8_t count,
-      uint8_t firstVisibleIndex,
+      int scrollPositionPixels,
       bool scanning,
       bool failed,
       const String& connectionStatus,
@@ -141,12 +141,16 @@ public:
     if (message.length() > 0) status = message;
     drawStatusLine(connectionStatus, status, 62);
 
-    const uint8_t first = firstVisibleIndex;
-    for (uint8_t row = 0; row < ScanRowsVisible; ++row) {
-      const uint8_t index = static_cast<uint8_t>(first + row);
-      if (index >= count || results == nullptr) break;
+    // Keep a partial row in view while the touch position follows the finger.
+    // The sketch bounds scrollPositionPixels to one resisted row overshoot.
+    const int first = scrollPositionPixels / ScanRowHeight;
+    const int rowOffset = scrollPositionPixels % ScanRowHeight;
+    for (uint8_t row = 0; row <= ScanRowsVisible; ++row) {
+      const int index = first + row;
+      if (index < 0 || index >= count || results == nullptr) continue;
 
-      const int y = ScanRowsTop + row * ScanRowHeight;
+      const int y =
+          ScanRowsTop + row * ScanRowHeight - rowOffset;
       Arduino_GFX* target = displayManager_.target();
       target->fillRoundRect(8, y, displayManager_.width() - 16,
                             ScanRowHeight - 2, 4, colours_.panel);
@@ -164,6 +168,24 @@ public:
           String(results[index].rssiDbm) + " dBm",
           247, y + 9, 1, colours_.accent);
     }
+
+    // Rows may move beyond the viewport while the finger pulls against an
+    // edge. Mask those portions, then restore the fixed title/status/footer.
+    Arduino_GFX* target = displayManager_.target();
+    if (target != nullptr) {
+      target->fillRect(
+          0, 37, displayManager_.width(), ScanRowsTop - 37,
+          colours_.background);
+      target->fillRect(
+          0, ScanRowsTop + ScanRowsVisible * ScanRowHeight,
+          displayManager_.width(),
+          displayManager_.height() -
+              (ScanRowsTop + ScanRowsVisible * ScanRowHeight),
+          colours_.background);
+    }
+
+    textRenderer_.drawText("AVAILABLE NETWORKS", 10, 43, 2, colours_.white);
+    drawStatusLine(connectionStatus, status, 62);
 
     drawButton("SAVED", 8, FooterTop, 145, FooterHeight,
                colours_.panel, colours_.white);
