@@ -23,10 +23,18 @@ public:
     uint16_t error;
   };
 
+  enum class Availability : uint8_t {
+    Unknown = 0,
+    Checking,
+    Available,
+    Unavailable
+  };
+
   struct ProfileRow {
     char ssid[33];
     bool preferred;
     bool active;
+    Availability availability;
   };
 
   enum {
@@ -80,14 +88,17 @@ public:
       target->fillRoundRect(8, y, displayManager_.width() - 16,
                             ProfileRowHeight - 2, 4, colours_.panel);
 
-      String ssid = shortenSsid(profiles[i].ssid, 25);
+      String ssid = shortenSsid(profiles[i].ssid, 23);
       textRenderer_.drawText(ssid, 15, y + 8, 1, colours_.white);
 
       if (profiles[i].preferred) {
-        textRenderer_.drawText("PREF", 257, y + 8, 1, colours_.accent);
+        textRenderer_.drawText("PREF", 164, y + 8, 1, colours_.accent);
       } else if (profiles[i].active) {
-        textRenderer_.drawText("CURRENT", 241, y + 8, 1, colours_.success);
+        textRenderer_.drawText("CURRENT", 164, y + 8, 1, colours_.success);
       }
+
+      drawAvailabilityTag(
+          profiles[i].availability, 214, y + 4, 98, 15);
     }
 
     if (count == 0) {
@@ -218,31 +229,46 @@ public:
       const char* password,
       bool shifted,
       bool symbols,
+      bool showPassword,
+      int highlightedRow,
+      int highlightedColumn,
       const String& message) const {
     if (displayManager_.target() == nullptr) return;
     beginPage(location, clock);
     textRenderer_.drawText("ENTER PASSWORD", 10, 42, 2, colours_.white);
     textRenderer_.drawText(
-        shortenSsid(ssid != nullptr ? ssid : "", 36),
+        shortenSsid(ssid != nullptr ? ssid : "", 30),
         10, 59, 1, colours_.muted);
+    if (message.length() > 0) {
+      textRenderer_.drawText(
+          shortenSsid(message.c_str(), 20), 214, 59, 1, colours_.error);
+    } else {
+      textRenderer_.drawText("8-63 chars", 248, 59, 1, colours_.muted);
+    }
 
     Arduino_GFX* target = displayManager_.target();
-    target->fillRoundRect(8, PasswordFieldTop, 304, 21, 4,
+    target->fillRoundRect(8, PasswordFieldTop, 205, 21, 4,
                           colours_.panel);
-    target->drawRoundRect(8, PasswordFieldTop, 304, 21, 4,
+    target->drawRoundRect(8, PasswordFieldTop, 205, 21, 4,
                           colours_.accent);
 
-    String masked;
+    String visible;
     if (password != nullptr) {
-      const size_t length = strlen(password);
-      for (size_t i = 0; i < length; ++i) masked += '*';
+      if (showPassword) {
+        visible = String(password);
+      } else {
+        const size_t length = strlen(password);
+        for (size_t i = 0; i < length; ++i) visible += '*';
+      }
     }
-    textRenderer_.drawText(masked, 15, PasswordFieldTop + 7, 1,
+    if (visible.length() > 31) {
+      visible = visible.substring(0, 28) + "...";
+    }
+    textRenderer_.drawText(visible, 15, PasswordFieldTop + 7, 1,
                            colours_.white);
-    textRenderer_.drawText(
-        message.length() > 0 ? message : "8-63 characters",
-        206, PasswordFieldTop + 7, 1,
-        message.length() > 0 ? colours_.error : colours_.muted);
+    drawButton(showPassword ? "HIDE" : "SHOW", 220,
+               PasswordFieldTop, 92, 21,
+               colours_.panel, colours_.accent);
 
     static const char* alphaRows[] = {
       "1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm.,-"
@@ -260,10 +286,14 @@ public:
             column * (KeyboardKeyWidth + KeyboardGapX);
         const int y = KeyboardY +
             row * (KeyboardKeyHeight + KeyboardGapY);
-        target->fillRoundRect(x, y, KeyboardKeyWidth,
-                              KeyboardKeyHeight, 3, colours_.panel);
-        target->drawRoundRect(x, y, KeyboardKeyWidth,
-                              KeyboardKeyHeight, 3, colours_.muted);
+        const bool highlighted =
+            row == highlightedRow && column == highlightedColumn;
+        target->fillRoundRect(
+            x, y, KeyboardKeyWidth, KeyboardKeyHeight, 3,
+            highlighted ? colours_.accent : colours_.panel);
+        target->drawRoundRect(
+            x, y, KeyboardKeyWidth, KeyboardKeyHeight, 3,
+            highlighted ? colours_.white : colours_.muted);
         char label[2] = {key, '\0'};
         if (!symbols && shifted && row > 0 && key >= 'a' && key <= 'z') {
           label[0] = static_cast<char>(key - ('a' - 'A'));
@@ -278,8 +308,14 @@ public:
         9 * (KeyboardKeyWidth + KeyboardGapX);
     const int backspaceY = KeyboardY +
         2 * (KeyboardKeyHeight + KeyboardGapY);
-    target->fillRoundRect(backspaceX, backspaceY, KeyboardKeyWidth,
-                          KeyboardKeyHeight, 3, colours_.error);
+    const bool backspaceHighlighted =
+        highlightedRow == 2 && highlightedColumn == 9;
+    target->fillRoundRect(
+        backspaceX, backspaceY, KeyboardKeyWidth, KeyboardKeyHeight, 3,
+        backspaceHighlighted ? colours_.accent : colours_.error);
+    target->drawRoundRect(
+        backspaceX, backspaceY, KeyboardKeyWidth, KeyboardKeyHeight, 3,
+        backspaceHighlighted ? colours_.white : colours_.accent);
     textRenderer_.drawText("<", backspaceX + 10, backspaceY + 6, 1,
                            colours_.white);
 
@@ -324,6 +360,45 @@ public:
   }
 
 private:
+  void drawAvailabilityTag(
+      Availability availability,
+      int x,
+      int y,
+      int width,
+      int height) const {
+    const char* label = "UNKNOWN";
+    uint16_t fill = colours_.panel;
+    uint16_t text = colours_.muted;
+    switch (availability) {
+      case Availability::Checking:
+        label = "CHECKING";
+        fill = colours_.panel;
+        text = colours_.accent;
+        break;
+      case Availability::Available:
+        label = "AVAILABLE";
+        fill = colours_.success;
+        text = colours_.background;
+        break;
+      case Availability::Unavailable:
+        label = "UNAVAILABLE";
+        fill = colours_.error;
+        text = colours_.white;
+        break;
+      case Availability::Unknown:
+      default:
+        break;
+    }
+
+    Arduino_GFX* target = displayManager_.target();
+    if (target == nullptr) return;
+    target->fillRoundRect(x, y, width, height, 3, fill);
+    const String value(label);
+    const int textWidth = textRenderer_.measureTextWidth(value, 1);
+    textRenderer_.drawText(
+        value, x + (width - textWidth) / 2, y + 4, 1, text);
+  }
+
   void beginPage(const String& location, const String& clock) const {
     Arduino_GFX* target = displayManager_.target();
     if (target == nullptr) return;

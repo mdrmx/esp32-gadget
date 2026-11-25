@@ -30,6 +30,7 @@
 #include "src/services/WiFiProfileStore.h"
 #include "src/services/PreferencesWiFiProfileStorage.h"
 #include "src/services/WiFiNetworkScanner.h"
+#include "src/services/WiFiSignalMeter.h"
 #include "src/services/Esp32WiFiScanBackend.h"
 #include "src/services/LocationService.h"
 #include "src/services/WeatherDataService.h"
@@ -106,6 +107,8 @@ typedef WiFiProfileStore<PreferencesWiFiProfileStorage> PersistentWiFiProfileSto
 PersistentWiFiProfileStore wifiProfileStore(wifiProfileStorage);
 Esp32WiFiScanBackend wifiScanBackend;
 WiFiNetworkScanner wifiNetworkScanner(wifiScanBackend);
+WiFiSignalMeter wifiSignalMeter;
+uint32_t wifiSignalLastSampleMs = 0;
 
 // WiFiBackend borrows these RAM strings. Keep this copy alive for the full
 // device lifetime, independently from temporary Preferences read buffers.
@@ -240,6 +243,13 @@ char wifiSelectedSsid[PersistentWiFiProfileStore::MaxSsidLength + 1] = {};
 char wifiPasswordInput[PersistentWiFiProfileStore::MaxPasswordLength + 1] = {};
 bool wifiKeyboardShifted = false;
 bool wifiKeyboardSymbols = false;
+bool wifiPasswordVisible = false;
+
+bool wifiKeyFeedbackActive = false;
+bool wifiKeyFeedbackHeld = false;
+int8_t wifiHighlightedKeyRow = -1;
+int8_t wifiHighlightedKeyColumn = -1;
+uint32_t wifiKeyFeedbackUntilMs = 0;
 
 PersistentWiFiProfileStore::Profile wifiSelectedProfile = {};
 bool wifiSelectedProfileValid = false;
@@ -441,8 +451,28 @@ String getHeaderLocationText() {
 }
 
 void drawHeaderClockOnly(const String& clockText) {
-  headerRenderer.drawClockOnly(clockText, PANEL, ACCENT);
+  headerRenderer.drawClockOnly(clockText, PANEL, UI_WHITE, ACCENT);
   lastHeaderClock = clockText;
+}
+
+void updateWiFiSignalIndicator() {
+  const uint32_t nowMs = millis();
+  const bool connected = connectivityManager.isConnected();
+
+  if (!connected) {
+    wifiSignalMeter.reset();
+    wifiSignalLastSampleMs = 0;
+  } else if (wifiSignalLastSampleMs == 0 ||
+             nowMs - wifiSignalLastSampleMs >= 1000UL) {
+    wifiSignalMeter.addSample(WiFi.RSSI());
+    wifiSignalLastSampleMs = nowMs;
+  }
+
+  const uint8_t strengthLevel =
+      connected ? wifiSignalMeter.level() : 0;
+  if (headerRenderer.setWiFiStatus(connected, strengthLevel)) {
+    headerRenderer.drawWiFiIndicator(PANEL, UI_WHITE, ACCENT);
+  }
 }
 
 void refreshHeaderClock() {
@@ -1956,6 +1986,31 @@ String wifiConnectionStatusText() {
   return "No network connected";
 }
 
+WiFiSettingsRenderer::Availability getWiFiProfileAvailability(
+    const char* ssid,
+    bool activeProfile) {
+  if (activeProfile && connectivityManager.isConnected()) {
+    return WiFiSettingsRenderer::Availability::Available;
+  }
+
+  const WiFiNetworkScanner::State state = wifiNetworkScanner.state();
+  if (state == WiFiNetworkScanner::State::Scanning) {
+    return WiFiSettingsRenderer::Availability::Checking;
+  }
+  if (state != WiFiNetworkScanner::State::Ready) {
+    return WiFiSettingsRenderer::Availability::Unknown;
+  }
+
+  for (uint8_t i = 0; i < wifiNetworkScanner.count(); ++i) {
+    WiFiScanResult result = {};
+    if (wifiNetworkScanner.getAt(i, result) &&
+        strcmp(result.ssid, ssid) == 0) {
+      return WiFiSettingsRenderer::Availability::Available;
+    }
+  }
+  return WiFiSettingsRenderer::Availability::Unavailable;
+}
+
 void drawWiFiProfilesScreen() {
   PersistentWiFiProfileStore::Profile preferred = {};
   const bool hasPreferred = wifiProfileStore.getPreferred(preferred);
@@ -1971,6 +2026,8 @@ void drawWiFiProfilesScreen() {
         hasPreferred && strcmp(preferred.ssid, profile.ssid) == 0;
     wifiProfileRows[i].active =
         wifiSsid != nullptr && strcmp(wifiSsid, profile.ssid) == 0;
+    wifiProfileRows[i].availability =
+        getWiFiProfileAvailability(profile.ssid, wifiProfileRows[i].active);
   }
 
   String message = wifiUiMessage;
@@ -2022,7 +2079,11 @@ void drawWiFiPasswordScreen() {
   wifiSettingsRenderer.drawPassword(
       getHeaderLocationText(), timeService.headerClockText(),
       wifiSelectedSsid, wifiPasswordInput,
-      wifiKeyboardShifted, wifiKeyboardSymbols, wifiUiMessage);
+      wifiKeyboardShifted, wifiKeyboardSymbols,
+      wifiPasswordVisible,
+      wifiKeyFeedbackActive ? wifiHighlightedKeyRow : -1,
+      wifiKeyFeedbackActive ? wifiHighlightedKeyColumn : -1,
+      wifiUiMessage);
 }
 
 void drawWiFiConnectingScreen() {
@@ -2081,6 +2142,17 @@ void drawWiFiSettingsScreen() {
 void openWiFiSettings() {
   wifiUiMessage = "";
   wifiForgetConfirmation = false;
+  wifiPasswordVisible = false;
+  wifiKeyFeedbackActive = false;
+  wifiKeyFeedbackHeld = false;
+  wifiHighlightedKeyRow = -1;
+  wifiHighlightedKeyColumn = -1;
+
+  // Populate saved-profile availability from a fresh background scan.
+  if (wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning) {
+    wifiNetworkScanner.start();
+  }
+
   wifiSettingsScreen = WiFiSettingsScreen::Profiles;
   drawWiFiSettingsScreen();
 }
@@ -2132,6 +2204,11 @@ void closeWiFiSettings() {
   wifiSettingsScreen = WiFiSettingsScreen::Closed;
   wifiUiTouchActive = false;
   wifiHeaderTouchActive = false;
+  wifiPasswordVisible = false;
+  wifiKeyFeedbackActive = false;
+  wifiKeyFeedbackHeld = false;
+  wifiHighlightedKeyRow = -1;
+  wifiHighlightedKeyColumn = -1;
   restoreWeatherScreenAfterWiFiSettings();
 }
 
@@ -2232,6 +2309,7 @@ void selectScannedWiFiNetwork(uint8_t index) {
   memset(wifiPasswordInput, 0, sizeof(wifiPasswordInput));
   wifiKeyboardShifted = false;
   wifiKeyboardSymbols = false;
+  wifiPasswordVisible = false;
   wifiUiMessage = "";
 
   if (network.open) {
@@ -2404,10 +2482,21 @@ void updateWiFiSettings() {
   const uint8_t previousScanCount = wifiNetworkScanner.count();
   wifiNetworkScanner.update();
 
-  if (wifiSettingsScreen == WiFiSettingsScreen::Scan &&
+  if ((wifiSettingsScreen == WiFiSettingsScreen::Scan ||
+       wifiSettingsScreen == WiFiSettingsScreen::Profiles) &&
       (wifiNetworkScanner.state() != previousScanState ||
        wifiNetworkScanner.count() != previousScanCount)) {
     drawWiFiSettingsScreen();
+  }
+
+  if (wifiKeyFeedbackActive && !wifiKeyFeedbackHeld &&
+      static_cast<int32_t>(millis() - wifiKeyFeedbackUntilMs) >= 0) {
+    wifiKeyFeedbackActive = false;
+    wifiHighlightedKeyRow = -1;
+    wifiHighlightedKeyColumn = -1;
+    if (wifiSettingsScreen == WiFiSettingsScreen::Password) {
+      drawWiFiSettingsScreen();
+    }
   }
 
   if (wifiConnectPhase == WiFiConnectPhase::None) {
@@ -2433,6 +2522,43 @@ void handleWiFiPasswordKey(char key) {
   wifiPasswordInput[length + 1] = '\0';
   wifiUiMessage = "";
   drawWiFiSettingsScreen();
+}
+
+bool findWiFiPasswordKeyAt(int x, int y, int& row, int& column) {
+  if (y < WiFiSettingsRenderer::KeyboardY ||
+      y >= WiFiSettingsRenderer::KeyboardY +
+               4 * (WiFiSettingsRenderer::KeyboardKeyHeight +
+                    WiFiSettingsRenderer::KeyboardGapY)) {
+    return false;
+  }
+
+  const int relativeY = y - WiFiSettingsRenderer::KeyboardY;
+  const int rowStep = WiFiSettingsRenderer::KeyboardKeyHeight +
+                      WiFiSettingsRenderer::KeyboardGapY;
+  const int withinRowY = relativeY % rowStep;
+  if (withinRowY >= WiFiSettingsRenderer::KeyboardKeyHeight) return false;
+
+  const int relativeX = x - WiFiSettingsRenderer::KeyboardX;
+  if (relativeX < 0) return false;
+  const int columnStep = WiFiSettingsRenderer::KeyboardKeyWidth +
+                         WiFiSettingsRenderer::KeyboardGapX;
+  if (relativeX % columnStep >= WiFiSettingsRenderer::KeyboardKeyWidth) {
+    return false;
+  }
+
+  row = relativeY / rowStep;
+  column = relativeX / columnStep;
+  if (column >= 10) return false;
+  if (row == 2 && column == 9) return true;
+
+  static const char* alphaRows[] = {
+    "1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm.,-"
+  };
+  static const char* symbolRows[] = {
+    "!@#$%^&*()", "-_=+[]{};:", "'\"<>?/\\|", "~`^%&+=*"
+  };
+  return (wifiKeyboardSymbols
+      ? symbolRows[row] : alphaRows[row])[column] != '\0';
 }
 
 void handleWiFiSettingsTap(int x, int y) {
@@ -2531,6 +2657,14 @@ void handleWiFiSettingsTap(int x, int y) {
   }
 
   if (wifiSettingsScreen == WiFiSettingsScreen::Password) {
+    if (y >= WiFiSettingsRenderer::PasswordFieldTop &&
+        y < WiFiSettingsRenderer::PasswordFieldTop + 21 &&
+        x >= 220) {
+      wifiPasswordVisible = !wifiPasswordVisible;
+      drawWiFiSettingsScreen();
+      return;
+    }
+
     if (y >= WiFiSettingsRenderer::KeyboardY &&
         y < WiFiSettingsRenderer::KeyboardY +
                 4 * (WiFiSettingsRenderer::KeyboardKeyHeight +
@@ -2606,6 +2740,7 @@ void handleWiFiSettingsTap(int x, int y) {
     if (y >= WiFiSettingsRenderer::PasswordFooterTop &&
         y < WiFiSettingsRenderer::PasswordFooterTop + 23) {
       if (x < 160) {
+        wifiPasswordVisible = false;
         wifiSettingsScreen = WiFiSettingsScreen::Scan;
         wifiUiMessage = "";
         drawWiFiSettingsScreen();
@@ -2631,6 +2766,22 @@ bool processWiFiSettingsTouch(
       wifiUiTouchMoved = false;
       wifiUiTouchStartX = x;
       wifiUiTouchStartY = y;
+
+      wifiKeyFeedbackActive = false;
+      wifiKeyFeedbackHeld = false;
+      wifiHighlightedKeyRow = -1;
+      wifiHighlightedKeyColumn = -1;
+      if (wifiSettingsScreen == WiFiSettingsScreen::Password) {
+        int row = 0;
+        int column = 0;
+        if (findWiFiPasswordKeyAt(x, y, row, column)) {
+          wifiKeyFeedbackActive = true;
+          wifiKeyFeedbackHeld = true;
+          wifiHighlightedKeyRow = static_cast<int8_t>(row);
+          wifiHighlightedKeyColumn = static_cast<int8_t>(column);
+          drawWiFiSettingsScreen();
+        }
+      }
     }
 
     if (wifiUiTouchActive && observation.touchPresent &&
@@ -2640,6 +2791,10 @@ bool processWiFiSettingsTouch(
     }
 
     if (wifiUiTouchActive && observation.touchReleased) {
+      if (wifiKeyFeedbackHeld) {
+        wifiKeyFeedbackHeld = false;
+        wifiKeyFeedbackUntilMs = millis() + 180UL;
+      }
       if (!wifiUiTouchMoved) {
         handleWiFiSettingsTap(wifiUiTouchStartX, wifiUiTouchStartY);
       }
@@ -2650,10 +2805,10 @@ bool processWiFiSettingsTouch(
   }
 
   if (observation.touchStarted &&
-      x >= HeaderRenderer::NetworkButtonLeft &&
-      x < HeaderRenderer::NetworkButtonRight &&
-      y >= HeaderRenderer::NetworkButtonTop &&
-      y < HeaderRenderer::NetworkButtonBottom) {
+      x >= HeaderRenderer::WiFiIndicatorLeft &&
+      x < HeaderRenderer::WiFiIndicatorRight &&
+      y >= HeaderRenderer::WiFiIndicatorTop &&
+      y < HeaderRenderer::WiFiIndicatorBottom) {
     wifiHeaderTouchActive = true;
     wifiHeaderTouchValid = true;
     wifiHeaderTouchStartX = x;
@@ -3371,6 +3526,7 @@ void setup() {
 
 void loop() {
   connectivityManager.update(millis());
+  updateWiFiSignalIndicator();
   updateWiFiSettings();
   weatherApp.update();
   delay(30);
