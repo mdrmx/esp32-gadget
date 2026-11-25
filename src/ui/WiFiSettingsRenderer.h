@@ -85,7 +85,7 @@ public:
       if (profiles[i].preferred) {
         textRenderer_.drawText("PREF", 257, y + 8, 1, colours_.accent);
       } else if (profiles[i].active) {
-        textRenderer_.drawText("ACTIVE", 247, y + 8, 1, colours_.success);
+        textRenderer_.drawText("CURRENT", 241, y + 8, 1, colours_.success);
       }
     }
 
