@@ -85,10 +85,10 @@ Arduino IDE Verify passed using the recorded Waveshare ESP32-S3 16 MB / OPI PSRA
 
 Firmware was uploaded to the Waveshare ESP32-S3 Touch LCD 2. The upload log records successful writes and `Hash of data verified` for the bootloader, partition table, boot-app image and 1,168,704-byte application image, followed by hard reset via RTS. The user confirmed the physical tests passed after upload (2026-11-25).
 
-Still open as distinct follow-up validation:
-- Controlled unavailable-AP test confirming the existing 20-second fallback/error behaviour. This call path still blocks while the compatibility adapter is in use.
-- Physical test of Wi-Fi loss followed by a driver-managed background reconnection, confirming the manager returns to `Connected` without another `connect()` call.
-- Runtime internal free-heap/largest-block and PSRAM measurements; these are not represented by compile-time program/global-memory figures.
+Follow-up validation status:
+- [x] Controlled unavailable-AP fallback and app responsiveness while association is pending were confirmed in the state-driven Weather lifecycle and subsequent user-confirmed physical regression.
+- [x] Physical retry/recovery behaviour and saved-profile badge refresh passed in the user-confirmed PR #56 hardware regression. The manager continues to observe driver-managed background reconnects while also applying its own bounded retry policy.
+- [ ] Runtime internal free-heap/largest-block and PSRAM measurements; these are not represented by compile-time program/global-memory figures and remain outstanding.
 
 ## 6. Remaining implementation sequence
 
