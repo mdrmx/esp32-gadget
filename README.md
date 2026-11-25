@@ -4,7 +4,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 
 ## Current refactor progress
 
-> **Progress snapshot:** Weather rendering/asset-cache extraction is complete through PR #51. Phase 2 connectivity slice 1 (PR #52) and state-driven Weather startup (PR #53, merged at `7650072bc0ab4e778f97e05519ec475e8f33fba4`) are merged and device-validated. The next slice is implemented in draft [PR #54](https://github.com/mdrmx/esp32-gadget/pull/54) on `phase2/03-persistent-wifi-profiles`: a versioned five-profile NVS store, preferred-profile handling, replace/forget semantics and first-boot migration from `secrets.h`. Strict C++11 host test suites are added but execution is pending; Arduino Verify/upload and physical validation for this branch are pending. The implementation does not enable NVS/flash encryption. Network scan/selection/password UI and manager-owned retry/backoff remain future work. LocationService geolocation, due TimeService/TimeAPI sync, HTTP/TLS requests and icon asset preparation remain synchronous. The canonical architecture and handover are in [PLATFORM_REFACTOR_ROADMAP.md](PLATFORM_REFACTOR_ROADMAP.md).
+> **Progress snapshot:** Weather rendering/asset-cache extraction is complete through PR #51. Phase 2 connectivity slice 1 (PR #52) and state-driven Weather startup (PR #53) are merged and device-validated. The versioned five-profile Preferences/NVS store and first-boot `secrets.h` migration are implemented on `phase2/03-persistent-wifi-profiles` in [PR #54](https://github.com/mdrmx/esp32-gadget/pull/54). The user ran both strict C++11 host suites successfully, Arduino IDE Verify and flash-hash-verified upload passed, and physical testing confirmed boot, reconnect, existing interactions and the NVS credential source using deliberately invalid compile-time fallback credentials. The real `secrets.h` was restored and the normal firmware uploaded again. Four automated review comments were then addressed with adapter/test hardening; rerun the host suite and Arduino Verify against that final review-fix commit before merging. This code does not enable NVS/flash encryption. Network scan/selection/password UI and manager-owned retry/backoff remain future work. LocationService geolocation, due TimeService/TimeAPI sync, HTTP/TLS requests and icon asset preparation remain synchronous. The canonical architecture and handover are in [PLATFORM_REFACTOR_ROADMAP.md](PLATFORM_REFACTOR_ROADMAP.md).
 
 ### Completed
 
@@ -65,7 +65,7 @@ A Weather-first ESP32-S3 touch-device project, being incrementally refactored in
 For the detailed module boundaries, regression procedures and hardware baseline, see the [Platform Refactor Roadmap](PLATFORM_REFACTOR_ROADMAP.md) and [Phase 0 regression checklist](docs/PHASE0_REGRESSION_CHECKLIST.md).
 
 
-## Phase 2 — Shared connectivity (PRs #52 and #53 merged; NVS profile store in progress)
+## Phase 2 — Shared connectivity (PRs #52 and #53 merged; NVS profile store in PR #54)
 
 The first implementation slice was developed on [`phase2/01-connectivity-manager-wifi-backend`](https://github.com/mdrmx/esp32-gadget/tree/phase2/01-connectivity-manager-wifi-backend) and merged into `main` in [PR #52](https://github.com/mdrmx/esp32-gadget/pull/52) at `bc1948019c31ce466ea97be34f205373d05c7954`.
 
@@ -88,18 +88,18 @@ The second slice was merged from [`phase2/02-nonblocking-weather-startup`](https
 
 **Remaining limitation:** the connection wait itself no longer blocks touch/input scheduling. LocationService geolocation, due TimeService/TimeAPI sync requests, current/forecast HTTP requests and Weather icon asset preparation remain synchronous when their hooks/stages run. PR #53 is merged. NVS profile storage is being added in the next slice; scan/selection/password UI remains separate.
 
-**Remaining Phase 2 work:** persistent NVS profiles, safe migration from compile-time credentials, network scan/selection/password-entry/save/forget UI, manager-owned retry/backoff, moving Wi-Fi scan/BSSID operations out of `LocationService`, and transport-boundary review for the Wi-Fi-specific `HttpRequestClient`.
+**Remaining Phase 2 work:** network scan/selection/password-entry/save/forget UI, manager-owned retry/backoff, moving Wi-Fi scan/BSSID operations out of `LocationService`, and transport-boundary review for the Wi-Fi-specific `HttpRequestClient`.
 
 See [Phase 2 connectivity design](docs/PHASE2_CONNECTIVITY_MANAGER.md) and the [canonical roadmap](PLATFORM_REFACTOR_ROADMAP.md).
 
 
 ## Phase 2 — Persistent Wi-Fi profile store (implementation branch)
 
-The next slice is being implemented on `phase2/03-persistent-wifi-profiles`.
+The storage slice is implemented on `phase2/03-persistent-wifi-profiles` and is in final review on [PR #54](https://github.com/mdrmx/esp32-gadget/pull/54).
 
 - Adds `WiFiProfileStore`: five fixed profile slots, versioned binary schema, CRC32 validation, preferred profile selection, same-SSID credential replacement and forget semantics.
 - Adds `PreferencesWiFiProfileStorage`, using one NVS blob key rather than multiple partially updated keys.
 - On first boot only, imports the legacy `secrets.h` profile when the NVS key is absent. Corrupt or unsupported stored records are not overwritten; an intentionally empty valid store does not restore the legacy profile.
 - Copies the selected profile into device-lifetime RAM before configuring `WiFiBackend`, whose interface borrows credential pointers.
 
-**Validation pending:** strict C++11 host runners are checked in but have not yet been executed. Arduino IDE Verify, upload/boot and physical validation are pending. This code does not enable NVS or flash encryption; at-rest confidentiality depends on the device's flash-encryption configuration. Network scan/selection/password-entry UI is the next separate slice.
+**Validation record:** the user ran `sh scripts/test-wifi-profile-store.sh`; both strict C++11 suites passed. Arduino IDE Verify passed for the Waveshare ESP32-S3 16 MB / OPI PSRAM target with ESP32 core 3.3.12. The firmware used 1,172,523 bytes program storage (37%) and 98,092 bytes global dynamic memory (29%), leaving 229,588 bytes. Upload completed, flash hashes verified and the board hard-reset. Hardware checks confirmed initial connection, reset/reconnect and all existing interactions. For the decisive NVS check, `secrets.h` was temporarily changed to invalid Wi-Fi credentials; the boot log reported `[WIFI] Loaded the saved preferred network profile.` and live Google Wi-Fi positioning / OpenWeather reverse geocoding succeeded. The original `secrets.h` was restored and the normal firmware uploaded again. After these tests, four automated review comments were addressed (read-only NVS reads, oversized-read failure and test-stub key bounds); rerun the host suite and Arduino Verify once against that final review-fix commit before merge. This code does not enable NVS or flash encryption; at-rest confidentiality depends on the device's flash-encryption configuration. Network scan/selection/password-entry UI is the next separate slice.
