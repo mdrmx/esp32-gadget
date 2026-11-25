@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.54  
+**Version:** 4.55  
 **Last reviewed:** 2026-11-25  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#51 are merged into `main`. PR #50 (`9bcddc503ab6a0d1eb15b1d32ecba9c255db80ca`) and PR #51 (`1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276`) are both validated. The strict C++11 viewport host runners for Weather metrics and Forecast List pass on merged `main`; Arduino IDE Verify, upload/boot and physical Waveshare regression are user-confirmed passed. The latest recorded Verify uses ESP32 core 3.3.12 / esptool 5.3.1 and reports 1,167,139 bytes program storage (37%), 97,444 bytes global dynamic memory (29%) and 230,236 bytes remaining. `WeatherAssetCache`, `ForecastGraphRenderer`, `WeatherMetricsViewportRenderer` and `ForecastListViewportRenderer` own their respective asset/rendering boundaries. Phase 1 remains in progress for broader module-boundary, state/resource ownership and memory-profile close-out; Phase 2–6 remain as planned.
+**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#51 are merged into `main`; PR #50 and PR #51 host, firmware and physical validation is complete. The first Phase 2 connectivity slice is in implementation on `phase2/01-connectivity-manager-wifi-backend`: it adds a transport-neutral backend contract, a Wi-Fi backend and a non-blocking connection state manager, with focused C++11 host tests. Weather still uses a temporary synchronous compatibility adapter, so non-blocking application startup/reconnect and persistent Wi-Fi profiles remain future slices. Arduino Verify and physical validation for this Phase 2 branch are pending. The latest validated firmware Verify before Phase 2 uses ESP32 core 3.3.12 / esptool 5.3.1 and reports 1,167,139 bytes program storage (37%), 97,444 bytes global dynamic memory (29%) and 230,236 bytes remaining. Phase 1 remains in progress for broader module-boundary, state/resource ownership and runtime memory-profile close-out.
 
 ---
 
@@ -417,19 +417,31 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
 
 ### Phase 2 — Wi-Fi management and shared connectivity
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS — first implementation slice on `phase2/01-connectivity-manager-wifi-backend`; not yet merged or hardware-validated.**
 
-Tasks:
+**Completed in the current slice:**
 
-- Implement persistent Wi-Fi profiles using Preferences / NVS.
-- Build the network scan, selection, password-entry, save, preferred-network and forget flows.
-- Provide a safe migration path from the existing compile-time Wi-Fi credentials.
-- Introduce Connectivity Manager and a Wi-Fi backend.
-- Make connection management non-blocking from the application loop, with timeouts and bounded reconnection.
-- Route existing Weather, time and geolocation requests through the shared network boundary.
-- Remove app-level assumptions that Wi-Fi is the only possible transport.
+- [x] Introduce the transport-neutral `ConnectivityBackend` contract and `NetworkType` values (`None`, `WiFi`, `Cellular`).
+- [x] Add `WiFiBackend` for ESP32 Arduino station startup, connection status, disconnect and RSSI reporting.
+- [x] Add `ConnectivityManager` with non-blocking `connect()` / `update()`, explicit state transitions, bounded 20-second timeout and millis-rollover-safe elapsed-time handling.
+- [x] Add strict C++11 host runners for the manager and Wi-Fi backend; both passed in the implementation workspace.
+- [x] Route sketch connection-state checks used by TimeService and initial LocationService orchestration through the manager.
+- [x] Poll manager state from the normal device loop.
 
-Initially, the Connectivity Manager can have only a Wi-Fi backend. Its interface should allow a future cellular backend without requiring application rewrites.
+**Remaining Phase 2 work:**
+
+- [ ] Remove the temporary synchronous `connectWiFi()` compatibility loop. Move startup, location resolution and first data loading into explicit WeatherApp update states so connection progress never blocks touch/render scheduling.
+- [ ] Implement persistent Wi-Fi profiles using Preferences / NVS, with schema versioning and bounded profile count.
+- [ ] Build network scan, selection, password-entry, save, preferred-network and forget flows.
+- [ ] Provide a safe migration path from the existing compile-time Wi-Fi credentials.
+- [ ] Introduce bounded reconnect/backoff and a defined policy for link loss and preferred-network recovery.
+- [ ] Move Google Wi-Fi positioning's scan/BSSID/RSSI capability out of direct Wi-Fi calls in `LocationService`.
+- [ ] Review the boundary between connectivity lifecycle and HTTP/TLS request execution. `HttpRequestClient` still uses `WiFiClientSecure`; do not imply that its transport is already interchangeable with cellular.
+- [ ] Remove remaining app-level assumptions that Wi-Fi is the only possible transport.
+
+**Transitional limitation:** the manager itself is non-blocking, but the existing `connectWiFi()` helper currently pumps its update method with the established 500 ms delay to preserve startup/refresh ordering. The Weather call path can therefore still wait up to 20 seconds on association. This slice does not yet meet the complete Phase 2 non-blocking application-loop acceptance criterion.
+
+Initially, the manager can have only a Wi-Fi backend. Its interface should allow a future cellular backend without requiring application rewrites. See [Phase 2 connectivity design and handover](docs/PHASE2_CONNECTIVITY_MANAGER.md) for state transitions, ownership and follow-up slices.
 
 **Acceptance criteria:**
 
@@ -623,7 +635,8 @@ The user also confirmed Arduino IDE Verify, firmware upload/boot and all physica
 - **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
 - **Latest merged firmware checkpoint:** PR #51 merge `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276`. `ForecastListViewportRenderer` is part of the default branch and its post-merge validation is now confirmed.
 - **Latest recorded firmware Verify:** 1,167,139 bytes program storage (37% of the 3 MiB application partition); 97,444 bytes global dynamic memory (29%); 230,236 bytes remaining. The Verify log reused cached objects and completed linking and image generation. No new on-device free-heap/largest-block/PSRAM snapshot is recorded for this revision.
-- **Phase 1:** PRs #27–#51 are merged. The PR #50 and #51 renderer validation gates are complete. Broader Phase 1 acceptance remains open for final module-boundary review, shared-state/resource ownership reconciliation and comparison with the Phase 0 runtime-memory baseline. Phase 2–6 remain as listed below.
+- **Phase 1:** PRs #27–#51 are merged. The PR #50 and #51 renderer validation gates are complete. Broader Phase 1 acceptance remains open for final module-boundary review, shared-state/resource ownership reconciliation and comparison with the Phase 0 runtime-memory baseline.
+- **Phase 2:** first implementation slice is on `phase2/01-connectivity-manager-wifi-backend`. `ConnectivityBackend`, `ConnectivityManager` and `WiFiBackend` are implemented with focused strict C++11 host tests. Weather connection calls are routed through the manager but retain a temporary synchronous compatibility bridge. Arduino Verify and physical Waveshare regression remain pending; persistent profiles, UI, background reconnect and full non-blocking Weather startup remain open.
 
 - **PR #27:** `TouchSample` value-type extraction is merged after successful compile, upload and physical input regression.
 - **PR #28:** `DisplayManager` extraction and resource-lifecycle fixes are merged after successful compile, upload and physical display/input regression. Exact post-change heap comparison remains unrecorded.
@@ -787,7 +800,7 @@ When resuming work after a context reset:
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
 | 1 | Project structure and shared foundations | In progress — PRs #27–#51 merged; PR #50/#51 renderer host, firmware and physical validation complete; broader Phase 1 acceptance criteria remain |
-| 2 | Wi-Fi management and shared connectivity | Not started |
+| 2 | Wi-Fi management and shared connectivity | In progress — backend contract, Wi-Fi adapter and connection state manager implemented on Phase 2 branch; host tests pass; firmware/device checks pending; persistent profiles and non-blocking app integration remain |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
 | 5 | Cellular integration | Waiting for hardware decision / purchase |
@@ -796,6 +809,8 @@ When resuming work after a context reset:
 The roadmap document itself is a planning and handover artefact. Its creation does not count as completion of Phase 0.
 
 ## 12. Change history
+
+- **2026-11-25 — Version 4.55:** Started Phase 2 with the first connectivity slice on `phase2/01-connectivity-manager-wifi-backend`. Added a transport-neutral `ConnectivityBackend` interface, ESP32 `WiFiBackend`, non-blocking `ConnectivityManager` state machine, strict C++11 host tests, and a Weather compatibility integration. Recorded explicitly that `connectWiFi()` still pumps the manager synchronously pending a later WeatherApp state-machine slice; NVS profiles, network UI, reconnect policy, request-transport portability and Arduino/device validation remain outstanding.
 
 - **2026-11-25 — Version 4.54:** Recorded the post-merge validation of PR #50 and PR #51: both strict C++11 viewport host runners passed on `main`, Arduino IDE Verify passed, upload/boot and physical Waveshare regression were user-confirmed. Updated the latest firmware footprint (1,167,139 bytes program storage; 97,444 bytes global dynamic memory; 230,236 bytes remaining), README, regression checklist, module-boundary plan and runtime data-flow handover. Kept Phase 1 overall in progress for broader architecture and memory close-out.
 
