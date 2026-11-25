@@ -22,7 +22,9 @@ public:
     }
 
     ssid_ = ssid;
-    password_ = password != nullptr ? password : "";
+    password_ = (password != nullptr && password[0] != '\0')
+      ? password
+      : nullptr;
     return true;
   }
 
@@ -36,9 +38,9 @@ public:
     }
 
     WiFi.mode(WIFI_STA);
-    // Do not interpret begin()'s immediate status as the final connection
-    // result; the station associates asynchronously and is polled separately.
-    WiFi.begin(ssid_, password_ != nullptr ? password_ : "");
+    // Keep nullptr for open networks so the ESP32 driver receives the
+    // no-passphrase form rather than an empty WPA/WPA2 passphrase.
+    WiFi.begin(ssid_, password_);
     return true;
   }
 
