@@ -2767,10 +2767,12 @@ bool processWiFiSettingsTouch(
       wifiUiTouchStartX = x;
       wifiUiTouchStartY = y;
 
+      const bool hadKeyFeedback = wifiKeyFeedbackActive;
       wifiKeyFeedbackActive = false;
       wifiKeyFeedbackHeld = false;
       wifiHighlightedKeyRow = -1;
       wifiHighlightedKeyColumn = -1;
+      bool hasNewKeyFeedback = false;
       if (wifiSettingsScreen == WiFiSettingsScreen::Password) {
         int row = 0;
         int column = 0;
@@ -2779,8 +2781,13 @@ bool processWiFiSettingsTouch(
           wifiKeyFeedbackHeld = true;
           wifiHighlightedKeyRow = static_cast<int8_t>(row);
           wifiHighlightedKeyColumn = static_cast<int8_t>(column);
-          drawWiFiSettingsScreen();
+          hasNewKeyFeedback = true;
         }
+      }
+      if (hasNewKeyFeedback ||
+          (hadKeyFeedback &&
+           wifiSettingsScreen == WiFiSettingsScreen::Password)) {
+        drawWiFiSettingsScreen();
       }
     }
 

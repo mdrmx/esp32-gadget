@@ -241,7 +241,7 @@ public:
         10, 59, 1, colours_.muted);
     if (message.length() > 0) {
       textRenderer_.drawText(
-          shortenSsid(message.c_str(), 20), 214, 59, 1, colours_.error);
+          shortenSsid(message.c_str(), 17), 214, 59, 1, colours_.error);
     } else {
       textRenderer_.drawText("8-63 chars", 248, 59, 1, colours_.muted);
     }
