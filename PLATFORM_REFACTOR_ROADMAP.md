@@ -1,11 +1,11 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 4.56  
+**Version:** 4.57  
 **Last reviewed:** 2026-11-25  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
-**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#51 are merged into `main`; PR #50 and PR #51 host, firmware and physical validation is complete. The first Phase 2 connectivity slice is in implementation on `phase2/01-connectivity-manager-wifi-backend`: it adds a transport-neutral backend contract, an ESP32 Wi-Fi backend and a connection state manager, with focused strict C++11 host tests. Reviewer feedback has been addressed: the manager now mirrors backend/driver background reconnection, and open-network passwords remain null through `WiFi.begin()`. Arduino IDE Verify passed for this Phase 2 working tree using ESP32 core 3.3.12 / esptool 5.3.1; the ESP32-S3 image and merged 16 MB flash image were generated. This Verify reports 1,168,551 bytes program storage (37%), 97,476 bytes global dynamic memory (29%) and 230,204 bytes remaining. Firmware upload/boot and physical regression are still pending. Weather still uses a temporary synchronous compatibility adapter, so non-blocking application startup and manager-initiated reconnect/backoff remain future slices. Phase 1 remains in progress for broader module-boundary, state/resource ownership and runtime memory-profile close-out.
+**Current roadmap status:** Phase 0 baseline complete. Phase 1 PRs #27–#51 are merged into `main`; PR #50 and PR #51 host, firmware and physical validation is complete. The first Phase 2 connectivity slice was merged in PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`. It adds a transport-neutral backend contract, an ESP32 Wi-Fi backend and a connection state manager, with strict C++11 host tests and reviewer fixes for driver-managed reconnect state and open-network null passphrases. Arduino IDE Verify passed using ESP32 core 3.3.12 / esptool 5.3.1; the ESP32-S3 application image and merged 16 MB flash image were generated. The upload log confirms bootloader, partition table and firmware writes were hash-verified before a hard reset. Build reports 1,168,551 bytes program storage (37%), 97,476 bytes global dynamic memory (29%) and 230,204 bytes remaining. The user confirmed the physical tests passed. These memory figures are compile-time footprint, not runtime heap/PSRAM readings. Phase 2 remains in progress: the Weather compatibility adapter is still synchronous, while non-blocking startup, NVS profiles, network UI and manager-initiated retry/backoff remain future work. Phase 1 remains in progress for broader module-boundary, state/resource ownership and runtime memory-profile close-out.
 
 ---
 
@@ -417,7 +417,7 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
 
 ### Phase 2 — Wi-Fi management and shared connectivity
 
-**Status: IN PROGRESS — first implementation slice on `phase2/01-connectivity-manager-wifi-backend`; Arduino IDE Verify passed, upload/boot and physical validation pending.**
+**Status: IN PROGRESS — first connectivity slice merged and validated in PR #52 (`bc1948019c31ce466ea97be34f205373d05c7954`); full Phase 2 acceptance remains open.**
 
 **Completed in the current slice:**
 
@@ -427,6 +427,9 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
 - [x] Preserve null/empty Wi-Fi passwords as `nullptr` for open-network association and pass the pointer directly to `WiFi.begin()`.
 - [x] Add strict C++11 host runners for the manager and Wi-Fi backend; both passed in the implementation workspace, including background-reconnection and null-passphrase assertions.
 - [x] Arduino IDE Verify passed using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM configuration, ESP32 core 3.3.12 and esptool 5.3.1. Build generated the ESP32-S3 application and merged 16 MB flash images: 1,168,551 bytes program storage (37% of 3,145,728 bytes); 97,476 bytes global dynamic memory (29% of 327,680 bytes), leaving 230,204 bytes.
+- [x] PR #52 merged into `main` at `bc1948019c31ce466ea97be34f205373d05c7954`.
+- [x] Firmware upload completed on the Waveshare ESP32-S3 Touch LCD 2: bootloader, partition table, boot-app image and application image were written and each reported `Hash of data verified`; the upload ended with a hard reset via RTS.
+- [x] User confirmed the physical tests passed after upload. Detailed runtime heap/largest-block/PSRAM figures were not supplied and remain separate from compile-time memory figures.
 - [x] Route sketch connection-state checks used by TimeService and initial LocationService orchestration through the manager.
 - [x] Poll manager state from the normal device loop.
 
@@ -441,7 +444,7 @@ The Arduino `src/` layout has passed a compile/link spike using the recorded boa
 - [ ] Review the boundary between connectivity lifecycle and HTTP/TLS request execution. `HttpRequestClient` still uses `WiFiClientSecure`; do not imply that its transport is already interchangeable with cellular.
 - [ ] Remove remaining app-level assumptions that Wi-Fi is the only possible transport.
 
-**Transitional limitation:** the manager itself is non-blocking and now mirrors a backend/driver background reconnect, but the existing `connectWiFi()` helper still pumps its update method with the established 500 ms delay to preserve startup/refresh ordering. The Weather call path can therefore still wait up to 20 seconds on association. The manager does not yet initiate retries/backoff after a link loss. This slice does not yet meet the complete Phase 2 non-blocking application-loop acceptance criterion.
+**Transitional limitation:** the manager itself is non-blocking and mirrors a backend/driver background reconnect, but the existing `connectWiFi()` helper still pumps its update method with the established 500 ms delay to preserve startup/refresh ordering. The Weather call path can therefore still wait up to 20 seconds on association. The manager does not yet initiate retries/backoff after a link loss. PR #52 completes the first architecture/backend slice, not the full Phase 2 non-blocking application-loop acceptance criterion.
 
 Initially, the manager can have only a Wi-Fi backend. Its interface should allow a future cellular backend without requiring application rewrites. See [Phase 2 connectivity design and handover](docs/PHASE2_CONNECTIVITY_MANAGER.md) for state transitions, ownership and follow-up slices.
 
@@ -622,7 +625,7 @@ Do not resolve these by guesswork simply to make progress. Record the evidence a
 
 ## 10. Handover instructions for future development sessions
 
-### Current handover — 2026-11-25 (PRs #42, #44–#51 merged; PR #50/#51 validation complete)
+### Current handover — 2026-11-25 (PR #52 merged and physically validated; PR #50/#51 validation complete)
 
 Recheck GitHub before acting. PR #42 merged into `main` at `ba92b8b53da8457caa18bb454f53c0d51ca6687a`; its build figures (1,164,667 bytes program storage, 97,396 bytes global dynamic memory and 230,284 bytes remaining) apply only to tested firmware revision `af09b7cf8388f60db81bcdce19fc5563d70b7d0c`. PR #44 merged into `main` at `4a567bef43a07a8f50ecd9deb434c67051104b70`. It adds `src/ui/StatusScreenRenderer.h` and routes the existing loading/error wrappers through it. Weather retains status-message selection, Wi-Fi lifecycle, location/time resolution, clock-cache policy and theme definitions; the renderer owns composition only and delegates header/text work to `HeaderRenderer` and `TextRenderer`.
 
@@ -635,10 +638,10 @@ The user ran all three repository suites successfully: `sh scripts/test-status-s
 The user also confirmed Arduino IDE Verify, firmware upload/boot and all physical Waveshare regression tests passed, with existing Weather/Forecast, List/Graph, touch, gesture, scrolling, viewport clipping, fallback and transition behaviour preserved. Arduino IDE Verify completed on 2026-11-25 using FQBN `esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`, ESP32 core 3.3.12 and esptool 5.3.1. The build log generated the ESP32-S3 image and merged 16 MB flash image and reused cached object files. Program storage: 1,167,139 bytes (37% of the 3,145,728-byte app partition). Global dynamic memory: 97,444 bytes (29% of 327,680 bytes), leaving 230,236 bytes. These are compile-time footprint figures, not runtime heap/PSRAM measurements.
 
 - **Repository:** `mdrmx/esp32-gadget`; default branch `main`.
-- **Latest merged firmware checkpoint:** PR #51 merge `1763b30cc77a9ab0e04919ae5e4cc2f1ce4e7276`. `ForecastListViewportRenderer` is part of the default branch and its post-merge validation is now confirmed.
-- **Latest recorded firmware Verify:** 1,167,139 bytes program storage (37% of the 3 MiB application partition); 97,444 bytes global dynamic memory (29%); 230,236 bytes remaining. The Verify log reused cached objects and completed linking and image generation. No new on-device free-heap/largest-block/PSRAM snapshot is recorded for this revision.
+- **Latest merged firmware checkpoint:** PR #52 merge `bc1948019c31ce466ea97be34f205373d05c7954`. The Connectivity Manager, Wi-Fi backend and Weather sketch integration are part of the default branch.
+- **Latest recorded firmware Verify / upload:** Arduino IDE Verify passed using ESP32 core 3.3.12 / esptool 5.3.1 and the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN. Build: 1,168,551 bytes program storage (37% of 3,145,728 bytes), 97,476 bytes global dynamic memory (29% of 327,680 bytes), 230,204 bytes remaining. Firmware image written: 1,168,704 bytes; bootloader, partition table, boot-app and firmware writes each reported `Hash of data verified`, followed by hard reset via RTS. User confirmed the physical tests passed. No new runtime free-heap/largest-block/PSRAM snapshot is recorded.
 - **Phase 1:** PRs #27–#51 are merged. The PR #50 and #51 renderer validation gates are complete. Broader Phase 1 acceptance remains open for final module-boundary review, shared-state/resource ownership reconciliation and comparison with the Phase 0 runtime-memory baseline.
-- **Phase 2:** first implementation slice is on `phase2/01-connectivity-manager-wifi-backend` (PR #52, latest branch head `f8f65bc52c9d9fd23d4fe52edf33b38b0815cef7`). `ConnectivityBackend`, `ConnectivityManager` and `WiFiBackend` are implemented with focused strict C++11 host tests; reviewer fixes cover backend/driver background reconnection and null passphrases for open networks. Arduino IDE Verify passed with 1,168,551 bytes program storage and 97,476 bytes global dynamic memory using ESP32 core 3.3.12 / esptool 5.3.1. Upload/boot and physical Waveshare regression remain pending. Weather connection calls still retain a temporary synchronous compatibility bridge; persistent profiles, network UI, manager-initiated reconnect/backoff and full non-blocking Weather startup remain open.
+- **Phase 2:** the first connectivity slice is merged into `main` via PR #52 at `bc1948019c31ce466ea97be34f205373d05c7954`. `ConnectivityBackend`, `ConnectivityManager` and `WiFiBackend` are implemented with focused strict C++11 host tests. Reviewer fixes cover driver-managed background reconnection and null passphrases for open networks. Arduino IDE Verify, firmware upload/hash verification, hard reset and user-confirmed physical tests passed. The Weather call path still retains a temporary synchronous compatibility bridge; persistent profiles, network UI, manager-initiated retry/backoff and full non-blocking Weather startup remain open.
 
 - **PR #27:** `TouchSample` value-type extraction is merged after successful compile, upload and physical input regression.
 - **PR #28:** `DisplayManager` extraction and resource-lifecycle fixes are merged after successful compile, upload and physical display/input regression. Exact post-change heap comparison remains unrecorded.
@@ -802,7 +805,7 @@ When resuming work after a context reset:
 |---|---|---|
 | 0 | Codebase audit and baseline | Complete — source/runtime/build audits, hardware baselines, regression checklist, module plan and Arduino `src/` compile spike recorded; follow-up fault-path tests carried forward |
 | 1 | Project structure and shared foundations | In progress — PRs #27–#51 merged; PR #50/#51 renderer host, firmware and physical validation complete; broader Phase 1 acceptance criteria remain |
-| 2 | Wi-Fi management and shared connectivity | In progress — backend contract, Wi-Fi adapter and manager implemented; host tests and Arduino Verify pass; upload/boot and device regression pending; persistent profiles and non-blocking app integration remain |
+| 2 | Wi-Fi management and shared connectivity | In progress — first backend/manager slice merged and validated in PR #52; persistent profiles, on-device management UI, manager-initiated retry/backoff and non-blocking Weather startup remain |
 | 3 | Reusable UI and interaction components | Not started |
 | 4 | Application Manager | Not started |
 | 5 | Cellular integration | Waiting for hardware decision / purchase |
@@ -811,6 +814,8 @@ When resuming work after a context reset:
 The roadmap document itself is a planning and handover artefact. Its creation does not count as completion of Phase 0.
 
 ## 12. Change history
+
+- **2026-11-25 — Version 4.57:** Recorded PR #52 as merged into `main` at `bc1948019c31ce466ea97be34f205373d05c7954`. The first Phase 2 connectivity slice passed both strict C++11 host suites and Arduino IDE Verify (1,168,551 bytes program storage; 97,476 bytes global dynamic memory). The uploaded 1,168,704-byte application image and bootloader/partition images were hash-verified; upload ended with hard reset via RTS. The user confirmed physical tests passed. Full Phase 2 remains in progress because Weather startup still uses the synchronous compatibility adapter, and NVS profiles, network UI, manager-initiated retry/backoff and full non-blocking startup remain open.
 
 - **2026-11-25 — Version 4.56:** Recorded Phase 2 reviewer fixes and successful Arduino IDE Verify for the working tree on `phase2/01-connectivity-manager-wifi-backend`. The manager now mirrors backend/driver background reconnection; Wi-Fi open-network profiles preserve and pass a null password; host tests explicitly cover both behaviours. Verify used ESP32 core 3.3.12 / esptool 5.3.1 and generated the ESP32-S3 application and merged 16 MB flash images (1,168,551 bytes program storage; 97,476 bytes global dynamic memory; 230,204 bytes remaining). Upload/boot and physical regression remain pending. The `connectWiFi()` compatibility path is still synchronous; NVS profiles, network UI, manager-initiated retry/backoff and non-blocking Weather startup remain open.
 
