@@ -20,6 +20,7 @@ class Preferences {
   static bool failBegin;
   static bool failRead;
   static bool failWrite;
+  static bool lastBeginReadOnly;
   static unsigned int beginCalls;
   static unsigned int endCalls;
   static char lastNamespace[16];
