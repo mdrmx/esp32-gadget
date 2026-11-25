@@ -8,7 +8,7 @@ namespace {
 int failures = 0;
 #define CHECK(condition) do { \
   if (!(condition)) { \
-    fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #condition); \
+    fprintf(stderr, "FAIL %s:%d: %s\\n", __FILE__, __LINE__, #condition); \
     ++failures; \
   } \
 } while (0)
@@ -26,6 +26,7 @@ void configuresAndStartsStationWithSelectedProfile() {
   CHECK(WiFi.modeCalls == 1);
   CHECK(WiFi.lastMode == WIFI_STA);
   CHECK(WiFi.beginCalls == 1);
+  CHECK(!WiFi.lastPasswordWasNull);
   CHECK(strcmp(WiFi.lastSsid, "saved-network") == 0);
   CHECK(strcmp(WiFi.lastPassword, "saved-password") == 0);
 }
@@ -34,7 +35,12 @@ void supportsOpenNetworks() {
   WiFiBackend backend;
   CHECK(backend.configure("open-network", nullptr));
   CHECK(backend.begin());
-  CHECK(strcmp(WiFi.lastPassword, "") == 0);
+  CHECK(WiFi.lastPasswordWasNull);
+
+  // Treat an empty configured passphrase as an open network as well.
+  CHECK(backend.configure("open-network", ""));
+  CHECK(backend.begin());
+  CHECK(WiFi.lastPasswordWasNull);
 }
 
 void exposesConnectionAndSignalStatus() {
@@ -67,10 +73,10 @@ int main() {
   disconnectDoesNotEraseProfileByContract();
 
   if (failures != 0) {
-    fprintf(stderr, "%d Wi-Fi backend test(s) failed.\n", failures);
+    fprintf(stderr, "%d Wi-Fi backend test(s) failed.\\n", failures);
     return 1;
   }
 
-  printf("WiFiBackend tests passed.\n");
+  printf("WiFiBackend tests passed.\\n");
   return 0;
 }
