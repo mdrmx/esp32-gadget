@@ -41,7 +41,7 @@ public:
     ProfileRowsTop = 78,
     ProfileRowHeight = 24,
     ProfileRowsVisible = 5,
-    ScanRowsTop = 76,
+    ScanRowsTop = 72,
     ScanRowHeight = 43,
     ScanRowsVisible = 3,
     FooterTop = 207,
@@ -124,7 +124,7 @@ public:
       const String& message) const {
     if (displayManager_.target() == nullptr) return;
     beginPage(location, clock);
-    textRenderer_.drawText("AVAILABLE NETWORKS", 10, 43, 2, colours_.white);
+    textRenderer_.drawText("AVAILABLE NETWORKS", 10, 46, 2, colours_.white);
 
     String status;
     bool showStatus = false;
@@ -142,7 +142,7 @@ public:
       status = message;
       showStatus = true;
     }
-    if (showStatus) drawStatusLine(connectionStatus, status, 62);
+    if (showStatus) drawStatusLine(connectionStatus, status, 63);
 
     // Keep a partial row in view while the touch position follows the finger.
     // The sketch bounds scrollPositionPixels to one resisted row overshoot.
@@ -158,16 +158,11 @@ public:
       target->fillRoundRect(8, y, displayManager_.width() - 16,
                             ScanRowHeight - 2, 4, colours_.panel);
 
-      textRenderer_.drawText(
-          shortenSsid(results[index].ssid, 21), 15, y + 4, 2,
-          colours_.white);
-      if (results[index].supported) {
-        drawSecurityIcon(
-            16, y, results[index].open,
-            results[index].open ? colours_.success : colours_.muted);
-      } else {
-        // Preserve the explicit unsupported warning for security modes that
-        // this manager cannot join; supported OPEN/SECURE labels become icons.
+      const bool requiresPassword = !results[index].open;
+      drawScanNetworkName(results[index].ssid, y, requiresPassword);
+      if (!results[index].supported) {
+        // Preserve the explicit warning for security modes this manager
+        // cannot join; the lock remains beside the SSID when a password is used.
         textRenderer_.drawText(
             "UNSUPPORTED", 15, y + 22, 2, colours_.error);
       }
@@ -189,8 +184,8 @@ public:
           colours_.background);
     }
 
-    textRenderer_.drawText("AVAILABLE NETWORKS", 10, 43, 2, colours_.white);
-    if (showStatus) drawStatusLine(connectionStatus, status, 62);
+    textRenderer_.drawText("AVAILABLE NETWORKS", 10, 46, 2, colours_.white);
+    if (showStatus) drawStatusLine(connectionStatus, status, 63);
 
     drawButton("SAVED", 8, FooterTop, 145, FooterHeight,
                colours_.panel, colours_.white);
@@ -383,33 +378,52 @@ public:
   }
 
 private:
-  // Draw compact padlock symbols with display primitives; no bitmap assets
-  // or extra flash resources are needed. Open networks have a raised shackle.
-  void drawSecurityIcon(
-      int x,
+  // Fit the SSID into the space left of the signal bars and, when needed,
+  // a lock glyph. Width measurement avoids clipping with variable SSID text.
+  void drawScanNetworkName(
+      const char* ssid,
       int rowY,
-      bool open,
-      uint16_t colour) const {
+      bool requiresPassword) const {
+    const int textX = 15;
+    const int signalBarsLeft = displayManager_.width() - 42;
+    const int lockWidth = requiresPassword ? 14 : 0;
+    const int lockGap = requiresPassword ? 4 : 0;
+    const int maximumTextWidth =
+        signalBarsLeft - 4 - textX - lockWidth - lockGap;
+
+    String label(ssid != nullptr ? ssid : "");
+    bool shortened = false;
+    while (label.length() > 0 &&
+           textRenderer_.measureTextWidth(label, 2) > maximumTextWidth) {
+      label.remove(label.length() - 1);
+      shortened = true;
+    }
+    if (shortened) {
+      while (label.length() > 0 &&
+             textRenderer_.measureTextWidth(label + ".", 2) >
+                 maximumTextWidth) {
+        label.remove(label.length() - 1);
+      }
+      label += ".";
+    }
+
+    textRenderer_.drawText(label, textX, rowY + 4, 2, colours_.white);
+    if (requiresPassword && label.length() > 0) {
+      const int lockX =
+          textX + textRenderer_.measureTextWidth(label, 2) + lockGap;
+      drawSecurityIcon(lockX, rowY + 4, colours_.muted);
+    }
+  }
+
+  // Compact closed padlock drawn directly with display primitives.
+  // Open networks do not call this helper and therefore have no icon.
+  void drawSecurityIcon(int x, int y, uint16_t colour) const {
     Arduino_GFX* target = displayManager_.target();
     if (target == nullptr) return;
 
-    const int shackleTop = rowY + 18;
-    const int bodyTop = rowY + 28;
-    if (open) {
-      // Open shackle: left stem, crown and a raised free end on the right.
-      target->drawLine(x + 4, bodyTop + 1, x + 4, shackleTop + 7, colour);
-      target->drawLine(x + 4, shackleTop + 7, x + 7, shackleTop + 3, colour);
-      target->drawLine(x + 7, shackleTop + 3, x + 12, shackleTop + 3, colour);
-      target->drawLine(x + 12, shackleTop + 3, x + 14, shackleTop + 6, colour);
-    } else {
-      // The body is drawn after the rounded shackle to mask its lower edge.
-      target->drawRoundRect(
-          x + 3, shackleTop, 11, 16, 5, colour);
-    }
-
-    target->fillRoundRect(x, bodyTop, 18, 10, 2, colour);
-    // Simple key slot, contrasting against the body.
-    target->drawLine(x + 9, bodyTop + 3, x + 9, bodyTop + 7,
+    target->drawRoundRect(x + 3, y + 1, 8, 10, 4, colour);
+    target->fillRoundRect(x, y + 7, 14, 9, 2, colour);
+    target->drawLine(x + 7, y + 10, x + 7, y + 13,
                      colours_.background);
   }
 
