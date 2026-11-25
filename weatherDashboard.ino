@@ -2032,7 +2032,10 @@ void drawWiFiConnectingScreen() {
       wifiConnectPhase == WiFiConnectPhase::Restore);
 }
 
-void drawWiFiSettingsScreen() {
+// Compose the Wi-Fi modal into the existing full-screen staging canvas.
+// Rendering all controls into RAM first and flushing once avoids visible tearing
+// from the many small SPI drawing operations in each settings screen.
+void drawWiFiSettingsScreenContents() {
   switch (wifiSettingsScreen) {
     case WiFiSettingsScreen::Profiles:
       drawWiFiProfilesScreen();
@@ -2053,6 +2056,26 @@ void drawWiFiSettingsScreen() {
     default:
       break;
   }
+}
+
+void drawWiFiSettingsScreen() {
+  if (wifiSettingsScreen == WiFiSettingsScreen::Closed) return;
+
+  Arduino_Canvas* frameCanvas = displayManager.tabTransitionCanvas();
+  if (frameCanvas == nullptr || frameCanvas->getFramebuffer() == nullptr) {
+    // Preserve a functional direct-render fallback on boards where the
+    // full-screen PSRAM canvas could not be allocated.
+    drawWiFiSettingsScreenContents();
+    return;
+  }
+
+  displayManager.beginTabTransitionRender();
+  drawWiFiSettingsScreenContents();
+  displayManager.endTabTransitionRender();
+
+  // Arduino_Canvas is a full-screen 320x240 staging buffer (origin 0,0).
+  // Its flush writes one RGB565 bitmap rather than issuing per-widget writes.
+  frameCanvas->flush();
 }
 
 void openWiFiSettings() {

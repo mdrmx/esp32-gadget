@@ -330,9 +330,6 @@ private:
     target->fillScreen(colours_.background);
     headerRenderer_.draw(
         location, clock, colours_.panel, colours_.white, colours_.accent);
-    target->fillRect(
-        0, 37, displayManager_.width(), displayManager_.height() - 37,
-        colours_.background);
   }
 
   void drawStatusLine(
