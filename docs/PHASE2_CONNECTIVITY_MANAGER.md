@@ -200,7 +200,7 @@ During one of those operations, the loop cannot process touch input until that c
 
 **Branch:** `phase2/04-wifi-network-management`  
 **Base:** `main` at `f4ae999e3f37eb893dee777f9ec404997856b091`  
-**Status:** Implemented on the feature branch. The Wi-Fi UI and touch-navigation/card-style motion refinement have passed user-confirmed physical validation. The user has confirmed hardware validation of the three larger, evenly spaced rows, enlarged text and RSSI bars. The newest status-line/security-icon follow-up is code-complete but needs a fresh Verify/upload and physical regression before PR #55 can return to review.
+**Status:** Implemented on the feature branch. The Wi-Fi UI and touch-navigation/card-style motion refinement have passed user-confirmed physical validation. The user has confirmed hardware validation of the three larger, evenly spaced rows, enlarged text and RSSI bars. The latest lock-alignment and heading/row-spacing follow-up is code-complete but needs a fresh Verify/upload and physical regression before PR #55 can return to review.
 
 ### User-facing flow
 
