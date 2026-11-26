@@ -38,7 +38,7 @@ An application implementation must leave itself inactive when `begin()` returns 
 - Opening the launcher records the previous app id and calls `stopActive()`; platform display, touch, connectivity, location, time and storage services remain alive.
 - Selecting a tile starts that registered app through `switchTo()`. BACK re-enters the app that was active before the launcher opened. A failed app start leaves the launcher visible so the user can retry or return.
 - The Wi-Fi settings header includes the same launcher button, so the launcher can be opened from that platform modal too.
-- Only Weather is registered today. Selecting Weather or pressing BACK therefore re-enters Weather and restarts its normal startup path; this is not yet proof of switching between independent applications.
+- Only Weather is registered today. Selecting Weather or pressing BACK therefore re-enters Weather, restores its prior in-memory workflow stage when the Wi-Fi link remains available, and redraws its cached view; this is not yet proof of switching between independent applications.
 
 ## Scope deliberately deferred
 
@@ -56,7 +56,7 @@ Run:
 sh scripts/test-application-manager.sh
 ```
 
-For merged PR #62, the user confirmed the strict C++11 runner passes (`ApplicationManager tests passed.`), including registration, null-id safety, lifecycle switching/restoration and Weather configure/start/stop/restart integration. The current branch extends the same runner with manager enumeration and launcher-controller coverage: open/stop, select by registration index, failed target start, BACK restoration and opening/closing with no active app. This expanded suite has not yet been run on the launcher branch; rerun `sh scripts/test-application-manager.sh` before review.
+For merged PR #62, the user confirmed the strict C++11 runner passes (`ApplicationManager tests passed.`), including registration, null-id safety, lifecycle switching/restoration and Weather configure/start/stop/restart integration. The current branch extends the same runner with manager enumeration and launcher-controller coverage: open/stop, select by registration index, failed target start, BACK restoration and opening/closing with no active app. Weather-specific lifecycle tests now assert that returning while Wi-Fi is connected preserves the prior state, redraws cached data and does not call `startConnection()` or render `Connecting Wi-Fi...`; a separate offline-start case confirms connection setup still occurs when required. This expanded suite has not yet been run on the launcher branch; rerun `sh scripts/test-application-manager.sh` before review.
 
 
 
@@ -64,7 +64,7 @@ For merged PR #62, the user confirmed the strict C++11 runner passes (`Applicati
 
 - Run the expanded strict C++11 host runner after pulling `phase4/02-application-launcher`; the renderer assertions cover the single-line, vertically centred title and verify no availability subtitle is drawn.
 - Run Arduino IDE Verify with the recorded Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12.
-- Upload and confirm the app grid opens from the header button, the Weather tile and BACK both restart Weather, the Wi-Fi modal can launch the grid, and no existing Weather/Forecast gestures or Wi-Fi settings interactions regress.
+- Upload and confirm the app grid opens from the header button, the clock and Wi-Fi indicator remain visible/live, the Weather tile and BACK resume Weather without a spurious connection attempt while online, the Wi-Fi modal can launch the grid, and no existing Weather/Forecast gestures or Wi-Fi settings interactions regress.
 - Confirm the launcher remains touch-accessible while no app is active; multi-app selection remains pending until a second application is registered.
 
 ## Firmware and device validation (2026-11-26)
