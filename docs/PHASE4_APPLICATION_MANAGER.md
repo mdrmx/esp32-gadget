@@ -45,7 +45,7 @@ Run:
 sh scripts/test-application-manager.sh
 ```
 
-The strict C++11 suite covers fixed-capacity registration, duplicate/invalid ids, start/idempotency, active-only update, switch/stop, unknown targets, failed-start restoration and Weather's configure/start/stop/restart integration. The first local run exposed a test-double signature mismatch: `WeatherApp::Hooks::fetchForecast` is `void (*)()`, but the test callback returned `bool`. The test callback was corrected in commit `d845757c8478b4a96d427a1ffc4b3613963fe9bf`; rerun the command above to confirm the checked-in runner passes after the correction.
+The user confirmed the checked-in strict C++11 runner passes after the test-double callback was corrected to match the `void (*)()` hook contract (the test callback now returns `void`). Result: `ApplicationManager tests passed.` Coverage includes fixed-capacity registration, duplicate/invalid ids, changing a registered id to null, start/idempotency, active-only update, switch/stop, unknown targets, failed-start restoration and Weather's configure/start/stop/restart integration.
 
 ## Firmware and device validation (2026-11-26)
 
