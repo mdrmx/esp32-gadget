@@ -1,7 +1,7 @@
 # Phase 4 — Application Manager and lifecycle
 
-**Status:** First lifecycle slice implemented on `phase4/01-application-manager-lifecycle`; launcher UI and a second application are not part of this slice.  
-**Base:** PR #61 merge `451f3d158a892b00513fca462c24fa3ba3e2bc8b`.  
+**Status:** Lifecycle manager merged in PR #62; first launcher slice implemented on `phase4/02-application-launcher`. Weather remains the only registered application; second-app integration and launcher physical regression are pending.  
+**Base:** PR #62 merge `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`.  
 **Goal:** Give the platform one bounded, transport- and hardware-neutral way to register, start, update, switch and stop applications.
 
 ## Ownership
@@ -9,6 +9,7 @@
 - `Application` (`src/apps/Application.h`) is the small lifecycle contract: stable id, `begin()`, `update()` and `end()`.
 - `ApplicationManager` (`src/apps/ApplicationManager.h`) stores non-owning application pointers in a fixed-capacity array of four entries. It performs no heap allocation and does not own or initialise display, touch, connectivity, location, time or storage services.
 - The sketch remains the composition root. It constructs platform services and application instances, configures each application's borrowed callbacks, registers applications and starts the initial app.
+- `ApplicationLauncherController` coordinates launcher open/select/back operations through the manager; it owns no application instances or platform services. `ApplicationLauncherRenderer` owns only the bounded launcher presentation.
 - `WeatherApp` implements `Application`. Its state machine still owns Weather startup/refresh sequencing; Weather-specific data, view state and rendering stay in their existing modules.
 
 ## Lifecycle semantics
@@ -25,16 +26,26 @@ An application implementation must leave itself inactive when `begin()` returns 
 
 - Setup builds the existing `WeatherApp::Hooks`, binds them once with `configure()`, registers Weather and starts it through the manager.
 - The device loop continues to update platform connectivity and Wi-Fi settings before calling `ApplicationManager::update()`.
+- Touch sampling now runs at platform-loop level before manager updates. Launcher input therefore remains available when the launcher has stopped the active app; Weather-specific gesture handling is dispatched only while `weather` is active.
 - Weather retains the same staged connection/location/current-weather/forecast/asset/render sequence.
 - On `end()`, Weather becomes inactive and no longer processes input, time or refresh work. It retains its platform hook bindings so the manager can reactivate the same instance without rebuilding shared services.
 - Returning to Weather starts its normal startup sequence again. `WeatherDataService`, `WeatherViewState` and `WeatherAssetCache` remain platform-composed objects, so their existing data/view/cache lifetimes are not destroyed by an app switch. This slice does not promise preservation of WeatherApp's in-progress refresh stage or refresh timer across a switch.
 
+## Application launcher slice
+
+- A persistent four-square button in the top-left header opens the platform launcher. The location label is constrained to the remaining header width; the existing Wi-Fi button remains in its own hit area.
+- The launcher renders up to four registered application ids as a two-column, two-row grid. It does not introduce a separate app metadata registry or allocate applications dynamically.
+- Opening the launcher records the previous app id and calls `stopActive()`; platform display, touch, connectivity, location, time and storage services remain alive.
+- Selecting a tile starts that registered app through `switchTo()`. BACK re-enters the app that was active before the launcher opened. A failed app start leaves the launcher visible so the user can retry or return.
+- The Wi-Fi settings header includes the same launcher button, so the launcher can be opened from that platform modal too.
+- Only Weather is registered today. Selecting Weather or pressing BACK therefore re-enters Weather and restarts its normal startup path; this is not yet proof of switching between independent applications.
+
 ## Scope deliberately deferred
 
-- No user-facing app launcher or new tab/menu is added yet.
-- No second application is registered.
-- Remaining sketch-owned Weather aliases and presentation/input state are not all moved in this slice.
-- No background suspension policy for future apps beyond the manager's active-only `update()` dispatch is implemented.
+- Register and validate a second independent application, then verify launcher use and shared platform services while that app is active.
+- Move remaining sketch-owned Weather aliases, presentation state and Weather-specific input fully behind the Weather boundary.
+- Define more detailed state preservation and suspend/resume policy for longer-lived apps.
+- Provide friendly app names/icons only when a second app makes the metadata need concrete.
 - No dynamic loading, heap-owned app registration, FreeRTOS task model or asynchronous HTTP conversion is introduced.
 
 ## Host validation
@@ -45,7 +56,16 @@ Run:
 sh scripts/test-application-manager.sh
 ```
 
-The user confirmed the checked-in strict C++11 runner passes after the test-double callback was corrected to match the `void (*)()` hook contract (the test callback now returns `void`). Result: `ApplicationManager tests passed.` Coverage includes fixed-capacity registration, duplicate/invalid ids, changing a registered id to null, start/idempotency, active-only update, switch/stop, unknown targets, failed-start restoration and Weather's configure/start/stop/restart integration.
+For merged PR #62, the user confirmed the strict C++11 runner passes (`ApplicationManager tests passed.`), including registration, null-id safety, lifecycle switching/restoration and Weather configure/start/stop/restart integration. The current branch extends the same runner with manager enumeration and launcher-controller coverage: open/stop, select by registration index, failed target start, BACK restoration and opening/closing with no active app. This expanded suite has not yet been run on the launcher branch; rerun `sh scripts/test-application-manager.sh` before review.
+
+
+
+## Launcher branch validation pending
+
+- Run the expanded strict C++11 host runner after pulling `phase4/02-application-launcher`.
+- Run Arduino IDE Verify with the recorded Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12.
+- Upload and confirm the app grid opens from the header button, the Weather tile and BACK both restart Weather, the Wi-Fi modal can launch the grid, and no existing Weather/Forecast gestures or Wi-Fi settings interactions regress.
+- Confirm the launcher remains touch-accessible while no app is active; multi-app selection remains pending until a second application is registered.
 
 ## Firmware and device validation (2026-11-26)
 
