@@ -154,6 +154,39 @@ static bool testSingleWeatherIconIsCentred() {
   return true;
 }
 
+static bool testTwoAppRowIsVerticallyCentred() {
+  DisplayManager displayManager;
+  TextRenderer textRenderer(displayManager);
+  ApplicationLauncherRenderer renderer(
+      displayManager, textRenderer, LauncherColours);
+  ApplicationManager manager;
+  FakeApplication weather("weather");
+  FakeApplication maps("maps");
+
+  CHECK(manager.registerApplication(weather));
+  CHECK(manager.registerApplication(maps));
+  CHECK(displayManager.begin());
+  renderer.draw(manager, nullptr);
+
+  Arduino_GFX* target = displayManager.target();
+  CHECK(target != nullptr);
+  CHECK(target->fillRoundRectCount == 2);
+  CHECK(target->fillRoundRectX[0] == 56);
+  CHECK(target->fillRoundRectX[1] == 196);
+  CHECK(target->fillRoundRectY[0] == 89);
+  CHECK(target->fillRoundRectY[1] == 89);
+  CHECK(target->drawRoundRectColour[0] == LauncherColours.selected);
+  CHECK(target->drawBitmapCount == 1);
+  CHECK(target->printCount == 2);
+
+  uint8_t applicationIndex = 99;
+  CHECK(renderer.applicationAt(60, 90, applicationIndex, manager));
+  CHECK(applicationIndex == 0);
+  CHECK(renderer.applicationAt(200, 90, applicationIndex, manager));
+  CHECK(applicationIndex == 1);
+  return true;
+}
+
 static bool testEmptyLauncherState() {
   DisplayManager displayManager;
   TextRenderer textRenderer(displayManager);
@@ -176,7 +209,7 @@ static bool testEmptyLauncherState() {
 
 int main() {
   if (!testIconGridLayoutAndHitTargets()) return EXIT_FAILURE;
-  if (!testSingleWeatherIconIsCentred()) return EXIT_FAILURE;
+  if (!testSingleWeatherIconIsCentred()) return EXIT_FAILURE;\n  if (!testTwoAppRowIsVerticallyCentred()) return EXIT_FAILURE;
   if (!testEmptyLauncherState()) return EXIT_FAILURE;
 
   printf("ApplicationLauncherRenderer tests passed.\n");
