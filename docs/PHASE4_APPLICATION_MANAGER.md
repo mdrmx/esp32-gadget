@@ -45,4 +45,12 @@ Run:
 sh scripts/test-application-manager.sh
 ```
 
-The strict C++11 suite covers fixed-capacity registration, duplicate/invalid ids, start/idempotency, active-only update, switch/stop, unknown targets, failed-start restoration and Weather's configure/start/stop/restart integration. Firmware Verify/upload and physical app switching remain device-validation steps for this branch.
+The strict C++11 suite covers fixed-capacity registration, duplicate/invalid ids, start/idempotency, active-only update, switch/stop, unknown targets, failed-start restoration and Weather's configure/start/stop/restart integration. The first local run exposed a test-double signature mismatch: `WeatherApp::Hooks::fetchForecast` is `void (*)()`, but the test callback returned `bool`. The test callback was corrected in commit `d845757c8478b4a96d427a1ffc4b3613963fe9bf`; rerun the command above to confirm the checked-in runner passes after the correction.
+
+## Firmware and device validation (2026-11-26)
+
+- Arduino IDE compile and upload passed using ESP32 core 3.3.12 / esptool 5.3.1 and the Waveshare ESP32-S3 Touch LCD 2 FQBN (`esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`).
+- Build footprint: 1,204,579 bytes program storage (38% of the 3,145,728-byte app partition) and 100,788 bytes global dynamic memory (30% of 327,680 bytes), leaving 226,892 bytes.
+- The uploaded image was written and its flash hash verified; the board hard-reset via RTS.
+- The user confirmed the full physical Weather regression passed with no issues noted.
+- Physical switching between multiple applications remains deferred because this slice registers only Weather and does not include a launcher or second application.
