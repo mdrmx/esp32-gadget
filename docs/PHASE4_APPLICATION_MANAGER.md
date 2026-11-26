@@ -55,6 +55,8 @@ Run both strict C++11 host suites:
 ```sh
 sh scripts/test-application-manager.sh
 sh scripts/test-application-launcher-renderer.sh
+sh scripts/test-bottom-edge-swipe-gesture.sh
+sh scripts/test-weather-app-asset-preparation.sh
 ```
 
 For merged PR #62, the user confirmed the strict C++11 runner passes (`ApplicationManager tests passed.`), including registration, null-id safety, lifecycle switching/restoration and Weather configure/start/stop/restart integration. This branch adds manager enumeration, launcher controller, Weather cached resume and offline reconnection-path coverage. Additional suites cover the launcher renderer and bottom-edge swipe recogniser. These expanded suites have not yet been run on the current branch; run the commands above before review.
