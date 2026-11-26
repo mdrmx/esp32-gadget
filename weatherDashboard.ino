@@ -3260,15 +3260,7 @@ bool processApplicationLauncherTouch(
   if (applicationLauncherTouchActive && observation.touchReleased) {
     bool redrawLauncher = false;
     if (!applicationLauncherTouchMoved) {
-      const bool wifiIndicatorTapped =
-          applicationLauncherTouchStartX >= HeaderRenderer::WiFiHitAreaLeft &&
-          applicationLauncherTouchStartX < HeaderRenderer::WiFiHitAreaRight &&
-          applicationLauncherTouchStartY >= HeaderRenderer::WiFiHitAreaTop &&
-          applicationLauncherTouchStartY < HeaderRenderer::WiFiHitAreaBottom;
-      if (wifiIndicatorTapped) {
-        applicationLauncherMessage = "";
-        openWiFiSettings();
-      } else if (applicationLauncherRenderer.backButtonContains(
+      if (applicationLauncherRenderer.backButtonContains(
               applicationLauncherTouchStartX,
               applicationLauncherTouchStartY,
               applicationLauncherController.returnApplicationId())) {
@@ -3357,21 +3349,17 @@ void pollTouch() {
     return;
   }
 
-  // A Wi-Fi settings modal can be layered over the boot-time launcher.
-  // Give that modal normal touch ownership before the launcher captures input.
-  if (wifiSettingsScreen != WiFiSettingsScreen::Closed &&
-      processWiFiSettingsTouch(sample, observation)) {
+  // Wi-Fi settings owns its header hit target even when the modal is
+  // closed. Dispatch it before the launcher captures all remaining contacts;
+  // otherwise a launcher-screen tap on the signal icon is swallowed as a
+  // harmless background touch.
+  if (processWiFiSettingsTouch(sample, observation)) {
     return;
   }
 
   // The launcher is platform-level input: it remains usable while the active
   // application is stopped and the manager has no app receiving updates.
   if (processApplicationLauncherTouch(sample, observation)) {
-    return;
-  }
-
-  // With the modal closed, this also detects the Wi-Fi header touch from apps.
-  if (processWiFiSettingsTouch(sample, observation)) {
     return;
   }
 
