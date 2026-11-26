@@ -38,6 +38,17 @@ public:
     return difference > 0 ? difference : 0;
   }
 
+  // Convert the shared item range into its pixel extent. Each view supplies
+  // its own item count, visible count and row/point spacing.
+  static int maximumScrollPixels(
+    int itemCount,
+    int visibleCount,
+    int pixelsPerItem
+  ) {
+    if (pixelsPerItem <= 0) return 0;
+    return maximumOffset(itemCount, visibleCount) * pixelsPerItem;
+  }
+
   // Convert the metric panel's elastic pixel position into the exact pair
   // consumed by WeatherMetricsViewportRenderer. C++ integer division for a
   // negative top-edge pull is intentional and matches the previous sketch.
@@ -52,7 +63,8 @@ public:
     if (rowStepPixels <= 0) return result;
 
     const int maxOffset = maximumOffset(itemCount, visibleCount);
-    const int maxScrollPixels = maxOffset * rowStepPixels;
+    const int maxScrollPixels = maximumScrollPixels(
+      itemCount, visibleCount, rowStepPixels);
     const int boundedPixels = ScrollController::clampElasticPosition(
       pixels, maxScrollPixels, overscrollLimitPixels);
 
@@ -87,7 +99,8 @@ public:
     if (rowStepPixels <= 0) return result;
 
     const int maxOffset = maximumOffset(itemCount, visibleCount);
-    const int maxScrollPixels = maxOffset * rowStepPixels;
+    const int maxScrollPixels = maximumScrollPixels(
+      itemCount, visibleCount, rowStepPixels);
     const int boundedPixels = ScrollController::clampElasticPosition(
       pixels, maxScrollPixels, overscrollLimitPixels);
 

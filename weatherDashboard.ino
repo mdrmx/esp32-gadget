@@ -893,9 +893,7 @@ void drawWeatherMetricsViewport(int baseOffset, int scrollPixels) {
 }
 
 void drawWeatherMetricsPanel(int baseOffset, int scrollPixels) {
-  int maxOffset = max(
-    0,
-    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+  int maxOffset = WeatherScrollState::maximumOffset(WEATHER_METRIC_COUNT, WEATHER_METRICS_VISIBLE);
   if (baseOffset < 0) baseOffset = 0;
   if (baseOffset > maxOffset) baseOffset = maxOffset;
 
@@ -903,10 +901,10 @@ void drawWeatherMetricsPanel(int baseOffset, int scrollPixels) {
 }
 
 int maxWeatherMetricScrollPixels() {
-  const int maxOffset = max(
-    0,
-    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
-  return maxOffset * WEATHER_METRIC_ROW_STEP;
+  return WeatherScrollState::maximumScrollPixels(
+    WEATHER_METRIC_COUNT,
+    WEATHER_METRICS_VISIBLE,
+    WEATHER_METRIC_ROW_STEP);
 }
 
 void drawWeatherMetricsAtScrollPosition(int pixels) {
@@ -923,9 +921,7 @@ void drawWeatherMetricsAtScrollPosition(int pixels) {
 }
 
 void animateWeatherMetricsSnap(int startPixels, int targetOffset) {
-  const int maxOffset = max(
-    0,
-    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+  const int maxOffset = WeatherScrollState::maximumOffset(WEATHER_METRIC_COUNT, WEATHER_METRICS_VISIBLE);
   targetOffset = constrain(targetOffset, 0, maxOffset);
   int targetPixels = targetOffset * WEATHER_METRIC_ROW_STEP;
 
@@ -949,9 +945,7 @@ void animateWeatherMetricsSnap(int startPixels, int targetOffset) {
 
 void animateWeatherMetricsScroll(int direction) {
   int targetOffset = weatherMetricOffset + direction;
-  int maxOffset = max(
-    0,
-    WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+  int maxOffset = WeatherScrollState::maximumOffset(WEATHER_METRIC_COUNT, WEATHER_METRICS_VISIBLE);
 
   if (targetOffset < 0 || targetOffset > maxOffset) return;
 
@@ -1061,8 +1055,10 @@ void drawForecastControls() {
 }
 
 int maxForecastGraphScrollPixels() {
-  return max(0, forecastCount - FORECAST_GRAPH_POINTS) *
-         FORECAST_GRAPH_POINT_SPACING;
+  return WeatherScrollState::maximumScrollPixels(
+    forecastCount,
+    FORECAST_GRAPH_POINTS,
+    FORECAST_GRAPH_POINT_SPACING);
 }
 
 void syncForecastGraphOffsetFromScroll() {
@@ -1221,7 +1217,7 @@ void drawForecastFooter() {
 void drawForecastViewport(int baseOffset, int scrollPixels) {
   // Keep every renderer entry point safe, including touch-drag frames and
   // redraws immediately after a forecast refresh changes the record count.
-  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  const int maxOffset = WeatherScrollState::maximumOffset(forecastCount, ITEMS_PER_PAGE);
   baseOffset = constrain(baseOffset, 0, maxOffset);
   // Negative scrollPixels is allowed only for a small resisted pull-down at
   // the first row; the item renderer clips the partially visible edge card.
@@ -1400,7 +1396,7 @@ void animateTabTransition(int targetTab, int direction) {
 // through its off-screen canvas. The single bitmap flush prevents the tearing
 // caused by clearing the LCD and painting each card in separate operations.
 void animateForecastScroll(int direction) {
-  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  const int maxOffset = WeatherScrollState::maximumOffset(forecastCount, ITEMS_PER_PAGE);
   const int targetOffset = forecastOffset + direction;
   if (targetOffset < 0 || targetOffset > maxOffset) return;
 
@@ -1413,7 +1409,10 @@ void animateForecastScroll(int direction) {
 // plus the within-row displacement. Rendering still uses the same buffered
 // viewport and a single bitmap flush.
 int maxForecastScrollPixels() {
-  return max(0, forecastCount - ITEMS_PER_PAGE) * FORECAST_ROW_STEP;
+  return WeatherScrollState::maximumScrollPixels(
+    forecastCount,
+    ITEMS_PER_PAGE,
+    FORECAST_ROW_STEP);
 }
 
 void drawForecastAtScrollPosition(int pixels) {
@@ -1432,7 +1431,7 @@ void drawForecastAtScrollPosition(int pixels) {
 }
 
 void animateForecastSnap(int startPixels, int targetOffset) {
-  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+  const int maxOffset = WeatherScrollState::maximumOffset(forecastCount, ITEMS_PER_PAGE);
   targetOffset = constrain(targetOffset, 0, maxOffset);
   const int targetPixels = targetOffset * FORECAST_ROW_STEP;
 
@@ -3121,9 +3120,7 @@ void handleGesture(GestureCode gesture) {
 
   if (currentTab == 0) {
     if (gesture == GestureCode::ScreenUp) {
-      int maxOffset = max(
-        0,
-        WEATHER_METRIC_COUNT - WEATHER_METRICS_VISIBLE);
+      int maxOffset = WeatherScrollState::maximumOffset(WEATHER_METRIC_COUNT, WEATHER_METRICS_VISIBLE);
       if (weatherMetricOffset < maxOffset) {
         animateWeatherMetricsScroll(1);
         DEBUG_PRINTF(
@@ -3155,7 +3152,7 @@ void handleGesture(GestureCode gesture) {
   }
 
   if (gesture == GestureCode::ScreenUp) {
-    int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
+    int maxOffset = WeatherScrollState::maximumOffset(forecastCount, ITEMS_PER_PAGE);
     if (forecastOffset < maxOffset) {
       animateForecastScroll(1);
       DEBUG_PRINTF("Action: mapped vertical-up gesture advanced one entry; offset=%d\n", forecastOffset);
@@ -3456,9 +3453,9 @@ bool loadDemoWeatherData() {
 
   locationLat = 53.4808f;
   locationLon = -2.2426f;
-  forecastOffset = min(forecastOffset, max(0, forecastCount - ITEMS_PER_PAGE));
+  forecastOffset = min(forecastOffset, WeatherScrollState::maximumOffset(forecastCount, ITEMS_PER_PAGE));
   forecastGraphOffset = constrain(
-    forecastGraphOffset, 0, max(0, forecastCount - FORECAST_GRAPH_POINTS));
+    forecastGraphOffset, 0, WeatherScrollState::maximumOffset(forecastCount, FORECAST_GRAPH_POINTS));
   forecastGraphScrollPixels =
     forecastGraphOffset * FORECAST_GRAPH_POINT_SPACING;
   return true;
@@ -3481,11 +3478,11 @@ bool fetchForecast() {
   // matching the original early-failure behaviour.
   if (result.success || result.pagesFetched > 0) {
     forecastGraphOffset = constrain(
-      forecastGraphOffset, 0, max(0, forecastCount - FORECAST_GRAPH_POINTS));
+      forecastGraphOffset, 0, WeatherScrollState::maximumOffset(forecastCount, FORECAST_GRAPH_POINTS));
     forecastGraphScrollPixels =
       forecastGraphOffset * FORECAST_GRAPH_POINT_SPACING;
     forecastOffset = constrain(
-      forecastOffset, 0, max(0, forecastCount - ITEMS_PER_PAGE));
+      forecastOffset, 0, WeatherScrollState::maximumOffset(forecastCount, ITEMS_PER_PAGE));
   }
 
   if (!result.success) {
