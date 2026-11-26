@@ -1,8 +1,8 @@
-**Status:** Connectivity PRs #52–#57 are merged. PR #57 merged into `main` at `8185eff26c955e5d24f425a2bb34856b1b87fc77`; the user confirmed the final strict C++11 scanner suite, Arduino Verify/upload and general physical regression. Google/IP API-failure injection remains deliberately deferred/non-blocking and those branches are unverified. Current follow-up branch `phase2/07-network-http-transport-boundary` replaces `WiFiClientSecure` with ESP32 `NetworkClientSecure` in `HttpRequestClient` and routes the Weather icon-preparation guard through `ConnectivityManager.isConnected()`. The source-boundary runner passed, Arduino IDE Verify passed on ESP32-S3 / ESP32 core 3.3.12, and the user confirmed all physical regression tests passed on 2026-11-26. Compile-time footprint: 1,203,415 program bytes, 100,748 global dynamic bytes and 226,932 bytes remaining. Runtime heap/PSRAM profiling remains outstanding. Phase 2 remains in progress.
+**Status:** Connectivity PRs #52–#58 are merged. PR #58 merged into `main` at `807c850afb1afb1588a874cb2e0acdc25032c3b3`. It replaces the `WiFiClientSecure` alias with ESP32 `NetworkClientSecure` in `HttpRequestClient` and routes Weather icon preparation through `ConnectivityManager.isConnected()`. The source-boundary runner, Arduino IDE Verify and user-confirmed physical regression passed on 2026-11-26. Compile-time footprint: 1,203,415 program bytes, 100,748 global dynamic bytes and 226,932 bytes remaining. Google/IP provider-failure injection remains deliberately deferred/non-blocking. Runtime heap/PSRAM profiling, TLS certificate verification and NVS encryption remain separate limitations. Phase 2 is complete.
 
 **Merged Wi-Fi manager:** PR #55 merged into `main` at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12` after the user confirmed the final UI revision and hardware validation. It adds the saved/scan profile screens, asynchronous scanning, availability tags, password keyboard feedback, live RSSI indicator and shared touch-scroll presentation. The final selected-profile card outline, centred SSID/badge and 8 px badge inset are part of the merged implementation; no PR #55 validation gate remains open.
 **Base:** `main` at `32a9e3908b5af96759590c94cd8a3a123a1ac223`  
-**Latest merged checkpoint:** PR #57 at `8185eff26c955e5d24f425a2bb34856b1b87fc77`  
+**Latest merged checkpoint:** PR #58 at `807c850afb1afb1588a874cb2e0acdc25032c3b3`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
 
 ## 1. Design boundary
@@ -319,7 +319,7 @@ The saved-profile badges are based on the most recent successfully completed vis
 
 **Branch:** `phase2/07-network-http-transport-boundary`  
 **Base:** merged PR #57 at `8185eff26c955e5d24f425a2bb34856b1b87fc77`  
-**Status:** Implemented and validated on the branch. The structural test and Arduino IDE Verify passed; the user confirmed all physical regression tests passed on 2026-11-26. Runtime heap/largest-block/PSRAM profiling remains outstanding.
+**Status:** Merged in PR #58 at `807c850afb1afb1588a874cb2e0acdc25032c3b3`. The structural test and Arduino IDE Verify passed; the user confirmed all physical regression tests passed on 2026-11-26. Runtime heap/largest-block/PSRAM profiling remains outstanding.
 
 ### Changes
 
@@ -339,3 +339,5 @@ This change targets the ESP32 core's `NetworkClient` / `NetworkClientSecure` TCP
 - [x] User confirmed all physical regression tests passed on 2026-11-26.
 - [x] Compile-time footprint: 1,203,415 bytes sketch (38% of 3,145,728-byte app partition); 100,748 bytes global variables (30% of 327,680-byte dynamic-memory region); 226,932 bytes reported remaining.
 - [ ] Runtime heap / largest-block / PSRAM measurements remain a separate follow-up; they must not be inferred from compile-time figures.
+
+**Phase 2 close-out:** PR #58 is merged. The separate TLS certificate-validation review, runtime heap/largest-block/PSRAM profile, NVS encryption configuration and any cellular-specific transport adapter remain follow-up decisions; none is implied by the HTTP client boundary extraction.

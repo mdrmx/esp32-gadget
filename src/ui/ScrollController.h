@@ -16,13 +16,10 @@ constexpr int clampElasticPosition(
     int position,
     int maxPosition,
     int overscrollLimit) {
-  const int lowerBound = -overscrollLimit;
-  const int upperBound = maxPosition + overscrollLimit;
-
-  return position < lowerBound
-    ? lowerBound
-    : position > upperBound
-      ? upperBound
+  return position < -overscrollLimit
+    ? -overscrollLimit
+    : position > maxPosition + overscrollLimit
+      ? maxPosition + overscrollLimit
       : position;
 }
 
@@ -41,23 +38,22 @@ constexpr int elasticPosition(
     int maxPosition,
     int overscrollLimit,
     int resistanceDivisor) {
-  if (resistanceDivisor <= 0) {
-    return clampElasticPosition(position, maxPosition, overscrollLimit);
-  }
+  return resistanceDivisor <= 0
+    ? clampElasticPosition(position, maxPosition, overscrollLimit)
+    : position < 0
+      ? -minimum(overscrollLimit, (-position) / resistanceDivisor)
+      : position > maxPosition
+        ? maxPosition + minimum(
+            overscrollLimit, (position - maxPosition) / resistanceDivisor)
+        : position;
+}
 
-  if (position < 0) {
-    const int excess = -position;
-    const int resisted = excess / resistanceDivisor;
-    return -minimum(overscrollLimit, resisted);
-  }
-
-  if (position > maxPosition) {
-    const int excess = position - maxPosition;
-    const int resisted = excess / resistanceDivisor;
-    return maxPosition + minimum(overscrollLimit, resisted);
-  }
-
-  return position;
+constexpr int clampPosition(int position, int maxPosition) {
+  return position < 0
+    ? 0
+    : position > maxPosition
+      ? maxPosition
+      : position;
 }
 
 // Round to the nearest step and clamp to the first/last valid position.
@@ -66,16 +62,11 @@ constexpr int snapToStep(
     int position,
     int stepPixels,
     int maxPosition) {
-  if (stepPixels <= 0) return 0;
-
-  const int snapped =
-    ((position + stepPixels / 2) / stepPixels) * stepPixels;
-
-  return snapped < 0
+  return stepPixels <= 0
     ? 0
-    : snapped > maxPosition
-      ? maxPosition
-      : snapped;
+    : clampPosition(
+        ((position + stepPixels / 2) / stepPixels) * stepPixels,
+        maxPosition);
 }
 
 }  // namespace ScrollController
