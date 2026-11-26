@@ -19,7 +19,7 @@ public:
   };
 
   // Touch-only target for the Wi-Fi indicator; it remains separate from the
-  // application button and clock.
+  // location text and clock.
   enum {
     WiFiHitAreaLeft = 186,
     WiFiHitAreaTop = 0,
