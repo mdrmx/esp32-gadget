@@ -3356,13 +3356,20 @@ void pollTouch() {
     return;
   }
 
+  // A Wi-Fi settings modal can be layered over the boot-time launcher.
+  // Give that modal normal touch ownership before the launcher captures input.
+  if (wifiSettingsScreen != WiFiSettingsScreen::Closed &&
+      processWiFiSettingsTouch(sample, observation)) {
+    return;
+  }
+
   // The launcher is platform-level input: it remains usable while the active
   // application is stopped and the manager has no app receiving updates.
   if (processApplicationLauncherTouch(sample, observation)) {
     return;
   }
 
-  // The settings modal owns all remaining touch contacts while open.
+  // With the modal closed, this also detects the Wi-Fi header touch from apps.
   if (processWiFiSettingsTouch(sample, observation)) {
     return;
   }
