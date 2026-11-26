@@ -145,7 +145,7 @@ class WeatherApp : public Application {
     // Returning to an already-ready Weather app should reveal its cached view
     // immediately and retain the existing refresh schedule.
     if (previousState == State::Ready && connected) {
-      drawActiveView();
+      drawCachedViewOrError("Weather unavailable");
       return true;
     }
 
@@ -367,6 +367,14 @@ class WeatherApp : public Application {
       drawActiveView();
     } else if (loadingMessage != nullptr) {
       hooks_.drawLoading(loadingMessage);
+    }
+  }
+
+  void drawCachedViewOrError(const char* errorMessage) {
+    if (hooks_.weatherAvailable()) {
+      drawActiveView();
+    } else if (errorMessage != nullptr) {
+      hooks_.drawError(errorMessage);
     }
   }
 
