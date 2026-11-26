@@ -225,32 +225,32 @@ unsigned long forecastGestureSuppressionStartedMs = 0;
 // COLOURS
 // =====================================================
 
-const uint16_t BG = 0x1082;
-const uint16_t PANEL = 0x2128;
-const uint16_t UI_WHITE = 0xFFFF;
-const uint16_t MUTED = 0xBDF7;
-const uint16_t ACCENT = 0x5DDF;
-const uint16_t UI_YELLOW = 0xFEA0;
-const uint16_t UI_GREEN = 0x7E8A;
-const uint16_t ERROR_COLOUR = 0xF986;
+// Warm paper, ink and burnt-orange palette inspired by e-ink devices.
+const uint16_t BG = 0xF79C;          // RGB(246, 242, 230) — warm paper
+const uint16_t PANEL = 0xEF3B;       // RGB(238, 230, 222) — shaded paper
+const uint16_t UI_INK = 0x18C3;      // RGB(24, 24, 24) — near-black ink
+const uint16_t MUTED = 0x736C;       // RGB(115, 109, 98) — secondary ink
+const uint16_t ACCENT = 0xD345;      // RGB(213, 105, 41) — retro orange
+const uint16_t UI_ORANGE = ACCENT;
+const uint16_t ERROR_COLOUR = 0xA205; // Dark rust, not a bright red.
 
 const StatusScreenRenderer::Colours STATUS_SCREEN_COLOURS = {
-  BG, PANEL, UI_WHITE, ACCENT, UI_WHITE, ERROR_COLOUR, MUTED
+  BG, PANEL, UI_INK, ACCENT, UI_INK, ERROR_COLOUR, MUTED
 };
 
 const ApplicationLauncherRenderer::Colours APPLICATION_LAUNCHER_COLOURS = {
-  BG, PANEL, UI_WHITE, MUTED, ACCENT, UI_YELLOW
+  BG, PANEL, UI_INK, MUTED, ACCENT, UI_ORANGE
 };
 
 ApplicationLauncherRenderer applicationLauncherRenderer(
   displayManager, textRenderer, APPLICATION_LAUNCHER_COLOURS);
 
 const WiFiSettingsRenderer::Colours WIFI_SETTINGS_COLOURS = {
-  BG, PANEL, UI_WHITE, MUTED, ACCENT, UI_GREEN, ERROR_COLOUR
+  BG, PANEL, UI_INK, MUTED, ACCENT, UI_ORANGE, ERROR_COLOUR
 };
 
 const ForecastModeSelectorRenderer::Colours FORECAST_MODE_SELECTOR_COLOURS = {
-  PANEL, UI_WHITE, BG, MUTED
+  PANEL, UI_INK, BG, MUTED
 };
 
 enum class WiFiSettingsScreen : uint8_t {
@@ -326,7 +326,7 @@ ForecastModeSelectorRenderer forecastModeSelectorRenderer(
     displayManager, textRenderer, FORECAST_MODE_SELECTOR_COLOURS);
 
 const ForecastListItemRenderer::Colours FORECAST_LIST_ITEM_COLOURS = {
-  PANEL, UI_WHITE, UI_YELLOW, MUTED, ACCENT
+  PANEL, UI_INK, UI_ORANGE, MUTED, ACCENT
 };
 ForecastListItemRenderer forecastListItemRenderer(
   displayManager, FORECAST_LIST_ITEM_COLOURS);
@@ -334,7 +334,7 @@ ForecastListViewportRenderer forecastListViewportRenderer(
   forecastListItemRenderer);
 
 const ForecastGraphRenderer::Colours FORECAST_GRAPH_COLOURS = {
-  PANEL, UI_YELLOW, UI_WHITE, UI_WHITE, MUTED, ACCENT
+  PANEL, UI_ORANGE, UI_INK, UI_INK, MUTED, ACCENT
 };
 ForecastGraphRenderer forecastGraphRenderer(
   forecastListItemRenderer, FORECAST_GRAPH_COLOURS);
@@ -348,7 +348,7 @@ WeatherMetricsViewportRenderer weatherMetricsViewportRenderer(
   weatherMetricCardRenderer);
 
 const WeatherConditionsRenderer::Colours WEATHER_CONDITIONS_COLOURS = {
-  MUTED, UI_YELLOW, MUTED
+  MUTED, UI_ORANGE, MUTED
 };
 
 // =====================================================
@@ -497,7 +497,7 @@ String getHeaderLocationText() {
 }
 
 void drawHeaderClockOnly(const String& clockText) {
-  headerRenderer.drawClockOnly(clockText, PANEL, UI_WHITE, ACCENT);
+  headerRenderer.drawClockOnly(clockText, PANEL, UI_INK, ACCENT);
   lastHeaderClock = clockText;
 }
 
@@ -517,7 +517,7 @@ void updateWiFiSignalIndicator() {
   const uint8_t strengthLevel =
       connected ? wifiSignalMeter.level() : 0;
   if (headerRenderer.setWiFiStatus(connected, strengthLevel)) {
-    headerRenderer.drawWiFiIndicator(PANEL, UI_WHITE, ACCENT);
+    headerRenderer.drawWiFiIndicator(PANEL, UI_INK, ACCENT);
   }
 }
 
@@ -552,14 +552,14 @@ void maybeSyncTimeFromAPI() {
 void drawHeader() {
   const String clockText = timeService.headerClockText();
   headerRenderer.draw(
-    getHeaderLocationText(), clockText, PANEL, UI_WHITE, ACCENT);
+    getHeaderLocationText(), clockText, PANEL, UI_INK, ACCENT);
   lastHeaderClock = clockText;
 }
 
 void drawTabIndicator() {
   int y = displayManager.height() - 8;
   displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24, y, 48, 4, 2, PANEL);
-  displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24 + (currentTab * 24), y, 24, 4, 2, UI_YELLOW);
+  displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24 + (currentTab * 24), y, 24, 4, 2, UI_ORANGE);
 }
 
 // =====================================================
@@ -794,9 +794,9 @@ int drawOpenWeatherIcon(int x, int y) {
   WeatherPngDrawContext context;
   context.x = x;
   context.y = y;
-  // BG is RGB565 0x1082, approximately RGB(16,16,16). PNGdec expects
-  // the background as 00BBGGRR when blending transparent PNG pixels.
-  context.backgroundBGR = 0x00101010UL;
+  // Match the warm-paper screen background. PNGdec expects 00BBGGRR.
+  // BG 0xF79C decodes to RGB(246,242,230), hence BGR 0x00E6F2F6.
+  context.backgroundBGR = 0x00E6F2F6UL;
 
   int decodeResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
   if (decodeResult != PNG_SUCCESS) {
@@ -1073,7 +1073,7 @@ void drawForecastControls() {
     BG);
 
   if (!forecastGraphView) {
-    textRenderer.drawText("HOURLY", 8, 50, 1, UI_WHITE);
+    textRenderer.drawText("HOURLY", 8, 50, 1, UI_INK);
   }
 
   drawForecastModeSelector();
