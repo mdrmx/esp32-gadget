@@ -94,6 +94,26 @@ public:
     lastFillRoundRectColour = colour;
   }
 
+  void drawRoundRect(
+    int16_t x,
+    int16_t y,
+    int16_t width,
+    int16_t height,
+    int16_t radius,
+    uint16_t colour
+  ) {
+    const int recordIndex = drawRoundRectCount;
+    if (recordIndex < MAX_RECORDED_ROUND_RECTS) {
+      drawRoundRectX[recordIndex] = x;
+      drawRoundRectY[recordIndex] = y;
+      drawRoundRectWidth[recordIndex] = width;
+      drawRoundRectHeight[recordIndex] = height;
+      drawRoundRectRadius[recordIndex] = radius;
+      drawRoundRectColour[recordIndex] = colour;
+    }
+    ++drawRoundRectCount;
+  }
+
   void fillCircle(int16_t, int16_t, int16_t, uint16_t colour) {
     ++fillCircleCount;
     lastFillCircleColour = colour;
@@ -173,6 +193,14 @@ public:
   int lastFillRoundRectHeight = 0;
   int lastFillRoundRectRadius = 0;
   uint16_t lastFillRoundRectColour = 0;
+
+  int drawRoundRectCount = 0;
+  int drawRoundRectX[MAX_RECORDED_ROUND_RECTS] = {};
+  int drawRoundRectY[MAX_RECORDED_ROUND_RECTS] = {};
+  int drawRoundRectWidth[MAX_RECORDED_ROUND_RECTS] = {};
+  int drawRoundRectHeight[MAX_RECORDED_ROUND_RECTS] = {};
+  int drawRoundRectRadius[MAX_RECORDED_ROUND_RECTS] = {};
+  uint16_t drawRoundRectColour[MAX_RECORDED_ROUND_RECTS] = {};
 
   int fillCircleCount = 0;
   uint16_t lastFillCircleColour = 0;

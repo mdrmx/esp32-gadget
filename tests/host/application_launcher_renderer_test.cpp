@@ -1,0 +1,139 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "../../src/apps/ApplicationManager.h"
+#include "../../src/ui/ApplicationLauncherRenderer.h"
+
+static void check(bool condition, const char* expression, int line) {
+  if (!condition) {
+    fprintf(stderr, "FAIL: %s (line %d)\n", expression, line);
+    exit(EXIT_FAILURE);
+  }
+}
+
+#define CHECK(expression) check((expression), #expression, __LINE__)
+
+class FakeApplication : public Application {
+ public:
+  explicit FakeApplication(const char* id) : id_(id) {}
+
+  const char* id() const override { return id_; }
+  bool begin() override { return true; }
+  void update() override {}
+  void end() override {}
+
+ private:
+  const char* id_;
+};
+
+static bool testLauncherLayoutAndHitTargets() {
+  const ApplicationLauncherRenderer::Colours colours = {
+    0x1082, 0x2128, 0xFFFF, 0xBDF7, 0x5DDF, 0xFEA0
+  };
+
+  DisplayManager displayManager;
+  TextRenderer textRenderer(displayManager);
+  ApplicationLauncherRenderer renderer(
+      displayManager, textRenderer, colours);
+  ApplicationManager manager;
+
+  // Drawing before the display starts must safely do nothing.
+  renderer.draw(manager, nullptr);
+  CHECK(displayManager.target() == nullptr);
+
+  FakeApplication weather("weather");
+  FakeApplication maps("maps");
+  FakeApplication settings("settings");
+  FakeApplication diagnostics("diagnostics");
+  CHECK(manager.registerApplication(weather));
+  CHECK(manager.registerApplication(maps));
+  CHECK(manager.registerApplication(settings));
+  CHECK(manager.registerApplication(diagnostics));
+  CHECK(displayManager.begin());
+
+  renderer.draw(manager, "weather");
+  Arduino_GFX* target = displayManager.target();
+  CHECK(target != nullptr);
+  CHECK(target->fillScreenCount == 1);
+  CHECK(target->lastFillScreenColour == colours.background);
+
+  // Four evenly spaced app tiles and the BACK control are drawn.
+  CHECK(target->fillRoundRectCount == 5);
+  CHECK(target->fillRoundRectX[0] == 8);
+  CHECK(target->fillRoundRectY[0] == 46);
+  CHECK(target->fillRoundRectWidth[0] == 148);
+  CHECK(target->fillRoundRectHeight[0] == 66);
+  CHECK(target->fillRoundRectX[1] == 164);
+  CHECK(target->fillRoundRectY[1] == 46);
+  CHECK(target->fillRoundRectX[2] == 8);
+  CHECK(target->fillRoundRectY[2] == 120);
+  CHECK(target->fillRoundRectX[3] == 164);
+  CHECK(target->fillRoundRectY[3] == 120);
+  CHECK(target->fillRoundRectX[4] == 8);
+  CHECK(target->fillRoundRectY[4] == 210);
+  CHECK(target->fillRoundRectWidth[4] == 76);
+  CHECK(target->fillRoundRectHeight[4] == 24);
+
+  CHECK(target->drawRoundRectCount == 5);
+  CHECK(target->drawRoundRectColour[0] == colours.selected);
+  CHECK(target->drawRoundRectColour[1] == colours.muted);
+
+  // Text layout remains within the recorded print buffer.
+  CHECK(target->printedText[0] == String("APPLICATIONS"));
+  CHECK(target->printedText[1] == String("4 AVAILABLE"));
+  CHECK(target->printedText[2] == String("WEATHER"));
+  CHECK(target->printedText[3] == String("LAST USED"));
+  CHECK(target->printedText[4] == String("MAPS"));
+  CHECK(target->printedText[8] == String("DIAGNOSTICS"));
+  CHECK(target->printedText[10] == String("BACK"));
+  CHECK(target->printedText[11] == String("SELECT AN APP"));
+
+  uint8_t applicationIndex = 99;
+  CHECK(renderer.applicationAt(20, 60, applicationIndex, manager));
+  CHECK(applicationIndex == 0);
+  CHECK(renderer.applicationAt(180, 60, applicationIndex, manager));
+  CHECK(applicationIndex == 1);
+  CHECK(renderer.applicationAt(20, 135, applicationIndex, manager));
+  CHECK(applicationIndex == 2);
+  CHECK(renderer.applicationAt(180, 135, applicationIndex, manager));
+  CHECK(applicationIndex == 3);
+  CHECK(!renderer.applicationAt(157, 60, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(20, 113, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(20, 200, applicationIndex, manager));
+
+  CHECK(renderer.backButtonContains(8, 210));
+  CHECK(renderer.backButtonContains(83, 233));
+  CHECK(!renderer.backButtonContains(84, 220));
+  CHECK(!renderer.backButtonContains(20, 209));
+  return true;
+}
+
+static bool testEmptyLauncherState() {
+  const ApplicationLauncherRenderer::Colours colours = {
+    0x1082, 0x2128, 0xFFFF, 0xBDF7, 0x5DDF, 0xFEA0
+  };
+
+  DisplayManager displayManager;
+  TextRenderer textRenderer(displayManager);
+  ApplicationLauncherRenderer renderer(
+      displayManager, textRenderer, colours);
+  ApplicationManager manager;
+
+  CHECK(displayManager.begin());
+  renderer.draw(manager, nullptr);
+  Arduino_GFX* target = displayManager.target();
+  CHECK(target != nullptr);
+  CHECK(target->fillRoundRectCount == 1);  // BACK only
+  CHECK(target->printedText[2] == String("NO APPLICATIONS"));
+  CHECK(target->printedText[3] == String("BACK"));
+  CHECK(target->printedText[4] == String("SELECT AN APP"));
+  return true;
+}
+
+int main() {
+  if (!testLauncherLayoutAndHitTargets()) return EXIT_FAILURE;
+  if (!testEmptyLauncherState()) return EXIT_FAILURE;
+
+  printf("ApplicationLauncherRenderer tests passed.\n");
+  return EXIT_SUCCESS;
+}
