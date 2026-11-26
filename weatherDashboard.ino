@@ -226,13 +226,14 @@ unsigned long forecastGestureSuppressionStartedMs = 0;
 // =====================================================
 
 // Warm paper, ink and burnt-orange palette inspired by e-ink devices.
-const uint16_t BG = 0xF79C;          // RGB(247, 243, 230) — warm paper
-const uint16_t PANEL = 0xEF3B;       // RGB(239, 231, 222) — shaded paper
-const uint16_t UI_INK = 0x18C3;      // RGB(25, 24, 25) — near-black ink
-const uint16_t MUTED = 0x736C;       // RGB(115, 109, 99) — secondary ink
-const uint16_t ACCENT = 0xD345;      // RGB(214, 105, 41) — retro orange
+// Shared OS palette supplied for the e-ink / retro-terminal visual style.
+const uint16_t BG = 0xFF9C;          // #FEF3E2 — warm off-white paper
+const uint16_t PANEL = 0xF56A;       // #F4AE52 — amber panel
+const uint16_t UI_INK = 0x28C1;      // #2A1A0E — dark brown ink
+const uint16_t ACCENT = 0xD303;      // #D4621A — burnt orange
+const uint16_t MUTED = ACCENT;       // Use only the supplied palette colours.
 const uint16_t UI_ORANGE = ACCENT;
-const uint16_t ERROR_COLOUR = 0xA205; // Dark rust, not a bright red.
+const uint16_t ERROR_COLOUR = ACCENT;
 
 const StatusScreenRenderer::Colours STATUS_SCREEN_COLOURS = {
   BG, PANEL, UI_INK, ACCENT, UI_INK, ERROR_COLOUR, MUTED
@@ -795,8 +796,8 @@ int drawOpenWeatherIcon(int x, int y) {
   context.x = x;
   context.y = y;
   // Match the warm-paper screen background. PNGdec expects 00BBGGRR.
-  // BG 0xF79C decodes to RGB(247,243,230), hence BGR 0x00E6F2F6.
-  context.backgroundBGR = 0x00E6F3F7UL;
+  // Match the supplied paper background #FEF3E2. PNGdec expects 00BBGGRR.
+  context.backgroundBGR = 0x00E2F3FEUL;
 
   int decodeResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
   if (decodeResult != PNG_SUCCESS) {
