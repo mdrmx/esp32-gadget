@@ -704,9 +704,9 @@ bool prepareWeatherIconAsset() {
     return true;
   }
 
-  // Do not attempt a request from the display path or while Wi-Fi is down.
-  if (WiFi.status() != WL_CONNECTED) {
-    DEBUG_PRINTLN("Skipping OpenWeather icon preparation: Wi-Fi unavailable");
+  // Do not attempt a request from the display path or without platform connectivity.
+  if (!connectivityManager.isConnected()) {
+    DEBUG_PRINTLN("Skipping OpenWeather icon preparation: network unavailable");
     return false;
   }
 

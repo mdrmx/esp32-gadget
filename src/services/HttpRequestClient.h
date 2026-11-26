@@ -2,12 +2,13 @@
 
 #include <Arduino.h>
 #include <HTTPClient.h>
-#include <WiFiClientSecure.h>
+#include <NetworkClientSecure.h>
 #include <stdint.h>
 
-// Owns one synchronous HTTPS request session. Domain services retain endpoint
-// construction, status interpretation and response parsing; this class owns
-// the secure socket, HTTPClient lifetime, timeouts and response access.
+// Owns one synchronous HTTPS request session over the ESP32 NetworkClient
+// stack. Domain services retain endpoint construction, status interpretation
+// and response parsing; this class owns the secure socket, HTTPClient lifetime,
+// timeouts and response access.
 //
 // Each instance is intentionally single-use. The caller must explicitly opt
 // into the existing insecure TLS mode so that this compatibility behaviour is
@@ -118,8 +119,9 @@ public:
   }
 
 private:
-  // Declare the socket before HTTPClient so it outlives HTTPClient destruction.
-  WiFiClientSecure secureClient_;
+  // Use the ESP32 network-stack secure client rather than the Wi-Fi alias.
+  // Declare it before HTTPClient so it outlives HTTPClient destruction.
+  NetworkClientSecure secureClient_;
   HTTPClient http_;
   bool beginAttempted_ = false;
   bool active_ = false;
