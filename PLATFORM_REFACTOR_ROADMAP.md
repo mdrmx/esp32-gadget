@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 5.02  
+**Version:** 5.03  
 **Last reviewed:** 2026-11-26  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -509,14 +509,15 @@ The user confirmed host runner, Arduino Verify, upload/hash verification and ful
 
 **Merged lifecycle baseline:** PR #62 is merged into `main` at `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`. Its strict C++11 host suite, Arduino IDE compile/upload and user-confirmed physical Weather regression passed.
 
-**Current slice:** `phase4/02-application-launcher` introduces `ApplicationLauncherController`, `ApplicationLauncherRenderer`, read-only `ApplicationManager::applicationAt()` enumeration and a platform-level quick swipe-up from the bottom 24 px of the display (minimum 52 px travel, at most 40 px horizontal drift, completed within 650 ms). No launcher control is drawn in the header. Setup registers Weather, opens the launcher with no active app, draws it, and then starts the saved preferred Wi-Fi profile through the platform connection service. Association/retry progresses in the normal loop while the launcher stays visible; the header clock and signal icon update independently. Weather observes the shared connection and does not initiate Wi-Fi during its startup/resume path. Its cached view remains visible on Ready/offline resume and during suspended refresh reconnect states. Tapping outside a tile or available BACK control is a no-op and does not redraw. Only Weather is registered today; this is not yet multi-app switching validation.
+**Current slice:** `phase4/02-application-launcher` introduces `ApplicationLauncherController`, `ApplicationLauncherRenderer`, read-only `ApplicationManager::applicationAt()` enumeration and a platform-level quick swipe-up starting only within a centred 64 px-wide activation band in the bottom 24 px of the display (x=128..191 on the 320 px panel; minimum 52 px travel, at most 40 px horizontal drift, completed within 650 ms). No launcher control is drawn in the header. Setup registers Weather, opens the launcher with no active app, draws it, and then starts the saved preferred Wi-Fi profile through the platform connection service. Association/retry progresses in the normal loop while the launcher stays visible; the header clock and signal icon update independently. Weather observes the shared connection and does not initiate Wi-Fi during its startup/resume path. Its cached view remains visible on Ready/offline resume and during suspended refresh reconnect states. Tapping outside a tile or available BACK control is a no-op and does not redraw. Only Weather is registered today; this is not yet multi-app switching validation.
 
 See [Phase 4 Application Manager](docs/PHASE4_APPLICATION_MANAGER.md) for the interface and regression detail.
 
 **Acceptance criteria:**
 
 - Weather launches and behaves as it did before.
-- The launcher is reachable by a quick bottom-edge swipe-up without relying on an active app's update loop.
+- The launcher is reachable from any app/platform screen by a quick swipe-up beginning in the central 64 px band at the bottom edge, without relying on an active app's update loop.
+- Bottom-edge swipes beginning outside that central band are not claimed, preserving metric-card/list interactions elsewhere on the screen.
 - Boot opens the launcher before starting Wi-Fi association; connection/retry runs in the background and is reflected by the persistent signal icon.
 - Opening the launcher stops active-app updates without destroying platform services.
 - Selecting an app or pressing BACK re-enters the selected app through the manager.
@@ -1046,3 +1047,6 @@ The checked-in `sh scripts/test-forecast-mode-selector-renderer.sh` runner passe
 
 
 - **2026-11-26 — Version 5.02:** Replaced the persistent header launcher button with a quick bottom-edge swipe-up gesture and added strict C++11 gesture coverage. Device setup now opens the app launcher before initiating the saved Wi-Fi profile from the platform layer; connection/retry proceeds in the background while the launcher stays drawn and the signal icon tracks the link. Weather no longer owns a Wi-Fi start hook and only observes the shared platform connection. The launcher omits BACK when booted without a previous app, and release outside a real control no longer triggers a redraw. Addressed all three open PR #63 Weather review threads by restoring cached Weather in the offline Ready path and using the cached-view helper in both offline refresh resume paths. New and expanded host suites, Arduino Verify/upload and physical regression remain to be run.
+
+
+- **2026-11-26 — Version 5.03:** Narrowed the global launcher swipe-up activation zone to a centred 64 px-wide band within the bottom 24 px. On the 320 px display this is x=128–191. Swipes beginning elsewhere along the bottom edge are not captured, so metric-card scrolling and other app gestures remain available. Updated the strict C++11 gesture suite for both band boundaries and off-band non-capture; the new suite and physical gesture regression remain pending.
