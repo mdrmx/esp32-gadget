@@ -2,8 +2,6 @@
 
 #include "../../ui/ScrollController.h"
 
-
-
 // Owns the canonical scroll positions for each Weather view and the
 // view-specific conversion from pixel positions to renderer viewport inputs.
 //
@@ -39,7 +37,6 @@ public:
     const int difference = itemCount - visibleCount;
     return difference > 0 ? difference : 0;
   }
-
 
   // Convert the metric panel's elastic pixel position into the exact pair
   // consumed by WeatherMetricsViewportRenderer. C++ integer division for a
