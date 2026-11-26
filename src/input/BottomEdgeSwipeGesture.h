@@ -5,8 +5,8 @@
 #include <stdlib.h>
 
 // Recognises the platform's quick bottom-edge swipe-up launcher gesture.
-// This class only interprets one contact; the sketch decides whether the
-// launcher is currently available and what to do when the gesture completes.
+// This class also claims contacts that begin in the bottom gesture zone so an
+// incomplete swipe is not accidentally interpreted as app scrolling/tapping.
 class BottomEdgeSwipeGesture {
  public:
   static const int BottomEdgeHeightPx = 24;
@@ -17,6 +17,8 @@ class BottomEdgeSwipeGesture {
   BottomEdgeSwipeGesture()
       : active_(false),
         candidate_(false),
+        startedFromBottom_(false),
+        completedBottomOrigin_(false),
         startX_(0),
         startY_(0),
         startedAtMs_(0) {}
@@ -35,8 +37,9 @@ class BottomEdgeSwipeGesture {
     if (touchStarted) {
       reset();
       active_ = true;
-      candidate_ = screenHeight > 0 &&
+      startedFromBottom_ = screenHeight > 0 &&
           y >= screenHeight - BottomEdgeHeightPx;
+      candidate_ = startedFromBottom_;
       startX_ = x;
       startY_ = y;
       startedAtMs_ = nowMs;
@@ -62,13 +65,31 @@ class BottomEdgeSwipeGesture {
         elapsed(nowMs, startedAtMs_) <= MaximumDurationMs &&
         y <= startY_ - MinimumUpwardDistancePx &&
         absolute(x - startX_) <= MaximumHorizontalDriftPx;
-    reset();
+    completedBottomOrigin_ = startedFromBottom_;
+    active_ = false;
+    candidate_ = false;
+    startedFromBottom_ = false;
+    startX_ = 0;
+    startY_ = 0;
+    startedAtMs_ = 0;
     return recognised;
+  }
+
+  // Consume each sample belonging to a bottom-origin contact, even when it
+  // fails the swipe threshold. This prevents an attempted home gesture from
+  // leaking into Weather's metric/list drag handlers.
+  bool consumeTouchSample() {
+    const bool consume = (active_ && startedFromBottom_) ||
+        completedBottomOrigin_;
+    completedBottomOrigin_ = false;
+    return consume;
   }
 
   void reset() {
     active_ = false;
     candidate_ = false;
+    startedFromBottom_ = false;
+    completedBottomOrigin_ = false;
     startX_ = 0;
     startY_ = 0;
     startedAtMs_ = 0;
@@ -77,6 +98,8 @@ class BottomEdgeSwipeGesture {
  private:
   bool active_;
   bool candidate_;
+  bool startedFromBottom_;
+  bool completedBottomOrigin_;
   int startX_;
   int startY_;
   uint32_t startedAtMs_;
