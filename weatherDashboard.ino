@@ -3260,12 +3260,10 @@ bool processApplicationLauncherTouch(
   if (applicationLauncherTouchActive && observation.touchReleased) {
     bool redrawLauncher = false;
     if (!applicationLauncherTouchMoved) {
-      const bool canReturnToPreviousApplication =
-          applicationLauncherController.returnApplicationId() != nullptr;
-      if (canReturnToPreviousApplication &&
-          applicationLauncherRenderer.backButtonContains(
+      if (applicationLauncherRenderer.backButtonContains(
               applicationLauncherTouchStartX,
-              applicationLauncherTouchStartY)) {
+              applicationLauncherTouchStartY,
+              applicationLauncherController.returnApplicationId())) {
         if (!applicationLauncherController.back()) {
           applicationLauncherMessage = "COULD NOT RESUME APP";
           redrawLauncher = true;
@@ -3479,8 +3477,8 @@ void pollTouch() {
 // WI-FI
 // =====================================================
 
-// Load the preferred saved profile before WeatherApp starts its first
-// connection attempt. On a genuinely empty NVS store, migrate the legacy
+// Load the preferred saved profile before the platform launcher starts its
+// background connection attempt. On a genuinely empty NVS store, migrate the legacy
 // secrets.h values once. Corrupt/unknown data is left untouched and falls back
 // to the compile-time values rather than silently overwriting saved records.
 void initialiseWiFiProfiles() {
