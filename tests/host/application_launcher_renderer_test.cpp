@@ -136,6 +136,7 @@ static bool testSingleWeatherIconIsCentred() {
   CHECK(target->fillRoundRectY[0] == 89);
   CHECK(target->fillRoundRectWidth[0] == 68);
   CHECK(target->fillRoundRectHeight[0] == 68);
+  CHECK(target->drawRoundRectColour[0] == LauncherColours.selected);
   CHECK(target->drawBitmapCount == 1);
   CHECK(target->lastBitmapX == 144);
   CHECK(target->lastBitmapY == 107);
@@ -175,7 +176,7 @@ static bool testTwoAppRowIsVerticallyCentred() {
   CHECK(target->fillRoundRectX[1] == 196);
   CHECK(target->fillRoundRectY[0] == 89);
   CHECK(target->fillRoundRectY[1] == 89);
-  CHECK(target->drawRoundRectColour[0] == LauncherColours.selected);
+  CHECK(target->drawRoundRectColour[0] == LauncherColours.muted);
   CHECK(target->drawBitmapCount == 1);
   CHECK(target->printCount == 2);
 
