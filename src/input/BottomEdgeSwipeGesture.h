@@ -10,6 +10,7 @@
 class BottomEdgeSwipeGesture {
  public:
   static const int BottomEdgeHeightPx = 24;
+  static const int ActivationBandWidthPx = 64;
   static const int MinimumUpwardDistancePx = 52;
   static const int MaximumHorizontalDriftPx = 40;
   static const uint32_t MaximumDurationMs = 650UL;
@@ -33,11 +34,14 @@ class BottomEdgeSwipeGesture {
       int x,
       int y,
       uint32_t nowMs,
+      int screenWidth,
       int screenHeight) {
     if (touchStarted) {
       reset();
       active_ = true;
-      startedFromBottom_ = screenHeight > 0 &&
+      startedFromBottom_ = screenWidth > 0 &&
+          isInsideActivationBand(x, screenWidth) &&
+          screenHeight > 0 &&
           y >= screenHeight - BottomEdgeHeightPx;
       candidate_ = startedFromBottom_;
       startX_ = x;
@@ -103,6 +107,12 @@ class BottomEdgeSwipeGesture {
   int startX_;
   int startY_;
   uint32_t startedAtMs_;
+
+  static bool isInsideActivationBand(int x, int screenWidth) {
+    const int bandLeft = (screenWidth - ActivationBandWidthPx) / 2;
+    const int bandRight = bandLeft + ActivationBandWidthPx;
+    return x >= bandLeft && x < bandRight;
+  }
 
   static int absolute(int value) {
     return value < 0 ? -value : value;
