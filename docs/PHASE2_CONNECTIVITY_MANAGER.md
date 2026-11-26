@@ -1,8 +1,8 @@
-**Status:** Connectivity slices PRs #52–#56 are merged. PR #56 merged into `main` at `32a9e3908b5af96759590c94cd8a3a123a1ac223`; the user confirmed all three strict C++11 connectivity/availability suites, Arduino Verify/upload and full physical regression. PR #57 on `phase2/06-wifi-geolocation-scan-capability` extracts the Google Wi-Fi scan/BSSID/RSSI/channel path from `LocationService`. The user reran `sh scripts/test-wifi-geolocation-scanner.sh` after the final workspace-buffer refinement and confirmed `WiFiGeolocationScanner tests passed.` Arduino Verify/upload and general physical regression also passed on 2026-11-26. Build: 1,203,379 bytes program storage, 100,748 bytes global dynamic memory, 226,932 bytes remaining; all flash hashes verified and board hard-reset via RTS. Google/IP API-failure fault injection is deliberately deferred by user decision and is non-blocking; those failure branches remain unverified. HTTP/TLS transport review, remaining app-level Wi-Fi assumptions and runtime memory profiling remain open. Phase 2 overall is still in progress.
+**Status:** Connectivity PRs #52–#57 are merged. PR #57 merged into `main` at `8185eff26c955e5d24f425a2bb34856b1b87fc77`; the user confirmed the final strict C++11 scanner suite, Arduino Verify/upload and general physical regression. Google/IP API-failure injection remains deliberately deferred/non-blocking and those branches are unverified. Current follow-up branch `phase2/07-network-http-transport-boundary` replaces `WiFiClientSecure` with ESP32 `NetworkClientSecure` in `HttpRequestClient` and routes the Weather icon-preparation guard through `ConnectivityManager.isConnected()`. The source-boundary runner passed, Arduino IDE Verify passed on ESP32-S3 / ESP32 core 3.3.12, and the user confirmed all physical regression tests passed on 2026-11-26. Compile-time footprint: 1,203,415 program bytes, 100,748 global dynamic bytes and 226,932 bytes remaining. Runtime heap/PSRAM profiling remains outstanding. Phase 2 remains in progress.
 
 **Merged Wi-Fi manager:** PR #55 merged into `main` at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12` after the user confirmed the final UI revision and hardware validation. It adds the saved/scan profile screens, asynchronous scanning, availability tags, password keyboard feedback, live RSSI indicator and shared touch-scroll presentation. The final selected-profile card outline, centred SSID/badge and 8 px badge inset are part of the merged implementation; no PR #55 validation gate remains open.
 **Base:** `main` at `32a9e3908b5af96759590c94cd8a3a123a1ac223`  
-**Latest merged checkpoint:** PR #56 at `32a9e3908b5af96759590c94cd8a3a123a1ac223`  
+**Latest merged checkpoint:** PR #57 at `8185eff26c955e5d24f425a2bb34856b1b87fc77`  
 **Scope:** establish the shared connectivity boundary and route the existing Wi-Fi association lifecycle through it without redesigning the Weather startup experience.
 
 ## 1. Design boundary
@@ -313,3 +313,29 @@ The saved-profile badges are based on the most recent successfully completed vis
 
 **Validation boundary:** the scanner behaviour, firmware build/upload and general physical regression are complete. Google/IP API-failure fault injection is deliberately deferred by user decision, remains unverified and is non-blocking for PR #57. The existing Google → IP → configured-coordinate order is preserved by the extraction. A deterministic provider-result test seam may be considered in a separate future task, but is not required for this PR.
 
+
+ 
+## 13. Follow-up slice 7 — network HTTP transport boundary
+
+**Branch:** `phase2/07-network-http-transport-boundary`  
+**Base:** merged PR #57 at `8185eff26c955e5d24f425a2bb34856b1b87fc77`  
+**Status:** Implemented and validated on the branch. The structural test and Arduino IDE Verify passed; the user confirmed all physical regression tests passed on 2026-11-26. Runtime heap/largest-block/PSRAM profiling remains outstanding.
+
+### Changes
+
+- `HttpRequestClient.h` now includes `NetworkClientSecure.h` and owns `NetworkClientSecure` rather than `WiFiClientSecure`. In the pinned ESP32 Arduino core 3.3.12, `WiFiClientSecure` is an alias of `NetworkClientSecure`; `HTTPClient` accepts a `NetworkClient&`. This removes the direct Wi-Fi client-type dependency without changing request ownership, methods, timeouts, response handling or call-site behaviour.
+- The existing explicit `TlsPolicy::InsecureCompatibility` remains unchanged. No certificate trust anchor was added and TLS certificate validation is still not enforced by the current call sites. Treat certificate validation as a separate security change.
+- Weather icon preparation now checks `connectivityManager.isConnected()` instead of `WiFi.status()`. Wi-Fi-specific UI/status and driver operations (RSSI, scanning, profile association and settings) remain in the platform composition root and ESP32 Wi-Fi adapters; they are not app-level generic connectivity checks.
+- `scripts/test-network-transport-boundary.sh` statically checks these source boundaries and the existing LocationService Wi-Fi isolation. It does not compile firmware or prove behaviour on hardware.
+
+### Portability and limitations
+
+This change targets the ESP32 core's `NetworkClient` / `NetworkClientSecure` TCP/IP stack. It does **not** provide generic arbitrary-modem support or implement PPP. A future modem using ESP32's IP network interface may be able to use the same socket path, but this must be checked against the selected modem/library. A modem exposing only AT-command HTTP/TLS will need a separate request transport adapter. All request calls remain synchronous and retain the existing timeout and TLS policy.
+
+### Validation record
+
+- [x] User ran `sh scripts/test-network-transport-boundary.sh`; output: `Network transport boundary checks passed.`
+- [x] Arduino IDE Verify passed on Waveshare ESP32-S3 using ESP32 core 3.3.12 / esptool 5.3.1, 16 MB flash, `app3M_fat9M_16MB` partition and OPI PSRAM.
+- [x] User confirmed all physical regression tests passed on 2026-11-26.
+- [x] Compile-time footprint: 1,203,415 bytes sketch (38% of 3,145,728-byte app partition); 100,748 bytes global variables (30% of 327,680-byte dynamic-memory region); 226,932 bytes reported remaining.
+- [ ] Runtime heap / largest-block / PSRAM measurements remain a separate follow-up; they must not be inferred from compile-time figures.
