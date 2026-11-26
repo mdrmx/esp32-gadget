@@ -101,19 +101,25 @@ class ApplicationLauncherRenderer {
           isReturnApplication ? colours_.selected : colours_.muted);
     }
 
-    target->fillRoundRect(
-        BackLeft, FooterTop, BackRight - BackLeft, 24, 6,
-        colours_.panel);
-    target->drawRoundRect(
-        BackLeft, FooterTop, BackRight - BackLeft, 24, 6,
-        colours_.accent);
-    textRenderer_.drawText("BACK", BackLeft + 18, FooterTop + 7, 1,
-                           colours_.text);
+    int footerX = Margin;
+    if (returnApplicationId != nullptr) {
+      target->fillRoundRect(
+          BackLeft, FooterTop, BackRight - BackLeft, 24, 6,
+          colours_.panel);
+      target->drawRoundRect(
+          BackLeft, FooterTop, BackRight - BackLeft, 24, 6,
+          colours_.accent);
+      textRenderer_.drawText("BACK", BackLeft + 18, FooterTop + 7, 1,
+                             colours_.text);
+      footerX = BackRight + 8;
+    }
 
+    // At boot there is no prior application to return to, so omit BACK and
+    // use the full footer for the prompt instead of presenting a dead control.
     const String footer = message.length() > 0
         ? message
         : String("SELECT AN APP");
-    textRenderer_.drawText(footer, BackRight + 8, FooterTop + 8, 1,
+    textRenderer_.drawText(footer, footerX, FooterTop + 8, 1,
                            message.length() > 0 ? colours_.selected
                                                : colours_.muted);
   }
