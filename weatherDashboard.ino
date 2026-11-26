@@ -1138,7 +1138,7 @@ bool flushForecastGraphCanvasBody() {
 // Render graph motion off-screen and copy one cropped bitmap to the LCD. This
 // avoids flicker from dozens of direct draw calls and avoids repainting controls.
 void redrawForecastGraphAtCurrentScroll() {
-  if (!forecastGraphView) return;
+  // This redraw path is graph-only; keep its selector presentation explicit.
 
   if (displayManager.forecastCanvas() != nullptr && !displayManager.renderingTabTransition()) {
     displayManager.forecastCanvas()->fillScreen(BG);
@@ -1147,7 +1147,7 @@ void redrawForecastGraphAtCurrentScroll() {
     }
     if (flushForecastGraphCanvasBody()) return;
     displayManager.forecastCanvas()->flush();
-    drawForecastModeSelector();
+    forecastModeSelectorRenderer.draw(ForecastModeSelectorRenderer::Mode::Graph);
     return;
   }
 
@@ -1234,7 +1234,7 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
       drawForecastGraph(displayManager.forecastCanvas(), 0);
       if (flushForecastGraphCanvasBody()) return;
       displayManager.forecastCanvas()->flush();
-      drawForecastModeSelector();
+      forecastModeSelectorRenderer.draw(ForecastModeSelectorRenderer::Mode::Graph);
       return;
     }
 
