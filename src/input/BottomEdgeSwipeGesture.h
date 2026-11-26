@@ -5,8 +5,8 @@
 #include <stdlib.h>
 
 // Recognises the platform's quick bottom-edge swipe-up launcher gesture.
-// This class also claims contacts that begin in the bottom gesture zone so an
-// incomplete swipe is not accidentally interpreted as app scrolling/tapping.
+// The gesture can only begin in a narrow central band. Matching contacts are
+// claimed so an incomplete home swipe is not interpreted as app scrolling.
 class BottomEdgeSwipeGesture {
  public:
   static const int BottomEdgeHeightPx = 24;
