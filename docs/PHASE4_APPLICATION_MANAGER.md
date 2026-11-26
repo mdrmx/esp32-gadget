@@ -33,11 +33,11 @@ An application implementation must leave itself inactive when `begin()` returns 
 
 ## Application launcher slice
 
-- A quick upward swipe that starts within the bottom 24 px of the display opens the platform launcher. It must travel at least 52 px upward, stay within 40 px horizontal drift and complete within 650 ms. There is no launcher button in the header.
+- A quick upward swipe that starts within the centred 64 px-wide band of the bottom 24 px opens the platform launcher. On the 320 px-wide panel the activation band is x=128–191. The swipe must travel at least 52 px upward, stay within 40 px horizontal drift and complete within 650 ms. Touches starting elsewhere along the bottom edge are not claimed by this gesture, so metric-card/list interactions remain available. There is no launcher button in the header.
 - The launcher renders up to four registered application ids as a two-column, two-row grid. Its single-line title is vertically centred; the redundant registered-app-count subtitle is omitted. The shared clock and live Wi-Fi signal indicator remain visible and continue updating while the launcher is open. It does not introduce a separate app metadata registry or allocate applications dynamically.
 - Opening the launcher records the previous app id and calls `stopActive()`; platform display, touch, connectivity, location, time and storage services remain alive.
 - Selecting a tile starts that registered app through `switchTo()`. BACK re-enters the app that was active before the launcher opened. A failed app start leaves the launcher visible so the user can retry or return.
-- The same bottom-edge gesture is handled before modal touch processing, so the launcher can also be opened from Wi-Fi settings. The launcher remains visible underneath the modal and is restored when settings close.
+- The same central-band bottom-edge gesture is handled at platform level before app/modal touch processing, so the launcher can be opened from any app or platform screen, including Wi-Fi settings. It only claims contacts that begin inside the central band; ordinary metric-card/list gestures outside that band continue to their app.
 - At boot, the launcher is opened with no active application, then the platform starts the saved preferred Wi-Fi profile without waiting. The launcher stays drawn while association/retry proceeds; the header signal icon changes from disconnected to connected/strength as the manager reports the link. With no previous app at boot, BACK is omitted.
 
 ## Scope deliberately deferred
@@ -67,7 +67,7 @@ For merged PR #62, the user confirmed the strict C++11 runner passes (`Applicati
 
 - Run all focused strict C++11 suites after pulling `phase4/02-application-launcher`: application manager, launcher renderer, bottom-edge swipe gesture and Weather state/asset preparation.
 - Run Arduino IDE Verify with the recorded Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12.
-- Upload and confirm boot lands on the launcher before Wi-Fi association completes; the saved profile connects in the background and the signal icon updates. Swipe up from the bottom edge in Weather and Wi-Fi settings to open the launcher. Confirm the clock and Wi-Fi indicator remain visible/live, tapping empty launcher space causes no redraw, the Weather tile restores cached data without starting Wi-Fi, and existing Weather/Forecast gestures and Wi-Fi settings interactions remain intact.
+- Upload and confirm boot lands on the launcher before Wi-Fi association completes; the saved profile connects in the background and the signal icon updates. Swipe up from the centred 64 px band at the bottom edge in Weather and Wi-Fi settings to open the launcher; confirm a bottom-edge swipe that starts over a metric card outside this band still scrolls the card and does not open the launcher. Confirm the clock and Wi-Fi indicator remain visible/live, tapping empty launcher space causes no redraw, the Weather tile restores cached data without starting Wi-Fi, and existing Weather/Forecast gestures and Wi-Fi settings interactions remain intact.
 - Confirm the launcher remains touch-accessible while no app is active; with no prior app (boot state), no BACK control is shown. Multi-app selection remains pending until a second application is registered.
 
 ## Firmware and device validation (2026-11-26)
