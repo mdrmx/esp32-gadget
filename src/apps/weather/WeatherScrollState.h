@@ -56,8 +56,20 @@ public:
     const int boundedPixels = ScrollController::clampElasticPosition(
       pixels, maxScrollPixels, overscrollLimitPixels);
 
-    result.baseOffset = boundedPixels / rowStepPixels;
-    result.scrollPixels = boundedPixels % rowStepPixels;
+    int baseOffset = boundedPixels < 0
+      ? 0
+      : boundedPixels / rowStepPixels;
+    int scrollPixels = boundedPixels < 0
+      ? boundedPixels
+      : boundedPixels % rowStepPixels;
+
+    if (baseOffset > maxOffset) {
+      baseOffset = maxOffset;
+      scrollPixels = boundedPixels - maxScrollPixels;
+    }
+
+    result.baseOffset = baseOffset;
+    result.scrollPixels = scrollPixels;
     return result;
   }
 

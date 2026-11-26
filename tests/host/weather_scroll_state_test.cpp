@@ -21,7 +21,7 @@ static void checkPosition(
   CHECK(actual.scrollPixels == expectedPixels);
 }
 
-static WeatherScrollState::ViewportPosition legacyMetricsPosition(
+static WeatherScrollState::ViewportPosition expectedMetricsPosition(
   int pixels, int itemCount, int visibleCount, int rowStep, int overscroll
 ) {
   WeatherScrollState::ViewportPosition result = {0, 0};
@@ -34,8 +34,15 @@ static WeatherScrollState::ViewportPosition legacyMetricsPosition(
   const int upper = maxScroll + overscroll;
   if (pixels < lower) pixels = lower;
   if (pixels > upper) pixels = upper;
-  result.baseOffset = pixels / rowStep;
-  result.scrollPixels = pixels % rowStep;
+
+  int baseOffset = pixels < 0 ? 0 : pixels / rowStep;
+  int scrollPixels = pixels < 0 ? pixels : pixels % rowStep;
+  if (baseOffset > maxOffset) {
+    baseOffset = maxOffset;
+    scrollPixels = pixels - maxScroll;
+  }
+  result.baseOffset = baseOffset;
+  result.scrollPixels = scrollPixels;
   return result;
 }
 
@@ -164,10 +171,15 @@ int main() {
             checkPosition(
               WeatherScrollState::metricsViewportPosition(
                 pixels, itemCount, visibleCount, rowStep, overscroll),
-              legacyMetricsPosition(
+              expectedMetricsPosition(
                 pixels, itemCount, visibleCount, rowStep, overscroll).baseOffset,
-              legacyMetricsPosition(
+              expectedMetricsPosition(
                 pixels, itemCount, visibleCount, rowStep, overscroll).scrollPixels);
+            const WeatherScrollState::ViewportPosition metricsPosition =
+              WeatherScrollState::metricsViewportPosition(
+                pixels, itemCount, visibleCount, rowStep, overscroll);
+            CHECK(metricsPosition.baseOffset >= 0);
+            CHECK(metricsPosition.baseOffset <= maxOffset);
             checkPosition(
               WeatherScrollState::forecastListViewportPosition(
                 pixels, itemCount, visibleCount, rowStep, overscroll),
@@ -180,6 +192,21 @@ int main() {
       }
     }
   }
+
+  // Overscroll greater than a row step must never produce an invalid
+  // renderer index, including when the content has no scrollable range.
+  checkPosition(
+    WeatherScrollState::metricsViewportPosition(-100, 8, 3, 10, 25),
+    0, -25);
+  checkPosition(
+    WeatherScrollState::metricsViewportPosition(100, 8, 3, 10, 25),
+    5, 25);
+  checkPosition(
+    WeatherScrollState::metricsViewportPosition(-100, 2, 3, 10, 30),
+    0, -30);
+  checkPosition(
+    WeatherScrollState::metricsViewportPosition(100, 2, 3, 10, 30),
+    0, 30);
 
   puts("WeatherScrollState tests passed.");
   return EXIT_SUCCESS;
