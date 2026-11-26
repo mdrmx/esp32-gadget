@@ -1,3 +1,7 @@
+#ifndef PROGMEM
+#define PROGMEM
+#endif
+
 #pragma once
 
 #include <stddef.h>
