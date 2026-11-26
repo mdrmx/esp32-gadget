@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 5.01  
+**Version:** 5.02  
 **Last reviewed:** 2026-11-26  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
