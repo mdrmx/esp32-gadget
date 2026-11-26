@@ -110,23 +110,89 @@ class WeatherApp : public Application {
     return true;
   }
 
-  // Starts or resumes Weather using its previously configured platform hooks.
-  // No association wait, location lookup or HTTP request runs inside begin().
+  // Starts Weather or resumes its previous in-memory state after the
+  // platform launcher has temporarily stopped app updates. A live platform
+  // connection is reused; begin() never restarts an already-established link.
+  // No association wait, location lookup or HTTP request runs here.
   bool begin() override {
     if (active_ || !hasRequiredHooks(hooks_)) {
       return false;
     }
 
-    active_ = true;
-    currentWeatherSucceeded_ = false;
-
+    const bool resuming = state_ != State::Inactive;
+    const State previousState = state_;
     const uint32_t now = hooks_.millisNow();
-    lastRefreshMs_ = now;
-    lastClockRefreshMs_ = now;
-    state_ = State::Connecting;
+    const bool connected = hooks_.isConnected();
 
-    hooks_.drawLoading("Connecting Wi-Fi...");
-    hooks_.startConnection(now);
+    active_ = true;
+    lastClockRefreshMs_ = now;
+
+    if (!resuming) {
+      currentWeatherSucceeded_ = false;
+      lastRefreshMs_ = now;
+
+      if (connected) {
+        state_ = State::ResolvingLocation;
+        drawCachedViewOrLoading("Finding your location...");
+      } else {
+        state_ = State::Connecting;
+        hooks_.drawLoading("Connecting Wi-Fi...");
+        hooks_.startConnection(now);
+      }
+      return true;
+    }
+
+    // Returning to an already-ready Weather app should reveal its cached view
+    // immediately and retain the existing refresh schedule.
+    if (previousState == State::Ready && connected) {
+      drawActiveView();
+      return true;
+    }
+
+    // If the app was stopped while its initial or refresh connection was
+    // pending, reuse that pending attempt. If the link is already up, advance
+    // directly to the first data stage instead of displaying a false banner.
+    if (previousState == State::Connecting ||
+        previousState == State::RefreshConnecting) {
+      if (connected) {
+        state_ = previousState == State::Connecting
+            ? State::ResolvingLocation
+            : State::RefreshingCurrentWeather;
+        drawCachedViewOrLoading(
+            previousState == State::Connecting
+                ? "Finding your location..."
+                : "Refreshing weather...");
+      } else {
+        state_ = previousState;
+        hooks_.drawLoading("Connecting Wi-Fi...");
+        if (!hooks_.connectionPending()) {
+          hooks_.startConnection(now);
+        }
+      }
+      return true;
+    }
+
+    // A link can disappear while the launcher is open. Restart only the
+    // relevant connection stage, then recover the workflow from its safe
+    // beginning; do not tear down or reconfigure the platform Wi-Fi service.
+    if (!connected) {
+      const bool refreshFlow =
+          previousState == State::RefreshingCurrentWeather ||
+          previousState == State::RefreshingForecast ||
+          previousState == State::PreparingRefreshAssets;
+      state_ = refreshFlow ? State::RefreshConnecting : State::Connecting;
+      hooks_.drawLoading("Connecting Wi-Fi...");
+      if (!hooks_.connectionPending()) {
+        hooks_.startConnection(now);
+      }
+      return true;
+    }
+
+    state_ = previousState;
+    drawCachedViewOrLoading(
+        previousState == State::ResolvingLocation
+            ? "Finding your location..."
+            : "Updating weather...");
     return true;
   }
 
@@ -247,14 +313,11 @@ class WeatherApp : public Application {
     }
   }
 
-  // Leaves the application inactive without releasing shared platform
-  // resources. Resource lifetime remains with the platform owners.
+  // Suspends app updates without releasing shared platform resources or
+  // discarding Weather's current stage, cached data or refresh schedule.
+  // Re-entering begin() resumes this state against the live platform services.
   void end() override {
     active_ = false;
-    currentWeatherSucceeded_ = false;
-    state_ = State::Inactive;
-    // Keep the injected platform callbacks: the ApplicationManager can
-    // reactivate Weather without reinitialising shared platform services.
   }
 
   bool isActive() const {
@@ -291,6 +354,22 @@ class WeatherApp : public Application {
   }
 
  private:
+  void drawActiveView() {
+    if (hooks_.activeView() == View::Forecast) {
+      hooks_.drawForecast();
+    } else {
+      hooks_.drawWeather();
+    }
+  }
+
+  void drawCachedViewOrLoading(const char* loadingMessage) {
+    if (hooks_.weatherAvailable()) {
+      drawActiveView();
+    } else if (loadingMessage != nullptr) {
+      hooks_.drawLoading(loadingMessage);
+    }
+  }
+
   void prepareWeatherAssetsIfAvailable(View selectedView) {
     if (selectedView == View::Weather &&
         hooks_.prepareWeatherAssets != nullptr &&

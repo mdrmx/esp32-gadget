@@ -18,7 +18,7 @@
 2. `start(id)` starts an application only when none is active. Re-requesting the active id is idempotent; attempting to start a different id requires `switchTo()`.
 3. `update()` advances only the active application's `update()`. With no active app it is a no-op.
 4. `switchTo(id)` validates the destination before stopping the current app. It calls the outgoing app's `end()`, then the destination's `begin()`. If destination startup fails, the manager attempts to restart the previous app. If restoration also fails, no app is active.
-5. `stopActive()` ends app-owned work but leaves all platform-owned services alive.
+5. `stopActive()` ends app-owned update work but leaves all platform-owned services alive. Individual apps may retain state across this inactive interval and resume it in `begin()`.
 
 An application implementation must leave itself inactive when `begin()` returns false. Registered application objects and platform services must outlive the manager's registrations.
 
@@ -28,8 +28,8 @@ An application implementation must leave itself inactive when `begin()` returns 
 - The device loop continues to update platform connectivity and Wi-Fi settings before calling `ApplicationManager::update()`.
 - Touch sampling now runs at platform-loop level before manager updates. Launcher input therefore remains available when the launcher has stopped the active app; Weather-specific gesture handling is dispatched only while `weather` is active.
 - Weather retains the same staged connection/location/current-weather/forecast/asset/render sequence.
-- On `end()`, Weather becomes inactive and no longer processes input, time or refresh work. It retains its platform hook bindings so the manager can reactivate the same instance without rebuilding shared services.
-- Returning to Weather starts its normal startup sequence again. `WeatherDataService`, `WeatherViewState` and `WeatherAssetCache` remain platform-composed objects, so their existing data/view/cache lifetimes are not destroyed by an app switch. This slice does not promise preservation of WeatherApp's in-progress refresh stage or refresh timer across a switch.
+- On `end()`, Weather becomes inactive and no longer processes input, time or refresh work. It retains its current state-machine stage, last-refresh timestamp, fetched data and platform hook bindings, so re-entry resumes the same instance without rebuilding shared services.
+- Returning to Weather resumes its prior state-machine stage and refresh schedule. If the shared platform connection is already established, Weather does not call `startConnection()` or show a false `Connecting Wi-Fi...` banner; the cached current view is redrawn immediately. If the connection was lost while the launcher was open, Weather starts or reuses the platform connection attempt and resumes the appropriate startup/refresh path. `WeatherDataService`, `WeatherViewState` and `WeatherAssetCache` remain platform-composed objects and are not destroyed by an app switch.
 
 ## Application launcher slice
 
