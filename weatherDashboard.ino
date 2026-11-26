@@ -3208,7 +3208,7 @@ void pollTouch() {
   if (observation.touchStarted || observation.touchReleased ||
       observation.rawGestureChanged) {
     Serial.printf(
-      "TOUCH EVENT: fingers=%u event=%u gesture=0x%02X raw=(%u,%u) interpreted=%u\\n",
+      "TOUCH EVENT: fingers=%u event=%u gesture=0x%02X raw=(%u,%u) interpreted=%u\n",
       (unsigned)sample.fingerCount,
       (unsigned)sample.event,
       (unsigned)sample.gesture,
@@ -3758,7 +3758,7 @@ void setup() {
   DEBUG_PRINTF("Logical display size: %d x %d\n", displayManager.width(), displayManager.height());
   const bool touchAvailable = touchReader.begin();
   Serial.printf(
-    "TOUCH INIT: CST816 at 0x15: %s\\n",
+    "TOUCH INIT: CST816 at 0x15: %s\n",
     touchAvailable ? "DETECTED" : "NOT DETECTED");
 
   timeService.begin();
@@ -3819,7 +3819,7 @@ void loop() {
   if (touchDiagnosticNowMs - lastTouchDiagnosticReportMs >= 2000UL) {
     lastTouchDiagnosticReportMs = touchDiagnosticNowMs;
     Serial.printf(
-      "TOUCH DIAG: appActive=%u appReady=%u controller=%s polls=%lu reads=%lu readErrors=%lu last=(fingers:%u event:%u gesture:0x%02X raw:%u,%u)\\n",
+      "TOUCH DIAG: appActive=%u appReady=%u controller=%s polls=%lu reads=%lu readErrors=%lu last=(fingers:%u event:%u gesture:0x%02X raw:%u,%u)\n",
       weatherApp.isActive() ? 1U : 0U,
       weatherApp.isReady() ? 1U : 0U,
       touchReader.available() ? "available" : "unavailable",
