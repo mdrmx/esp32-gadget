@@ -59,10 +59,10 @@ WeatherViewState weatherViewState;
 // Temporary sketch-facing references preserve the existing renderer and input
 // code while ownership of these values moves into WeatherViewState.
 int& currentTab = weatherViewState.currentTab;
-int& weatherMetricOffset = weatherViewState.weatherMetricOffset;
-int& forecastOffset = weatherViewState.forecastOffset;
-int& forecastGraphOffset = weatherViewState.forecastGraphOffset;
-int& forecastGraphScrollPixels = weatherViewState.forecastGraphScrollPixels;
+int& weatherMetricOffset = weatherViewState.scroll.weatherMetricOffset;
+int& forecastOffset = weatherViewState.scroll.forecastOffset;
+int& forecastGraphOffset = weatherViewState.scroll.forecastGraphOffset;
+int& forecastGraphScrollPixels = weatherViewState.scroll.forecastGraphScrollPixels;
 bool& forecastGraphView = weatherViewState.forecastGraphView;
 
 // =====================================================
@@ -910,15 +910,16 @@ int maxWeatherMetricScrollPixels() {
 }
 
 void drawWeatherMetricsAtScrollPosition(int pixels) {
-  // Snap animation also starts from the elastic position, so allow a small
-  // bounded overrun here and rely on the off-screen panel to clip the cards.
-  const int maxScroll = maxWeatherMetricScrollPixels();
-  pixels = ScrollController::clampElasticPosition(
-    pixels, maxScroll, SCROLL_OVERSCROLL_MAX_PX);
-
-  int baseOffset = pixels / WEATHER_METRIC_ROW_STEP;
-  int scrollPixels = pixels % WEATHER_METRIC_ROW_STEP;
-  drawWeatherMetricsViewport(baseOffset, scrollPixels);
+  // Keep the metric viewport mapping in the scroll-state model; the renderer
+  // receives only the resolved row and within-row displacement.
+  const WeatherScrollState::ViewportPosition position =
+    WeatherScrollState::metricsViewportPosition(
+      pixels,
+      WEATHER_METRIC_COUNT,
+      WEATHER_METRICS_VISIBLE,
+      WEATHER_METRIC_ROW_STEP,
+      SCROLL_OVERSCROLL_MAX_PX);
+  drawWeatherMetricsViewport(position.baseOffset, position.scrollPixels);
 }
 
 void animateWeatherMetricsSnap(int startPixels, int targetOffset) {
@@ -1065,11 +1066,12 @@ int maxForecastGraphScrollPixels() {
 }
 
 void syncForecastGraphOffsetFromScroll() {
-  const int maxOffset = max(0, forecastCount - FORECAST_GRAPH_POINTS);
-  forecastGraphOffset = constrain(
-    max(0, forecastGraphScrollPixels) / FORECAST_GRAPH_POINT_SPACING,
-    0,
-    maxOffset);
+  forecastGraphOffset =
+    WeatherScrollState::forecastGraphOffsetForPixels(
+      forecastGraphScrollPixels,
+      forecastCount,
+      FORECAST_GRAPH_POINTS,
+      FORECAST_GRAPH_POINT_SPACING);
 }
 
 bool readForecastGraphItem(
@@ -1415,25 +1417,18 @@ int maxForecastScrollPixels() {
 }
 
 void drawForecastAtScrollPosition(int pixels) {
-  const int maxScroll = maxForecastScrollPixels();
-  const int maxOffset = max(0, forecastCount - ITEMS_PER_PAGE);
-  pixels = ScrollController::clampElasticPosition(
-    pixels, maxScroll, SCROLL_OVERSCROLL_MAX_PX);
+  // The scroll model resolves edge displacement and row bounds before the
+  // viewport renderer receives its two-dimensional position.
+  const WeatherScrollState::ViewportPosition position =
+    WeatherScrollState::forecastListViewportPosition(
+      pixels,
+      forecastCount,
+      ITEMS_PER_PAGE,
+      FORECAST_ROW_STEP,
+      SCROLL_OVERSCROLL_MAX_PX);
 
-  // The overscroll cap is below one row, so negative positions remain in row
-  // zero and positions beyond the bottom remain in the last valid row.
-  int baseOffset = pixels < 0 ? 0 : pixels / FORECAST_ROW_STEP;
-  int scrollPixels = pixels < 0
-    ? pixels
-    : pixels % FORECAST_ROW_STEP;
-
-  if (baseOffset > maxOffset) {
-    baseOffset = maxOffset;
-    scrollPixels = pixels - maxScroll;
-  }
-
-  forecastOffset = baseOffset;
-  drawForecastViewport(baseOffset, scrollPixels);
+  forecastOffset = position.baseOffset;
+  drawForecastViewport(position.baseOffset, position.scrollPixels);
 }
 
 void animateForecastSnap(int startPixels, int targetOffset) {

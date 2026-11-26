@@ -1,7 +1,7 @@
 # Phase 0 — Data ownership and Phase 1 module-boundary plan
 
-**Status:** Active module-boundary reference. Phase 2 PRs #52–#56 are merged into `main`; PR #56 merge commit is `32a9e3908b5af96759590c94cd8a3a123a1ac223`. The user confirmed all three strict C++11 connectivity/availability suites, final Arduino Verify/upload and full physical regression. PR #57 on `phase2/06-wifi-geolocation-scan-capability` extracts Google Wi-Fi geolocation scanning behind a platform-neutral scanner and ESP32 adapter. The user reran the scanner suite after the final workspace-buffer refinement; it passed. Arduino Verify/upload and general physical regression for PR #57 also passed on 2026-11-26. Google/IP API-failure fault injection is deliberately deferred by user decision and is non-blocking; those fallback branches remain unverified.
-**Source inspected:** main-branch baseline at PR #56 merge `32a9e3908b5af96759590c94cd8a3a123a1ac223`; the active PR #57 feature branch adds the scan-capability extraction described below.
+**Status:** Active module-boundary reference. Phase 2 PRs #52–#58 are merged into `main`; PR #58 merge commit is `807c850afb1afb1588a874cb2e0acdc25032c3b3`. The network transport source-boundary runner, Arduino Verify and user-confirmed physical regression passed. Google/IP API-failure fault injection remains deliberately deferred/non-blocking.
+**Source inspected:** main branch at PR #58 merge `807c850afb1afb1588a874cb2e0acdc25032c3b3`; the current Phase 3 feature branch adds the Weather scroll-state boundary described below.
 **Primary source file:** `weatherDashboard.ino`; the Step 1 baseline inventory retains its original 2026-10-31 source checkpoint and 155 file-scope declaration count.
 **Intent:** record the implemented ownership boundaries, the remaining proposed boundaries and a behaviour-preserving extraction sequence. Historical audit findings remain tied to their original source snapshots; later PR outcomes are recorded explicitly below.
 
@@ -323,3 +323,17 @@ PR #57 is merged at `8185eff26c955e5d24f425a2bb34856b1b87fc77`. The follow-up br
 - Weather icon preparation gates on `ConnectivityManager.isConnected()`, matching TimeService and LocationService's caller-supplied connection-state model. Wi-Fi RSSI, scan, profile and configuration APIs remain legitimate platform-specific responsibilities in the sketch/adapters.
 
 The structural guard `sh scripts/test-network-transport-boundary.sh` checks those source boundaries and LocationService's isolation. It is not a substitute for Arduino Verify or hardware testing. Existing requests remain synchronous, and the explicit insecure-TLS compatibility mode remains unchanged. A future cellular decision must distinguish a modem with an ESP32-routed IP interface (validate PPP/socket integration) from a modem providing AT-command HTTP/TLS (add a separate transport adapter). No cellular compatibility is claimed here.
+
+## Current Phase 3 scroll-state boundary (2026-11-26)
+
+**Branch:** `phase3/01-weather-scroll-state-boundary`  
+**Base:** merged PR #58 at `807c850afb1afb1588a874cb2e0acdc25032c3b3`  
+**Intent:** finish the remaining Phase 3 separation between per-view scroll state and renderer composition without creating a generic UI scroll framework.
+
+- `WeatherScrollState` owns the canonical Weather metric, Forecast List and Forecast Graph scroll positions, including the graph's pixel position and derived first-visible-record offset.
+- The model owns view-specific conversion from scroll pixels to renderer viewport inputs. Metric and list paths preserve their distinct top/bottom edge displacement rules; graph panning retains its pixel offset and separate point-index calculation.
+- `WeatherViewState` keeps tab selection and forecast presentation mode, composing a `WeatherScrollState` rather than storing scroll positions itself.
+- The renderers remain unchanged and receive only resolved offsets/displacements. Weather retains hit testing, touch ownership, drag thresholds, release suppression, animation timing, graph hold/quick-swipe/point-selection and canvas/display lifecycle.
+- Host coverage uses strict C++11 and checks initial/reset state, list/graph resets, metric/list viewport conversions, elastic top/bottom boundaries, short content and graph point indexing. Runner: `sh scripts/test-weather-scroll-state.sh`.
+
+Device Verify, upload/boot and physical regression for this branch must be recorded separately; this source change does not claim those validations.
