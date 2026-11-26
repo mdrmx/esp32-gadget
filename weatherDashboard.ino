@@ -3336,6 +3336,7 @@ void pollTouch() {
         launcherGestureX,
         launcherGestureY,
         millis(),
+        displayManager.width(),
         displayManager.height());
   } else {
     applicationLauncherGesture.reset();
