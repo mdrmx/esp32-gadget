@@ -42,7 +42,7 @@ static bool testGestureRequiresBottomEdgeOrigin() {
 
 static bool testGestureRequiresUpwardTravel() {
   BottomEdgeSwipeGesture gesture;
-  CHECK(!swipe(gesture, 158, 234, 160, 180, 100, 360));
+  CHECK(!swipe(gesture, 158, 234, 160, 183, 100, 360));
   return true;
 }
 
@@ -52,6 +52,27 @@ static bool testGestureRejectsSlowAndHorizontalContacts() {
 
   BottomEdgeSwipeGesture horizontal;
   CHECK(!swipe(horizontal, 158, 234, 210, 174, 100, 360));
+  return true;
+}
+
+static bool testBottomEdgeContactsAreConsumedEvenWhenNotGestures() {
+  BottomEdgeSwipeGesture gesture;
+  CHECK(!gesture.update(true, true, false, 158, 234, 100, 240));
+  CHECK(gesture.consumeTouchSample());
+  CHECK(!gesture.update(false, true, false, 159, 220, 150, 240));
+  CHECK(gesture.consumeTouchSample());
+  CHECK(!gesture.update(false, false, true, 159, 220, 170, 240));
+  CHECK(gesture.consumeTouchSample());
+  CHECK(!gesture.consumeTouchSample());
+  return true;
+}
+
+static bool testNonBottomContactsAreNotClaimed() {
+  BottomEdgeSwipeGesture gesture;
+  CHECK(!gesture.update(true, true, false, 158, 180, 100, 240));
+  CHECK(!gesture.consumeTouchSample());
+  CHECK(!gesture.update(false, false, true, 158, 180, 140, 240));
+  CHECK(!gesture.consumeTouchSample());
   return true;
 }
 
@@ -68,6 +89,8 @@ int main() {
   if (!testGestureRequiresBottomEdgeOrigin()) return EXIT_FAILURE;
   if (!testGestureRequiresUpwardTravel()) return EXIT_FAILURE;
   if (!testGestureRejectsSlowAndHorizontalContacts()) return EXIT_FAILURE;
+  if (!testBottomEdgeContactsAreConsumedEvenWhenNotGestures()) return EXIT_FAILURE;
+  if (!testNonBottomContactsAreNotClaimed()) return EXIT_FAILURE;
   if (!testGestureHandlesMillisecondRollover()) return EXIT_FAILURE;
 
   printf("BottomEdgeSwipeGesture tests passed.\n");
