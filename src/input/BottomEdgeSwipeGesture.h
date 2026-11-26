@@ -18,8 +18,8 @@ class BottomEdgeSwipeGesture {
   BottomEdgeSwipeGesture()
       : active_(false),
         candidate_(false),
-        startedFromBottom_(false),
-        completedBottomOrigin_(false),
+        startedInActivationBand_(false),
+        completedActivationBand_(false),
         startX_(0),
         startY_(0),
         startedAtMs_(0) {}
@@ -39,11 +39,11 @@ class BottomEdgeSwipeGesture {
     if (touchStarted) {
       reset();
       active_ = true;
-      startedFromBottom_ = screenWidth > 0 &&
+      startedInActivationBand_ = screenWidth > 0 &&
           isInsideActivationBand(x, screenWidth) &&
           screenHeight > 0 &&
           y >= screenHeight - BottomEdgeHeightPx;
-      candidate_ = startedFromBottom_;
+      candidate_ = startedInActivationBand_;
       startX_ = x;
       startY_ = y;
       startedAtMs_ = nowMs;
@@ -69,10 +69,10 @@ class BottomEdgeSwipeGesture {
         elapsed(nowMs, startedAtMs_) <= MaximumDurationMs &&
         y <= startY_ - MinimumUpwardDistancePx &&
         absolute(x - startX_) <= MaximumHorizontalDriftPx;
-    completedBottomOrigin_ = startedFromBottom_;
+    completedActivationBand_ = startedInActivationBand_;
     active_ = false;
     candidate_ = false;
-    startedFromBottom_ = false;
+    startedInActivationBand_ = false;
     startX_ = 0;
     startY_ = 0;
     startedAtMs_ = 0;
@@ -83,17 +83,17 @@ class BottomEdgeSwipeGesture {
   // fails the swipe threshold. This prevents an attempted home gesture from
   // leaking into Weather's metric/list drag handlers.
   bool consumeTouchSample() {
-    const bool consume = (active_ && startedFromBottom_) ||
-        completedBottomOrigin_;
-    completedBottomOrigin_ = false;
+    const bool consume = (active_ && startedInActivationBand_) ||
+        completedActivationBand_;
+    completedActivationBand_ = false;
     return consume;
   }
 
   void reset() {
     active_ = false;
     candidate_ = false;
-    startedFromBottom_ = false;
-    completedBottomOrigin_ = false;
+    startedInActivationBand_ = false;
+    completedActivationBand_ = false;
     startX_ = 0;
     startY_ = 0;
     startedAtMs_ = 0;
@@ -102,8 +102,8 @@ class BottomEdgeSwipeGesture {
  private:
   bool active_;
   bool candidate_;
-  bool startedFromBottom_;
-  bool completedBottomOrigin_;
+  bool startedInActivationBand_;
+  bool completedActivationBand_;
   int startX_;
   int startY_;
   uint32_t startedAtMs_;
