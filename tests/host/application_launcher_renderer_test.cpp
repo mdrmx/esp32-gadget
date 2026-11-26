@@ -210,7 +210,8 @@ static bool testEmptyLauncherState() {
 
 int main() {
   if (!testIconGridLayoutAndHitTargets()) return EXIT_FAILURE;
-  if (!testSingleWeatherIconIsCentred()) return EXIT_FAILURE;\n  if (!testTwoAppRowIsVerticallyCentred()) return EXIT_FAILURE;
+  if (!testSingleWeatherIconIsCentred()) return EXIT_FAILURE;
+  if (!testTwoAppRowIsVerticallyCentred()) return EXIT_FAILURE;
   if (!testEmptyLauncherState()) return EXIT_FAILURE;
 
   printf("ApplicationLauncherRenderer tests passed.\n");
