@@ -1,6 +1,6 @@
 # Phase 4 — Application Manager and lifecycle
 
-**Status:** Lifecycle manager merged in PR #62; launcher-first boot and launcher interaction implemented on `phase4/02-application-launcher`. Arduino IDE Verify/upload and user-confirmed physical launcher regression passed on 2026-11-26. Weather remains the only registered application; second-app integration and expanded host-suite validation remain pending.  
+**Status:** Lifecycle manager merged in PR #62; launcher-first boot and interaction are implemented on `phase4/02-application-launcher`. Core launcher navigation, Wi-Fi and boot behaviour passed Arduino IDE Verify/upload and user-confirmed physical regression on 2026-11-26. The newer icon-grid and e-ink palette visual update is not yet recompiled or hardware-checked. Weather remains the only registered application; second-app integration and expanded host-suite validation remain pending.  
 **Base:** PR #62 merge `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`.  
 **Goal:** Give the platform one bounded, transport- and hardware-neutral way to register, start, update, switch and stop applications.
 
@@ -82,7 +82,7 @@ For merged PR #62, the user confirmed the strict C++11 runner passes (`Applicati
 - Arduino IDE Verify/compile and upload passed with the same Waveshare ESP32-S3 FQBN, ESP32 core 3.3.12 and esptool 5.3.1.
 - Build footprint: 1,209,815 bytes program storage (38% of the 3,145,728-byte app partition) and 100,868 bytes global dynamic memory (30% of 327,680 bytes), leaving 226,812 bytes.
 - The log reports 1,044,480 bytes written (730,023 compressed), successful flash-data hash verification and hard reset via RTS.
-- The user confirmed the updated launcher and navigation behaviour works as expected, including launcher-first boot, background Wi-Fi, central-band swipe, launcher redraw/touch behaviour and Wi-Fi settings access. This is user-confirmed physical regression; it is separate from the focused host test suites, which remain to be run.
+- The user confirmed the launcher-first boot, background Wi-Fi, central-band swipe, launcher redraw/touch behaviour and Wi-Fi settings access before the icon-grid/palette visual follow-up. This is physical regression evidence for the prior launcher revision only. The current icon-grid/e-ink palette revision still needs Arduino Verify/upload and a visual hardware check; focused host suites also remain to be run.
 
 Independent multi-app switching remains deferred because only Weather is registered. Runtime heap/largest-block/PSRAM profiling remains outstanding.
 
