@@ -103,6 +103,13 @@ int main() {
   CHECK(WeatherScrollState::maximumOffset(2, 3) == 0);
   CHECK(WeatherScrollState::maximumOffset(0, 3) == 0);
 
+  CHECK(WeatherScrollState::maximumScrollPixels(8, 3, 59) == 295);
+  CHECK(WeatherScrollState::maximumScrollPixels(4, 3, 43) == 43);
+  CHECK(WeatherScrollState::maximumScrollPixels(3, 3, 43) == 0);
+  CHECK(WeatherScrollState::maximumScrollPixels(2, 3, 43) == 0);
+  CHECK(WeatherScrollState::maximumScrollPixels(8, 3, 0) == 0);
+  CHECK(WeatherScrollState::maximumScrollPixels(8, 3, -1) == 0);
+
   // Metric panel: row conversion retains C++ truncation for a negative pull.
   checkPosition(
     WeatherScrollState::metricsViewportPosition(0, 8, 3, 59, 20),
@@ -165,6 +172,8 @@ int main() {
           const int maxOffset = WeatherScrollState::maximumOffset(
             itemCount, visibleCount);
           const int maxScroll = maxOffset * rowStep;
+          CHECK(WeatherScrollState::maximumScrollPixels(
+            itemCount, visibleCount, rowStep) == maxScroll);
           for (int pixels = -overscroll - 5;
                pixels <= maxScroll + overscroll + 5;
                pixels++) {
