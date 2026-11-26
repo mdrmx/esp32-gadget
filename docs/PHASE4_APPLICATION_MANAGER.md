@@ -93,11 +93,11 @@ The shared UI palette is now applied across the launcher, Weather, Forecast, Wi-
 
 | Role | RGB565 | Appearance |
 |---|---:|---|
-| Background | `0xF79C` | Warm off-white paper (RGB 246, 242, 230) |
-| Panels | `0xEF3B` | Slightly darker warm paper (RGB 238, 230, 222) |
-| Primary text / icons | `0x18C3` | Near-black ink |
-| Secondary text | `0x736C` | Muted warm grey |
-| Accent / selection / connected Wi-Fi | `0xD345` | Burnt retro orange |
-| Errors | `0xA205` | Dark rust |
+| Background | `0xF79C` | Warm off-white paper (RGB 247, 243, 230) |
+| Panels | `0xEF3B` | Slightly darker warm paper (RGB 239, 231, 222) |
+| Primary text / icons | `0x18C3` | Near-black ink (RGB 25, 24, 25) |
+| Secondary text | `0x736C` | Muted warm grey (RGB 115, 109, 99) |
+| Accent / selection / connected Wi-Fi | `0xD345` | Burnt retro orange (RGB 214, 105, 41) |
+| Errors | `0xA205` | Dark rust (RGB 165, 65, 41) |
 
 PNG weather-icon transparency now blends against the new warm-paper background. The Weather launcher bitmap itself is monochrome and flash-resident: it requires no runtime PNG decoding, network request or heap allocation.
