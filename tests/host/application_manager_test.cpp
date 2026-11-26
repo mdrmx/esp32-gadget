@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "../../src/apps/ApplicationManager.h"
+#include "../../src/apps/ApplicationLauncherController.h"
 #include "../../src/apps/weather/WeatherApp.h"
 
 static void check(bool condition, const char* expression, int line) {
@@ -81,6 +82,9 @@ static bool testRegistrationIsBoundedAndRejectsDuplicateIds() {
   CHECK(manager.registeredCount() == ApplicationManager::MaxApplications);
   CHECK(manager.hasApplication("weather"));
   CHECK(manager.hasApplication("maps"));
+  CHECK(manager.applicationAt(0) == &weather);
+  CHECK(manager.applicationAt(1) == &maps);
+  CHECK(manager.applicationAt(ApplicationManager::MaxApplications) == nullptr);
   CHECK(!manager.hasApplication("missing"));
   CHECK(!manager.hasApplication(nullptr));
   CHECK(!manager.hasApplication(""));
@@ -202,6 +206,54 @@ static bool testFailedSwitchRestoresPreviousApplication() {
   return true;
 }
 
+
+static bool testLauncherControllerSelectsAndRestoresApplications() {
+  ApplicationManager manager;
+  FakeApplication weather("weather");
+  FakeApplication maps("maps");
+
+  CHECK(manager.registerApplication(weather));
+  CHECK(manager.registerApplication(maps));
+  CHECK(manager.start("weather"));
+
+  ApplicationLauncherController launcher(manager);
+  CHECK(!launcher.isOpen());
+  CHECK(launcher.open());
+  CHECK(launcher.isOpen());
+  CHECK(strcmp(launcher.returnApplicationId(), "weather") == 0);
+  CHECK(manager.activeApplication() == nullptr);
+  CHECK(weather.endCalls() == 1);
+  CHECK(!launcher.open());
+  CHECK(!launcher.select(2));
+
+  CHECK(launcher.select(1));
+  CHECK(!launcher.isOpen());
+  CHECK(manager.activeApplication() == &maps);
+  CHECK(maps.beginCalls() == 1);
+
+  // A failed app start leaves the launcher open and BACK restores the app
+  // that was active before opening the launcher.
+  weather.setBeginResult(false);
+  CHECK(launcher.open());
+  CHECK(strcmp(launcher.returnApplicationId(), "maps") == 0);
+  CHECK(!launcher.select(0));
+  CHECK(launcher.isOpen());
+  CHECK(manager.activeApplication() == nullptr);
+  CHECK(launcher.back());
+  CHECK(!launcher.isOpen());
+  CHECK(manager.activeApplication() == &maps);
+  CHECK(maps.beginCalls() == 2);
+
+  // Opening with no active app is safe; BACK simply closes without inventing
+  // an application to start.
+  CHECK(manager.stopActive());
+  CHECK(launcher.open());
+  CHECK(launcher.returnApplicationId() == nullptr);
+  CHECK(launcher.back());
+  CHECK(manager.activeApplication() == nullptr);
+  return true;
+}
+
 static uint32_t fakeMillis = 100;
 static int weatherInputCalls = 0;
 static int weatherSyncCalls = 0;
@@ -292,6 +344,7 @@ int main() {
   if (!testChangingRegisteredIdToNullIsSafe()) return EXIT_FAILURE;
   if (!testStartUpdateSwitchAndStopLifecycle()) return EXIT_FAILURE;
   if (!testFailedSwitchRestoresPreviousApplication()) return EXIT_FAILURE;
+  if (!testLauncherControllerSelectsAndRestoresApplications()) return EXIT_FAILURE;
   if (!testWeatherAppUsesSharedLifecycleManager()) return EXIT_FAILURE;
 
   printf("ApplicationManager tests passed.\n");

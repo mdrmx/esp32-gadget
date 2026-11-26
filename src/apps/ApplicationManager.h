@@ -106,6 +106,12 @@ class ApplicationManager {
     return find(applicationId) != nullptr;
   }
 
+  // Read-only registration enumeration for platform-owned launcher UI.
+  // The manager retains ownership of neither the array nor the applications.
+  const Application* applicationAt(uint8_t index) const {
+    return index < count_ ? applications_[index] : nullptr;
+  }
+
   const char* activeId() const {
     return active_ != nullptr ? active_->id() : nullptr;
   }

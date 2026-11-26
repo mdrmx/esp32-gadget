@@ -15,6 +15,7 @@
 #include "src/ui/TextRenderer.h"
 #include "src/ui/ForecastModeSelectorRenderer.h"
 #include "src/ui/HeaderRenderer.h"
+#include "src/ui/ApplicationLauncherRenderer.h"
 #include "src/ui/StatusScreenRenderer.h"
 #include "src/ui/WiFiSettingsRenderer.h"
 #include "src/ui/ForecastListItemRenderer.h"
@@ -40,6 +41,7 @@
 #include "src/services/LocationService.h"
 #include "src/services/WeatherDataService.h"
 #include "src/apps/ApplicationManager.h"
+#include "src/apps/ApplicationLauncherController.h"
 #include "src/apps/weather/WeatherApp.h"
 #include "src/apps/weather/WeatherViewState.h"
 #include "src/apps/weather/WeatherAssetCache.h"
@@ -52,6 +54,7 @@ WeatherForecastData& weatherForecastData = weatherDataService.forecast();
 
 // Owns registered application lifecycles; the sketch remains the composition root.
 ApplicationManager applicationManager;
+ApplicationLauncherController applicationLauncherController(applicationManager);
 
 // Weather is the first registered application. Its shared services and
 // renderers remain owned by the platform composition root below.
@@ -233,6 +236,13 @@ const StatusScreenRenderer::Colours STATUS_SCREEN_COLOURS = {
   BG, PANEL, UI_WHITE, ACCENT, UI_WHITE, ERROR_COLOUR, MUTED
 };
 
+const ApplicationLauncherRenderer::Colours APPLICATION_LAUNCHER_COLOURS = {
+  BG, PANEL, UI_WHITE, MUTED, ACCENT, UI_YELLOW
+};
+
+ApplicationLauncherRenderer applicationLauncherRenderer(
+  displayManager, textRenderer, APPLICATION_LAUNCHER_COLOURS);
+
 const WiFiSettingsRenderer::Colours WIFI_SETTINGS_COLOURS = {
   BG, PANEL, UI_WHITE, MUTED, ACCENT, UI_GREEN, ERROR_COLOUR
 };
@@ -299,6 +309,16 @@ bool wifiHeaderTouchActive = false;
 bool wifiHeaderTouchValid = false;
 int wifiHeaderTouchStartX = 0;
 int wifiHeaderTouchStartY = 0;
+
+bool applicationLauncherButtonTouchActive = false;
+bool applicationLauncherButtonTouchValid = false;
+int applicationLauncherButtonTouchStartX = 0;
+int applicationLauncherButtonTouchStartY = 0;
+bool applicationLauncherTouchActive = false;
+bool applicationLauncherTouchMoved = false;
+int applicationLauncherTouchStartX = 0;
+int applicationLauncherTouchStartY = 0;
+String applicationLauncherMessage = "";
 
 bool wifiPendingWeatherRefresh = false;
 
@@ -2312,6 +2332,26 @@ void closeWiFiSettings() {
   restoreWeatherScreenAfterWiFiSettings();
 }
 
+void drawApplicationLauncherScreen() {
+  applicationLauncherRenderer.draw(
+      applicationManager,
+      applicationLauncherController.returnApplicationId(),
+      applicationLauncherMessage);
+  headerRenderer.drawWiFiIndicator(PANEL, UI_WHITE, ACCENT);
+}
+
+bool openApplicationLauncher() {
+  if (!applicationLauncherController.open()) {
+    return false;
+  }
+  applicationLauncherMessage = "";
+  applicationLauncherTouchActive = false;
+  applicationLauncherTouchMoved = false;
+  applicationLauncherButtonTouchActive = false;
+  drawApplicationLauncherScreen();
+  return true;
+}
+
 bool beginWiFiProfileConnection(
     const PersistentWiFiProfileStore::Profile& profile,
     bool profileWasNew) {
@@ -3032,12 +3072,20 @@ bool processWiFiSettingsTouch(
       wifiListTouchDragActive = false;
 
       if (!wifiUiTouchMoved) {
+        const bool headerApplicationsTapped =
+            wifiUiTouchStartX >= HeaderRenderer::ApplicationHitAreaLeft &&
+            wifiUiTouchStartX < HeaderRenderer::ApplicationHitAreaRight &&
+            wifiUiTouchStartY >= HeaderRenderer::ApplicationHitAreaTop &&
+            wifiUiTouchStartY < HeaderRenderer::ApplicationHitAreaBottom;
         const bool headerWiFiTapped =
             wifiUiTouchStartX >= HeaderRenderer::WiFiHitAreaLeft &&
             wifiUiTouchStartX < HeaderRenderer::WiFiHitAreaRight &&
             wifiUiTouchStartY >= HeaderRenderer::WiFiHitAreaTop &&
             wifiUiTouchStartY < HeaderRenderer::WiFiHitAreaBottom;
-        if (headerWiFiTapped) {
+        if (headerApplicationsTapped) {
+          closeWiFiSettings();
+          openApplicationLauncher();
+        } else if (headerWiFiTapped) {
           closeWiFiSettings();
         } else {
           handleWiFiSettingsTap(wifiUiTouchStartX, wifiUiTouchStartY);
@@ -3179,6 +3227,115 @@ void handleGesture(GestureCode gesture) {
   }
 }
 
+
+bool processApplicationLauncherButtonTouch(
+    const TouchSample& sample,
+    const GestureObservation& observation) {
+  if (wifiSettingsScreen != WiFiSettingsScreen::Closed ||
+      applicationLauncherController.isOpen()) {
+    return false;
+  }
+
+  int x = 0;
+  int y = 0;
+  if (observation.touchPresent) {
+    touchCoordinatesToScreen(sample, x, y);
+  }
+
+  if (observation.touchStarted &&
+      x >= HeaderRenderer::ApplicationHitAreaLeft &&
+      x < HeaderRenderer::ApplicationHitAreaRight &&
+      y >= HeaderRenderer::ApplicationHitAreaTop &&
+      y < HeaderRenderer::ApplicationHitAreaBottom) {
+    applicationLauncherButtonTouchActive = true;
+    applicationLauncherButtonTouchValid = true;
+    applicationLauncherButtonTouchStartX = x;
+    applicationLauncherButtonTouchStartY = y;
+  }
+
+  if (applicationLauncherButtonTouchActive &&
+      observation.touchPresent &&
+      (abs(x - applicationLauncherButtonTouchStartX) > 14 ||
+       abs(y - applicationLauncherButtonTouchStartY) > 14)) {
+    applicationLauncherButtonTouchValid = false;
+  }
+
+  if (applicationLauncherButtonTouchActive && observation.touchReleased) {
+    const bool tapped = applicationLauncherButtonTouchValid;
+    applicationLauncherButtonTouchActive = false;
+    applicationLauncherButtonTouchValid = false;
+    if (tapped) {
+      openApplicationLauncher();
+    }
+    return true;
+  }
+
+  return applicationLauncherButtonTouchActive;
+}
+
+bool processApplicationLauncherTouch(
+    const TouchSample& sample,
+    const GestureObservation& observation) {
+  if (!applicationLauncherController.isOpen()) {
+    return false;
+  }
+
+  int x = 0;
+  int y = 0;
+  if (observation.touchPresent) {
+    touchCoordinatesToScreen(sample, x, y);
+  }
+
+  if (observation.touchStarted) {
+    applicationLauncherTouchActive = true;
+    applicationLauncherTouchMoved = false;
+    applicationLauncherTouchStartX = x;
+    applicationLauncherTouchStartY = y;
+  }
+
+  if (applicationLauncherTouchActive &&
+      observation.touchPresent &&
+      (abs(x - applicationLauncherTouchStartX) > 14 ||
+       abs(y - applicationLauncherTouchStartY) > 14)) {
+    applicationLauncherTouchMoved = true;
+  }
+
+  if (applicationLauncherTouchActive && observation.touchReleased) {
+    if (!applicationLauncherTouchMoved) {
+      if (applicationLauncherRenderer.backButtonContains(
+              applicationLauncherTouchStartX,
+              applicationLauncherTouchStartY)) {
+        if (!applicationLauncherController.back()) {
+          applicationLauncherMessage = "COULD NOT RESUME APP";
+        } else {
+          applicationLauncherMessage = "";
+        }
+      } else {
+        uint8_t applicationIndex = 0;
+        if (applicationLauncherRenderer.applicationAt(
+                applicationLauncherTouchStartX,
+                applicationLauncherTouchStartY,
+                applicationIndex,
+                applicationManager)) {
+          if (!applicationLauncherController.select(applicationIndex)) {
+            applicationLauncherMessage = "APP FAILED TO START";
+          } else {
+            applicationLauncherMessage = "";
+          }
+        }
+      }
+    }
+
+    applicationLauncherTouchActive = false;
+    applicationLauncherTouchMoved = false;
+    if (applicationLauncherController.isOpen()) {
+      drawApplicationLauncherScreen();
+    }
+  }
+
+  return true;
+}
+
 void pollTouch() {
   if (!touchReader.available()) return;
 
@@ -3187,9 +3344,25 @@ void pollTouch() {
   const GestureObservation observation = gestureRecognizer.update(sample);
   const GestureCode gesture = observation.gesture;
 
-  // The settings modal owns all touch contacts while open. Its visible header
-  // button is also consumed as a tap target on the normal Weather screens.
+  // The launcher is platform-level input: it remains usable while the active
+  // application is stopped and the manager has no app receiving updates.
+  if (processApplicationLauncherTouch(sample, observation)) {
+    return;
+  }
+
+  // The settings modal owns all touch contacts while open.
   if (processWiFiSettingsTouch(sample, observation)) {
+    return;
+  }
+
+  if (processApplicationLauncherButtonTouch(sample, observation)) {
+    return;
+  }
+
+  // Weather-specific gestures run only while Weather is the active app.
+  const char* activeApplicationId = applicationManager.activeId();
+  if (activeApplicationId == nullptr ||
+      strcmp(activeApplicationId, "weather") != 0) {
     return;
   }
 
@@ -3526,7 +3699,8 @@ bool fetchForecast() {
 // sketch-owned data/renderers. WeatherApp owns startup/refresh sequencing;
 // platform and renderer resources remain with their existing owners.
 void weatherAppProcessInput() {
-  pollTouch();
+  // Touch sampling is promoted to loop() so the platform launcher remains
+  // available even while ApplicationManager has no active application.
 }
 
 void weatherAppSyncTime() {
@@ -3790,6 +3964,7 @@ void loop() {
       wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning);
   updateWiFiSignalIndicator();
   updateWiFiSettings();
+  pollTouch();
   applicationManager.update();
   delay(30);
 }

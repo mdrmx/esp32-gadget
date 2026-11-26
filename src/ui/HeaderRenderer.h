@@ -18,8 +18,16 @@ public:
     WiFiIndicatorBottom = 32
   };
 
-  // Touch-only target: wider and taller than the glyph, but stops immediately
-  // before the clock's leftmost layout position (x = display width - 70).
+  // Touch-only target for the persistent application-launcher button.
+  enum {
+    ApplicationHitAreaLeft = 0,
+    ApplicationHitAreaTop = 0,
+    ApplicationHitAreaRight = 32,
+    ApplicationHitAreaBottom = 36
+  };
+
+  // Touch-only target for the Wi-Fi indicator; it remains separate from the
+  // application button and clock.
   enum {
     WiFiHitAreaLeft = 186,
     WiFiHitAreaTop = 0,
@@ -61,8 +69,10 @@ public:
 
     target->fillRect(
       0, 0, displayManager_.width(), HEADER_HEIGHT, panelColour);
+    drawApplicationLauncherButton(panelColour, accentColour);
     textRenderer_.drawText(
-      locationText, LOCATION_X, TEXT_Y, TEXT_SIZE, locationColour);
+      fitLocationText(locationText), LOCATION_X, TEXT_Y,
+      TEXT_SIZE, locationColour);
     drawClockText(clockText, accentColour);
 
     target->drawFastHLine(
@@ -139,13 +149,51 @@ public:
 private:
   enum {
     HEADER_HEIGHT = 36,
-    LOCATION_X = 10,
+    LOCATION_X = 36,
     TEXT_Y = 10,
     TEXT_SIZE = 2,
+    LOCATION_MAX_WIDTH = WiFiIndicatorLeft - LOCATION_X - 8,
     CLOCK_REGION_WIDTH = 78,
     CLOCK_RIGHT_MARGIN = 10,
     CLOCK_MINIMUM_X_MARGIN = 70
   };
+
+  void drawApplicationLauncherButton(
+      uint16_t panelColour, uint16_t accentColour) const {
+    Arduino_GFX* target = displayManager_.target();
+    if (target == nullptr) return;
+
+    target->drawRoundRect(2, 4, 26, 28, 5, accentColour);
+    target->fillRoundRect(8, 10, 5, 5, 1, accentColour);
+    target->fillRoundRect(17, 10, 5, 5, 1, accentColour);
+    target->fillRoundRect(8, 19, 5, 5, 1, accentColour);
+    target->fillRoundRect(17, 19, 5, 5, 1, accentColour);
+    (void)panelColour;
+  }
+
+  String fitLocationText(const String& locationText) const {
+    String fitted = locationText;
+    if (textRenderer_.measureTextWidth(fitted, TEXT_SIZE) <=
+        LOCATION_MAX_WIDTH) {
+      return fitted;
+    }
+
+    while (fitted.length() > 0 &&
+           textRenderer_.measureTextWidth(fitted, TEXT_SIZE) >
+               LOCATION_MAX_WIDTH) {
+      fitted.remove(fitted.length() - 1, 1);
+    }
+
+    if (fitted.length() < locationText.length() && fitted.length() > 1) {
+      while (fitted.length() > 1 &&
+             textRenderer_.measureTextWidth(fitted + ".", TEXT_SIZE) >
+                 LOCATION_MAX_WIDTH) {
+        fitted.remove(fitted.length() - 1, 1);
+      }
+      fitted += ".";
+    }
+    return fitted;
+  }
 
   static void drawOuterArc(
     Arduino_GFX* target, int cx, int y, uint16_t colour) {
