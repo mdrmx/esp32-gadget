@@ -503,6 +503,7 @@ The user confirmed host runner, Arduino Verify, upload/hash verification and ful
 - [x] Add a system-level application launcher controller, bounded two-column icon renderer and bottom-edge swipe-up navigation. Opening the launcher stops the active app; selecting an entry re-enters the selected app through the manager.
 - [ ] Run the expanded strict C++11 application manager, launcher renderer, bottom-edge swipe and Weather state/asset test suites on this branch and resolve any failures.
 - [x] Arduino IDE Verify/upload and user-confirmed physical launcher boot, background Wi-Fi association, swipe entry, app selection and touch regression on the Waveshare ESP32-S3 (2026-11-26).
+- [ ] Re-run the focused host suites, Arduino IDE Verify/upload and physical visual regression for the follow-up icon-grid and e-ink palette revision.
 - [ ] Move remaining Weather-specific sketch state and compatibility aliases into the Weather application boundary incrementally.
 - [ ] Register and validate a second independent application; verify launcher interaction from that app.
 - [ ] Finalise app-state preservation and suspend/resume policy for longer-lived apps.
