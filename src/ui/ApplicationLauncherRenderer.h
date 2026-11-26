@@ -154,7 +154,11 @@ class ApplicationLauncherRenderer {
     return false;
   }
 
-  bool backButtonContains(int x, int y) const {
+  bool backButtonContains(
+      int x, int y, const char* returnApplicationId) const {
+    if (returnApplicationId == nullptr) {
+      return false;
+    }
     return x >= BackLeft && x < BackRight &&
            y >= FooterTop && y < FooterTop + 24;
   }
