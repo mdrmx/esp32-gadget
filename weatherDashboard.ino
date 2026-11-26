@@ -13,6 +13,7 @@
 #include "src/input/InteractionArbiter.h"
 #include "src/ui/ScrollController.h"
 #include "src/ui/TextRenderer.h"
+#include "src/ui/ForecastModeSelectorRenderer.h"
 #include "src/ui/HeaderRenderer.h"
 #include "src/ui/StatusScreenRenderer.h"
 #include "src/ui/WiFiSettingsRenderer.h"
@@ -231,6 +232,10 @@ const WiFiSettingsRenderer::Colours WIFI_SETTINGS_COLOURS = {
   BG, PANEL, UI_WHITE, MUTED, ACCENT, UI_GREEN, ERROR_COLOUR
 };
 
+const ForecastModeSelectorRenderer::Colours FORECAST_MODE_SELECTOR_COLOURS = {
+  PANEL, UI_WHITE, BG, MUTED
+};
+
 enum class WiFiSettingsScreen : uint8_t {
   Closed = 0,
   Profiles,
@@ -294,6 +299,8 @@ bool wifiPendingWeatherRefresh = false;
 
 WiFiSettingsRenderer wifiSettingsRenderer(
     displayManager, headerRenderer, textRenderer, WIFI_SETTINGS_COLOURS);
+ForecastModeSelectorRenderer forecastModeSelectorRenderer(
+    displayManager, textRenderer, FORECAST_MODE_SELECTOR_COLOURS);
 
 const ForecastListItemRenderer::Colours FORECAST_LIST_ITEM_COLOURS = {
   PANEL, UI_WHITE, UI_YELLOW, MUTED, ACCENT
@@ -1025,19 +1032,6 @@ bool readForecastListItem(
   return true;
 }
 
-void drawForecastModeSelector() {
-  // The viewport canvas begins at y=64, so its flush can overwrite the bottom
-  // edge of this selector. This small repaint restores it after graph frames.
-  displayManager.target()->fillRoundRect(179, 41, 137, 26, 6, PANEL);
-  if (forecastGraphView) {
-    displayManager.target()->fillRoundRect(248, 41, 67, 24, 5, UI_WHITE);
-  } else {
-    displayManager.target()->fillRoundRect(181, 41, 67, 24, 5, UI_WHITE);
-  }
-  textRenderer.drawText("LIST", 201, 50, 1, forecastGraphView ? MUTED : BG);
-  textRenderer.drawText("GRAPH", 265, 50, 1, forecastGraphView ? BG : MUTED);
-}
-
 void drawForecastControls() {
   // Graph paging is gesture-based; the List/Graph selector stays in the same
   // position, with the same geometry in both modes.
@@ -1052,7 +1046,10 @@ void drawForecastControls() {
     textRenderer.drawText("HOURLY", 8, 50, 1, UI_WHITE);
   }
 
-  drawForecastModeSelector();
+  forecastModeSelectorRenderer.draw(
+    forecastGraphView
+      ? ForecastModeSelectorRenderer::Mode::Graph
+      : ForecastModeSelectorRenderer::Mode::List);
 }
 
 int maxForecastGraphScrollPixels() {
@@ -1146,7 +1143,10 @@ void redrawForecastGraphAtCurrentScroll() {
     }
     if (flushForecastGraphCanvasBody()) return;
     displayManager.forecastCanvas()->flush();
-    drawForecastModeSelector();
+    forecastModeSelectorRenderer.draw(
+    forecastGraphView
+      ? ForecastModeSelectorRenderer::Mode::Graph
+      : ForecastModeSelectorRenderer::Mode::List);
     return;
   }
 
@@ -1233,7 +1233,10 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
       drawForecastGraph(displayManager.forecastCanvas(), 0);
       if (flushForecastGraphCanvasBody()) return;
       displayManager.forecastCanvas()->flush();
-      drawForecastModeSelector();
+      forecastModeSelectorRenderer.draw(
+    forecastGraphView
+      ? ForecastModeSelectorRenderer::Mode::Graph
+      : ForecastModeSelectorRenderer::Mode::List);
       return;
     }
 

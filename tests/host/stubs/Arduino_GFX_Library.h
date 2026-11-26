@@ -76,6 +76,15 @@ public:
     int16_t radius,
     uint16_t colour
   ) {
+    const int recordIndex = fillRoundRectCount;
+    if (recordIndex < MAX_RECORDED_ROUND_RECTS) {
+      fillRoundRectX[recordIndex] = x;
+      fillRoundRectY[recordIndex] = y;
+      fillRoundRectWidth[recordIndex] = width;
+      fillRoundRectHeight[recordIndex] = height;
+      fillRoundRectRadius[recordIndex] = radius;
+      fillRoundRectColour[recordIndex] = colour;
+    }
     ++fillRoundRectCount;
     lastFillRoundRectX = x;
     lastFillRoundRectY = y;
@@ -150,6 +159,13 @@ public:
   int lastLineWidth = 0;
   uint16_t lastLineColour = 0;
 
+  static const int MAX_RECORDED_ROUND_RECTS = 32;
+  int fillRoundRectX[MAX_RECORDED_ROUND_RECTS] = {};
+  int fillRoundRectY[MAX_RECORDED_ROUND_RECTS] = {};
+  int fillRoundRectWidth[MAX_RECORDED_ROUND_RECTS] = {};
+  int fillRoundRectHeight[MAX_RECORDED_ROUND_RECTS] = {};
+  int fillRoundRectRadius[MAX_RECORDED_ROUND_RECTS] = {};
+  uint16_t fillRoundRectColour[MAX_RECORDED_ROUND_RECTS] = {};
   int fillRoundRectCount = 0;
   int lastFillRoundRectX = 0;
   int lastFillRoundRectY = 0;

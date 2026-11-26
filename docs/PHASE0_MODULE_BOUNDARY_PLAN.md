@@ -338,4 +338,17 @@ The source guard `sh scripts/test-network-transport-boundary.sh` passed, Arduino
 - Weather retains hit-testing, touch ownership, intent thresholds, per-view drag state, redraw throttling, release suppression, snap-animation timing, graph hold/quick-swipe/point-selection and canvas/display lifecycle.
 - Host coverage in `sh scripts/test-weather-scroll-state.sh` now includes maximum pixel-range behaviour for exact-fit/short content, one extra item, invalid spacing and a configuration sweep against `maximumOffset * pixelsPerItem`.
 
-PR #60's full-repository `sh scripts/test-weather-scroll-state.sh` runner passed on 2026-11-26. Arduino IDE Verify, upload and flash hash verification passed on the Waveshare ESP32-S3 Touch LCD 2 using ESP32 core 3.3.12 / esptool 5.3.1. Build footprint: 1,203,471 bytes program storage (38% of the 3,145,728-byte app partition), 100,748 bytes global dynamic memory (30% of 327,680 bytes), and 226,932 bytes remaining. The user confirmed all hardware and physical regression tests passed. The change is arithmetic-only and does not move touch, gesture, snap, animation or rendering policy. PR #60 is open and ready for review; its two inline review threads are resolved. Runtime heap/largest-block/PSRAM measurement remains a separate outstanding item.
+PR #60's full-repository `sh scripts/test-weather-scroll-state.sh` runner passed on 2026-11-26. Arduino IDE Verify, upload and flash hash verification passed on the Waveshare ESP32-S3 Touch LCD 2 using ESP32 core 3.3.12 / esptool 5.3.1. Build footprint: 1,203,471 bytes program storage (38% of the 3,145,728-byte app partition), 100,748 bytes global dynamic memory (30% of 327,680 bytes), and 226,932 bytes remaining. The user confirmed all hardware and physical regression tests passed. The change is arithmetic-only and does not move touch, gesture, snap, animation or rendering policy. PR #60 was merged into `main` at `4b70e154698f7266e43b0029b238484fcf607b76`; its two inline review threads were resolved before merge. Runtime heap/largest-block/PSRAM measurement remains a separate outstanding item.
+
+## Current Phase 3 UI selector boundary (2026-11-26)
+
+**Branch:** `phase3/03-forecast-mode-selector-renderer`  
+**Base:** PR #60 merge `4b70e154698f7266e43b0029b238484fcf607b76`  
+**Intent:** move the remaining Forecast List/Graph selector drawing out of the sketch without moving mode state or touch policy.
+
+- `ForecastModeSelectorRenderer` owns the selector track, active segment, fixed geometry and selected/unselected label colours.
+- Weather supplies the `List` / `Graph` mode and retains the view state, screen composition, touch hit-testing and gesture handling.
+- The selector continues to redraw after the viewport composition, preserving the existing layering where the viewport canvas can overlap the control strip.
+- The UI audit found card/list/header/text/status/loading/error composition already has focused renderer boundaries. Wi-Fi manager button drawing remains local; it has no independent second consumer and does not currently warrant a generic button framework.
+- A strict C++11 host test covers both selected modes, geometry, text positions/colours, no-target safety and DisplayManager transition-canvas routing. Run `sh scripts/test-forecast-mode-selector-renderer.sh` before review.
+
