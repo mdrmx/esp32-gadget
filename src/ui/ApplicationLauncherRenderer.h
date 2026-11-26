@@ -81,9 +81,12 @@ class ApplicationLauncherRenderer {
 
       target->fillRoundRect(
           x, y, IconTileSize, IconTileSize, IconTileRadius, colours_.panel);
+      const bool isSelected =
+          isReturnApplication ||
+          (returnApplicationId == nullptr && count == 1 && i == 0);
       target->drawRoundRect(
           x, y, IconTileSize, IconTileSize, IconTileRadius,
-          isReturnApplication ? colours_.selected : colours_.muted);
+          isSelected ? colours_.selected : colours_.muted);
       drawApplicationIcon(target, application->id(), x, y);
     }
 
@@ -169,8 +172,8 @@ class ApplicationLauncherRenderer {
   }
 
   static int tileTop(uint8_t index, uint8_t count) {
-    if (count == 1) {
-      // Centre the single registered app in the space between header and footer.
+    if (count <= 2) {
+      // Centre a single icon or single row of two icons between header/footer.
       return (HeaderHeight + FooterTop - IconTileSize) / 2;
     }
     return GridTop + (index / 2) * GridRowStep;
