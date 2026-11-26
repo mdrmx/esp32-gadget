@@ -81,10 +81,10 @@ static bool testIconGridLayoutAndHitTargets() {
   // The user-supplied Weather glyph is drawn as a 48x48 flash bitmap,
   // centred in the 68px tile and tinted with the OS ink colour.
   CHECK(target->drawBitmapCount == 1);
-  CHECK(target->lastBitmapX == 66);
-  CHECK(target->lastBitmapY == 60);
-  CHECK(target->lastBitmapWidth == 48);
-  CHECK(target->lastBitmapHeight == 48);
+  CHECK(target->lastBitmapX == 74);
+  CHECK(target->lastBitmapY == 68);
+  CHECK(target->lastBitmapWidth == 32);
+  CHECK(target->lastBitmapHeight == 32);
   CHECK(target->lastBitmapColour == LauncherColours.text);
   CHECK(target->lastBitmap != nullptr);
 
@@ -137,8 +137,8 @@ static bool testSingleWeatherIconIsCentred() {
   CHECK(target->fillRoundRectWidth[0] == 68);
   CHECK(target->fillRoundRectHeight[0] == 68);
   CHECK(target->drawBitmapCount == 1);
-  CHECK(target->lastBitmapX == 136);
-  CHECK(target->lastBitmapY == 99);
+  CHECK(target->lastBitmapX == 144);
+  CHECK(target->lastBitmapY == 107);
   CHECK(target->printCount == 2);
   CHECK(target->printedText[0] == String("APPLICATIONS"));
   CHECK(target->printedText[1] == String("SELECT AN APP"));
