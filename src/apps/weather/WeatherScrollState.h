@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../ui/ScrollController.h"
+
 
 // Owns the canonical scroll positions for each Weather view and the
 // view-specific conversion from pixel positions to renderer viewport inputs.
@@ -38,6 +38,24 @@ public:
     return difference > 0 ? difference : 0;
   }
 
+  static int clampViewportPixels(
+    int pixels,
+    int maximumScrollPixels,
+    int overscrollLimitPixels
+  ) {
+    const int overscroll = overscrollLimitPixels > 0
+      ? overscrollLimitPixels
+      : 0;
+    const int lowerBound = -overscroll;
+    const int upperBound = maximumScrollPixels + overscroll;
+    return pixels < lowerBound
+      ? lowerBound
+      : pixels > upperBound
+        ? upperBound
+        : pixels;
+  }
+
+
   // Convert the metric panel's elastic pixel position into the exact pair
   // consumed by WeatherMetricsViewportRenderer. C++ integer division for a
   // negative top-edge pull is intentional and matches the previous sketch.
@@ -53,11 +71,8 @@ public:
 
     const int maxOffset = maximumOffset(itemCount, visibleCount);
     const int maxScrollPixels = maxOffset * rowStepPixels;
-    const int overscroll = overscrollLimitPixels > 0
-      ? overscrollLimitPixels
-      : 0;
-    const int boundedPixels = ScrollController::clampElasticPosition(
-      pixels, maxScrollPixels, overscroll);
+    const int boundedPixels = clampViewportPixels(
+      pixels, maxScrollPixels, overscrollLimitPixels);
 
     result.baseOffset = boundedPixels / rowStepPixels;
     result.scrollPixels = boundedPixels % rowStepPixels;
