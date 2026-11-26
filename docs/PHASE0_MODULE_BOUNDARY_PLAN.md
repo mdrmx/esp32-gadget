@@ -350,5 +350,5 @@ PR #60's full-repository `sh scripts/test-weather-scroll-state.sh` runner passed
 - Weather supplies the `List` / `Graph` mode and retains the view state, screen composition, touch hit-testing and gesture handling.
 - The selector continues to redraw after the viewport composition, preserving the existing layering where the viewport canvas can overlap the control strip.
 - The UI audit found card/list/header/text/status/loading/error composition already has focused renderer boundaries. Wi-Fi manager button drawing remains local; it has no independent second consumer and does not currently warrant a generic button framework.
-- A strict C++11 host test covers both selected modes, geometry, text positions/colours, no-target safety and DisplayManager transition-canvas routing. Run `sh scripts/test-forecast-mode-selector-renderer.sh` before review.
+- A focused strict C++11 fixture compile/run passed with GCC and Clang. The checked-in runner `sh scripts/test-forecast-mode-selector-renderer.sh` still needs to be run in the full repository checkout before review; Arduino Verify, upload/boot and physical regression also remain outstanding.
 

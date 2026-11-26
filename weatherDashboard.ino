@@ -1144,9 +1144,9 @@ void redrawForecastGraphAtCurrentScroll() {
     if (flushForecastGraphCanvasBody()) return;
     displayManager.forecastCanvas()->flush();
     forecastModeSelectorRenderer.draw(
-    forecastGraphView
-      ? ForecastModeSelectorRenderer::Mode::Graph
-      : ForecastModeSelectorRenderer::Mode::List);
+      forecastGraphView
+        ? ForecastModeSelectorRenderer::Mode::Graph
+        : ForecastModeSelectorRenderer::Mode::List);
     return;
   }
 
@@ -1234,9 +1234,9 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
       if (flushForecastGraphCanvasBody()) return;
       displayManager.forecastCanvas()->flush();
       forecastModeSelectorRenderer.draw(
-    forecastGraphView
-      ? ForecastModeSelectorRenderer::Mode::Graph
-      : ForecastModeSelectorRenderer::Mode::List);
+        forecastGraphView
+          ? ForecastModeSelectorRenderer::Mode::Graph
+          : ForecastModeSelectorRenderer::Mode::List);
       return;
     }
 
