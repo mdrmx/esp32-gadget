@@ -3319,23 +3319,31 @@ void pollTouch() {
     touchCoordinatesToScreen(sample, launcherGestureX, launcherGestureY);
   }
 
-  if (!applicationLauncherController.isOpen() &&
-      applicationLauncherGesture.update(
-          observation.touchStarted,
-          observation.touchPresent,
-          observation.touchReleased,
-          launcherGestureX,
-          launcherGestureY,
-          millis(),
-          displayManager.height())) {
+  bool launcherGestureRecognised = false;
+  if (!applicationLauncherController.isOpen()) {
+    launcherGestureRecognised = applicationLauncherGesture.update(
+        observation.touchStarted,
+        observation.touchPresent,
+        observation.touchReleased,
+        launcherGestureX,
+        launcherGestureY,
+        millis(),
+        displayManager.height());
+  } else {
+    applicationLauncherGesture.reset();
+  }
+
+  const bool consumeBottomEdgeTouch =
+      applicationLauncherGesture.consumeTouchSample();
+  if (launcherGestureRecognised) {
     if (wifiSettingsScreen != WiFiSettingsScreen::Closed) {
       closeWiFiSettings();
     }
     openApplicationLauncher();
     return;
   }
-  if (applicationLauncherController.isOpen()) {
-    applicationLauncherGesture.reset();
+  if (consumeBottomEdgeTouch) {
+    return;
   }
 
   // The launcher is platform-level input: it remains usable while the active
