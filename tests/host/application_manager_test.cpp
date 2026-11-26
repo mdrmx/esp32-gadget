@@ -158,17 +158,16 @@ static bool testFailedSwitchRestoresPreviousApplication() {
   CHECK(weather.updateCalls() == 1);
   CHECK(maps.updateCalls() == 0);
 
-  // A failed first start does not leave a phantom active pointer.
-  CHECK(manager.stopActive());
-  CHECK(!manager.start("maps"));
-  CHECK(manager.activeApplication() == nullptr);
-
   // If both the requested app and the previous app fail to begin, the manager
   // must not retain a stale active pointer.
   weather.setBeginResult(false);
-  CHECK(!manager.switchTo("weather"));
+  CHECK(!manager.switchTo("maps"));
+  CHECK(weather.endCalls() == 2);
+  CHECK(weather.beginCalls() == 3);
   CHECK(manager.activeApplication() == nullptr);
   CHECK(manager.activeId() == nullptr);
+  CHECK(!manager.stopActive());
+  CHECK(!manager.start("maps"));
   return true;
 }
 
