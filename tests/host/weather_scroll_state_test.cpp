@@ -21,6 +21,48 @@ static void checkPosition(
   CHECK(actual.scrollPixels == expectedPixels);
 }
 
+static WeatherScrollState::ViewportPosition legacyMetricsPosition(
+  int pixels, int itemCount, int visibleCount, int rowStep, int overscroll
+) {
+  WeatherScrollState::ViewportPosition result = {0, 0};
+  if (rowStep <= 0) return result;
+  const int maxOffset = itemCount - visibleCount > 0
+    ? itemCount - visibleCount
+    : 0;
+  const int maxScroll = maxOffset * rowStep;
+  const int lower = -overscroll;
+  const int upper = maxScroll + overscroll;
+  if (pixels < lower) pixels = lower;
+  if (pixels > upper) pixels = upper;
+  result.baseOffset = pixels / rowStep;
+  result.scrollPixels = pixels % rowStep;
+  return result;
+}
+
+static WeatherScrollState::ViewportPosition legacyForecastListPosition(
+  int pixels, int itemCount, int visibleCount, int rowStep, int overscroll
+) {
+  WeatherScrollState::ViewportPosition result = {0, 0};
+  if (rowStep <= 0) return result;
+  const int maxOffset = itemCount - visibleCount > 0
+    ? itemCount - visibleCount
+    : 0;
+  const int maxScroll = maxOffset * rowStep;
+  const int lower = -overscroll;
+  const int upper = maxScroll + overscroll;
+  if (pixels < lower) pixels = lower;
+  if (pixels > upper) pixels = upper;
+  int baseOffset = pixels < 0 ? 0 : pixels / rowStep;
+  int scrollPixels = pixels < 0 ? pixels : pixels % rowStep;
+  if (baseOffset > maxOffset) {
+    baseOffset = maxOffset;
+    scrollPixels = pixels - maxScroll;
+  }
+  result.baseOffset = baseOffset;
+  result.scrollPixels = scrollPixels;
+  return result;
+}
+
 int main() {
   WeatherScrollState state;
 
@@ -105,6 +147,39 @@ int main() {
   CHECK(WeatherScrollState::forecastGraphOffsetForPixels(280, 12, 4, 56) == 5);
   CHECK(WeatherScrollState::forecastGraphOffsetForPixels(1000, 12, 4, 56) == 8);
   CHECK(WeatherScrollState::forecastGraphOffsetForPixels(100, 12, 4, 0) == 0);
+
+  // Exhaustive parity sweep against the pre-extraction sketch arithmetic.
+  // This confirms the refactor preserves row mapping, C++ negative division
+  // semantics and elastic top/bottom displacement across representative sizes.
+  for (int itemCount = 0; itemCount <= 12; itemCount++) {
+    for (int visibleCount = 1; visibleCount <= 6; visibleCount++) {
+      for (int rowStep = 1; rowStep <= 15; rowStep++) {
+        for (int overscroll = 0; overscroll <= 5; overscroll++) {
+          const int maxOffset = WeatherScrollState::maximumOffset(
+            itemCount, visibleCount);
+          const int maxScroll = maxOffset * rowStep;
+          for (int pixels = -overscroll - 5;
+               pixels <= maxScroll + overscroll + 5;
+               pixels++) {
+            checkPosition(
+              WeatherScrollState::metricsViewportPosition(
+                pixels, itemCount, visibleCount, rowStep, overscroll),
+              legacyMetricsPosition(
+                pixels, itemCount, visibleCount, rowStep, overscroll).baseOffset,
+              legacyMetricsPosition(
+                pixels, itemCount, visibleCount, rowStep, overscroll).scrollPixels);
+            checkPosition(
+              WeatherScrollState::forecastListViewportPosition(
+                pixels, itemCount, visibleCount, rowStep, overscroll),
+              legacyForecastListPosition(
+                pixels, itemCount, visibleCount, rowStep, overscroll).baseOffset,
+              legacyForecastListPosition(
+                pixels, itemCount, visibleCount, rowStep, overscroll).scrollPixels);
+          }
+        }
+      }
+    }
+  }
 
   puts("WeatherScrollState tests passed.");
   return EXIT_SUCCESS;
