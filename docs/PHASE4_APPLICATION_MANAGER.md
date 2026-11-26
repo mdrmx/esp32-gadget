@@ -89,15 +89,13 @@ Independent multi-app switching remains deferred because only Weather is registe
 
 ## E-ink-inspired OS palette (2026-11-26)
 
-The shared UI palette is now applied across the launcher, Weather, Forecast, Wi-Fi settings and status screens:
+The shared UI palette is based on the four supplied colours and is applied across the launcher, Weather, Forecast, Wi-Fi settings and status screens:
 
-| Role | RGB565 | Appearance |
-|---|---:|---|
-| Background | `0xF79C` | Warm off-white paper (RGB 247, 243, 230) |
-| Panels | `0xEF3B` | Slightly darker warm paper (RGB 239, 231, 222) |
-| Primary text / icons | `0x18C3` | Near-black ink (RGB 25, 24, 25) |
-| Secondary text | `0x736C` | Muted warm grey (RGB 115, 109, 99) |
-| Accent / selection / connected Wi-Fi | `0xD345` | Burnt retro orange (RGB 214, 105, 41) |
-| Errors | `0xA205` | Dark rust (RGB 165, 65, 41) |
+| Role | Hex | RGB565 | Use |
+|---|---|---:|---|
+| Paper | `#FEF3E2` | `0xFF9C` | Main screen background |
+| Amber | `#F4AE52` | `0xF56A` | Panels and raised surfaces |
+| Burnt orange | `#D4621A` | `0xD303` | Accent, selection, secondary emphasis, connected Wi-Fi and error state |
+| Dark brown | `#2A1A0E` | `0x28C1` | Primary text and monochrome icons |
 
-PNG weather-icon transparency now blends against the new warm-paper background. The Weather launcher bitmap itself is monochrome and flash-resident: it requires no runtime PNG decoding, network request or heap allocation.
+All UI roles use those four supplied colours; there is no separate grey or green status colour. PNG weather-icon transparency blends against the exact paper colour (`00BBGGRR = 0x00E2F3FE`). The Weather launcher bitmap is monochrome and flash-resident: it requires no runtime PNG decoding, network request or heap allocation.
