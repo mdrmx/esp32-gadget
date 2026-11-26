@@ -1032,6 +1032,13 @@ bool readForecastListItem(
   return true;
 }
 
+void drawForecastModeSelector() {
+  forecastModeSelectorRenderer.draw(
+    forecastGraphView
+      ? ForecastModeSelectorRenderer::Mode::Graph
+      : ForecastModeSelectorRenderer::Mode::List);
+}
+
 void drawForecastControls() {
   // Graph paging is gesture-based; the List/Graph selector stays in the same
   // position, with the same geometry in both modes.
@@ -1046,10 +1053,7 @@ void drawForecastControls() {
     textRenderer.drawText("HOURLY", 8, 50, 1, UI_WHITE);
   }
 
-  forecastModeSelectorRenderer.draw(
-    forecastGraphView
-      ? ForecastModeSelectorRenderer::Mode::Graph
-      : ForecastModeSelectorRenderer::Mode::List);
+  drawForecastModeSelector();
 }
 
 int maxForecastGraphScrollPixels() {
@@ -1143,10 +1147,7 @@ void redrawForecastGraphAtCurrentScroll() {
     }
     if (flushForecastGraphCanvasBody()) return;
     displayManager.forecastCanvas()->flush();
-    forecastModeSelectorRenderer.draw(
-      forecastGraphView
-        ? ForecastModeSelectorRenderer::Mode::Graph
-        : ForecastModeSelectorRenderer::Mode::List);
+    drawForecastModeSelector();
     return;
   }
 
@@ -1233,10 +1234,7 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
       drawForecastGraph(displayManager.forecastCanvas(), 0);
       if (flushForecastGraphCanvasBody()) return;
       displayManager.forecastCanvas()->flush();
-      forecastModeSelectorRenderer.draw(
-        forecastGraphView
-          ? ForecastModeSelectorRenderer::Mode::Graph
-          : ForecastModeSelectorRenderer::Mode::List);
+      drawForecastModeSelector();
       return;
     }
 
