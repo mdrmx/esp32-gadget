@@ -1,6 +1,6 @@
 # Phase 4 — Application Manager and lifecycle
 
-**Status:** Lifecycle manager merged in PR #62; first launcher slice implemented on `phase4/02-application-launcher`. Weather remains the only registered application; second-app integration and launcher physical regression are pending.  
+**Status:** Lifecycle manager merged in PR #62; launcher-first boot and launcher interaction implemented on `phase4/02-application-launcher`. Arduino IDE Verify/upload and user-confirmed physical launcher regression passed on 2026-11-26. Weather remains the only registered application; second-app integration and expanded host-suite validation remain pending.  
 **Base:** PR #62 merge `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`.  
 **Goal:** Give the platform one bounded, transport- and hardware-neutral way to register, start, update, switch and stop applications.
 
@@ -64,17 +64,24 @@ For merged PR #62, the user confirmed the strict C++11 runner passes (`Applicati
 
 
 
-## Launcher branch validation pending
+## Remaining launcher validation
 
-- Run all focused strict C++11 suites after pulling `phase4/02-application-launcher`: application manager, launcher renderer, bottom-edge swipe gesture and Weather state/asset preparation.
-- Run Arduino IDE Verify with the recorded Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12.
-- Upload and confirm boot lands on the launcher before Wi-Fi association completes; the saved profile connects in the background and the signal icon updates. Swipe up from the centred 64 px band at the bottom edge in Weather and Wi-Fi settings to open the launcher; confirm a bottom-edge swipe that starts over a metric card outside this band still scrolls the card and does not open the launcher. Confirm the clock and Wi-Fi indicator remain visible/live, tapping empty launcher space causes no redraw, the Weather tile restores cached data without starting Wi-Fi, and existing Weather/Forecast gestures and Wi-Fi settings interactions remain intact.
-- Confirm the launcher remains touch-accessible while no app is active; with no prior app (boot state), no BACK control is shown. Multi-app selection remains pending until a second application is registered.
+- Run the focused strict C++11 suites after pulling `phase4/02-application-launcher`: application manager, launcher renderer, bottom-edge swipe gesture and Weather state/asset preparation. These host-suite results have not yet been supplied for this branch.
+- Multi-app selection remains pending until a second application is registered.
 
-## Firmware and device validation (2026-11-26)
+## Firmware and device validation
 
-- Arduino IDE compile and upload passed using ESP32 core 3.3.12 / esptool 5.3.1 and the Waveshare ESP32-S3 Touch LCD 2 FQBN (`esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`).
-- Build footprint: 1,204,579 bytes program storage (38% of the 3,145,728-byte app partition) and 100,788 bytes global dynamic memory (30% of 327,680 bytes), leaving 226,892 bytes.
-- The uploaded image was written and its flash hash verified; the board hard-reset via RTS.
-- The user confirmed the full physical Weather regression passed with no issues noted.
-- These firmware figures and physical regression results are the historical PR #62 lifecycle-only baseline, not validation of the launcher branch. PR #63 adds the launcher, but its Arduino Verify/upload and physical launcher regression remain pending. Independent multi-app switching also remains deferred because only Weather is registered.
+### PR #62 lifecycle baseline (2026-11-26)
+
+- Arduino IDE compile/upload passed using ESP32 core 3.3.12 / esptool 5.3.1 and the Waveshare ESP32-S3 Touch LCD 2 FQBN (`esp32:esp32:esp32s3:CDCOnBoot=cdc,UploadMode=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi`).
+- Build footprint: 1,204,579 bytes program storage and 100,788 bytes global dynamic memory; uploaded image hash verified and board hard-reset via RTS.
+- The user confirmed the full physical Weather regression passed.
+
+### PR #63 launcher branch (2026-11-26)
+
+- Arduino IDE Verify/compile and upload passed with the same Waveshare ESP32-S3 FQBN, ESP32 core 3.3.12 and esptool 5.3.1.
+- Build footprint: 1,209,815 bytes program storage (38% of the 3,145,728-byte app partition) and 100,868 bytes global dynamic memory (30% of 327,680 bytes), leaving 226,812 bytes.
+- The log reports 1,044,480 bytes written (730,023 compressed), successful flash-data hash verification and hard reset via RTS.
+- The user confirmed the updated launcher and navigation behaviour works as expected, including launcher-first boot, background Wi-Fi, central-band swipe, launcher redraw/touch behaviour and Wi-Fi settings access. This is user-confirmed physical regression; it is separate from the focused host test suites, which remain to be run.
+
+Independent multi-app switching remains deferred because only Weather is registered. Runtime heap/largest-block/PSRAM profiling remains outstanding.
