@@ -34,6 +34,7 @@
 #include "src/services/WiFiAvailabilityRefreshPolicy.h"
 #include "src/services/WiFiSignalMeter.h"
 #include "src/services/Esp32WiFiScanBackend.h"
+#include "src/services/Esp32WiFiGeolocationScanBackend.h"
 #include "src/services/LocationService.h"
 #include "src/services/WeatherDataService.h"
 #include "src/apps/weather/WeatherApp.h"
@@ -118,8 +119,11 @@ uint32_t wifiSignalLastSampleMs = 0;
 // device lifetime, independently from temporary Preferences read buffers.
 PersistentWiFiProfileStore::Profile activeWiFiProfile = {};
 
-// Weather consumes this provider result; the service owns provider selection.
-LocationService locationService;
+// LocationService consumes a platform-neutral scan capability. The ESP32
+// adapter owns the Arduino Wi-Fi scan calls; the scanner owns Google AP policy.
+Esp32WiFiGeolocationScanBackend wifiGeolocationScanBackend;
+WiFiGeolocationScanner wifiGeolocationScanner(wifiGeolocationScanBackend);
+LocationService locationService(wifiGeolocationScanner);
 LocationService::LocationFix currentLocationFix = {};
 
 // Header redraw cache remains Weather presentation state.

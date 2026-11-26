@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Arduino.h>
-#include <WiFi.h>
 #include "HttpRequestClient.h"
+#include "WiFiGeolocationScanner.h"
 #include <ArduinoJson.h>
 #include <math.h>
 #include <stdio.h>
@@ -12,6 +12,9 @@
 // existing Wi-Fi connection but never starts, stops or reconfigures Wi-Fi.
 class LocationService {
 public:
+  explicit LocationService(WiFiGeolocationScanner& wifiGeolocationScanner)
+      : wifiGeolocationScanner_(wifiGeolocationScanner) {}
+
   enum class Source : uint8_t {
     ConfiguredFallback,
     GoogleWifi,
@@ -107,12 +110,6 @@ public:
   }
 
 private:
-  struct WifiCandidate {
-    uint8_t bssid[6];
-    int32_t rssi;
-    int32_t channel;
-  };
-
   static bool isValidCoordinates(float latitude, float longitude) {
     return isfinite(latitude) && isfinite(longitude) &&
            latitude >= -90.0f && latitude <= 90.0f &&
@@ -201,98 +198,26 @@ private:
       return false;
     }
 
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.printf(
-        "[LOCATION] Google Wi-Fi positioning skipped: Wi-Fi status is %d.\n",
-        (int)WiFi.status());
-      return false;
-    }
-
     Serial.println("[LOCATION] Scanning nearby Wi-Fi access points...");
-    // Keep the per-channel dwell short because this runs during startup.
-    const int16_t scanCount = WiFi.scanNetworks(false, false, true, 120);
-    if (scanCount < 0) {
+    WiFiGeolocationAccessPoint candidates[
+      WiFiGeolocationScanner::MaxAccessPoints] = {};
+    const WiFiGeolocationScanner::Result scanResult =
+      wifiGeolocationScanner_.scan(
+        candidates,
+        WiFiGeolocationScanner::MaxAccessPoints);
+
+    if (!scanResult.succeeded) {
       Serial.printf(
         "[LOCATION] Wi-Fi scan failed with code %d; trying IP geolocation.\n",
-        scanCount);
-      WiFi.scanDelete();
+        scanResult.networksFound);
       return false;
     }
 
-    const int MAX_WIFI_GEOLOCATION_APS = 15;
-    WifiCandidate candidates[MAX_WIFI_GEOLOCATION_APS];
-    int candidateCount = 0;
-
-    // Google only locates universally-administered unicast MAC addresses.
-    // Keep the strongest eligible, unique BSSIDs to maximise useful evidence.
-    for (int i = 0; i < scanCount; i++) {
-      uint8_t* bssid = WiFi.BSSID(i);
-      if (bssid == nullptr) continue;
-
-      // Bit 0 set means multicast; bit 1 set means locally administered.
-      if ((bssid[0] & 0x03) != 0) continue;
-
-      // Google's documented reserved range is excluded.
-      if (bssid[0] == 0x00 && bssid[1] == 0x00 && bssid[2] == 0x5E) {
-        continue;
-      }
-
-      bool allZero = true;
-      for (int octet = 0; octet < 6; octet++) {
-        if (bssid[octet] != 0) {
-          allZero = false;
-          break;
-        }
-      }
-      if (allZero) continue;
-
-      const int32_t rssi = WiFi.RSSI(i);
-      if (rssi < -128 || rssi > -10) continue;
-
-      bool duplicate = false;
-      for (int j = 0; j < candidateCount; j++) {
-        bool same = true;
-        for (int octet = 0; octet < 6; octet++) {
-          if (candidates[j].bssid[octet] != bssid[octet]) {
-            same = false;
-            break;
-          }
-        }
-        if (same) {
-          duplicate = true;
-          break;
-        }
-      }
-      if (duplicate) continue;
-
-      WifiCandidate candidate;
-      for (int octet = 0; octet < 6; octet++) {
-        candidate.bssid[octet] = bssid[octet];
-      }
-      candidate.rssi = rssi;
-      candidate.channel = WiFi.channel(i);
-
-      // Retain the strongest 15 usable access points in descending RSSI order.
-      int insertAt = 0;
-      while (insertAt < candidateCount &&
-             candidates[insertAt].rssi >= candidate.rssi) {
-        insertAt++;
-      }
-      if (insertAt >= MAX_WIFI_GEOLOCATION_APS) continue;
-
-      int newCount = candidateCount;
-      if (newCount < MAX_WIFI_GEOLOCATION_APS) newCount++;
-      for (int j = newCount - 1; j > insertAt; j--) {
-        candidates[j] = candidates[j - 1];
-      }
-      candidates[insertAt] = candidate;
-      candidateCount = newCount;
-    }
-
-    WiFi.scanDelete();
+    const int16_t scanCount = scanResult.networksFound;
+    const uint8_t candidateCount = scanResult.accessPointCount;
     Serial.printf(
-      "[LOCATION] Wi-Fi scan found %d networks; %d usable BSSIDs.\n",
-      scanCount, candidateCount);
+      "[LOCATION] Wi-Fi scan found %d networks; %u usable BSSIDs.\n",
+      scanCount, (unsigned)candidateCount);
 
     // Google requires at least two distinct stationary access points.
     if (candidateCount < 2) {
@@ -307,7 +232,7 @@ private:
 
     // ArduinoJson may retain references to these writable buffers until
     // serializeJson() runs, so their lifetime must extend beyond the loop.
-    char macAddresses[MAX_WIFI_GEOLOCATION_APS][18] = {};
+    char macAddresses[WiFiGeolocationScanner::MaxAccessPoints][18] = {};
 
     for (int i = 0; i < candidateCount; i++) {
       snprintf(
@@ -322,7 +247,7 @@ private:
 
       JsonObject point = wifiPoints.add<JsonObject>();
       point["macAddress"] = macAddresses[i];
-      point["signalStrength"] = candidates[i].rssi;
+      point["signalStrength"] = candidates[i].signalStrengthDbm;
       point["channel"] = candidates[i].channel;
       point["age"] = 0;
     }
@@ -446,13 +371,8 @@ private:
     String& displayName
   ) {
     Serial.println("[LOCATION] Starting IP geolocation request...");
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.printf(
-        "[LOCATION] IP lookup skipped: Wi-Fi status is %d.\n",
-        (int)WiFi.status());
-      return false;
-    }
-
+    // resolve() has already gated provider attempts using the caller's
+    // connectivity state. The service does not inspect a Wi-Fi driver here.
     HttpRequestClient http;
     if (!http.begin("https://ipwho.is/", 8000, 8000, HttpRequestClient::TlsPolicy::InsecureCompatibility)) {
       Serial.println(
@@ -517,4 +437,6 @@ private:
       fix, openWeatherApiKey, displayName);
     return true;
   }
+
+  WiFiGeolocationScanner& wifiGeolocationScanner_;
 };
