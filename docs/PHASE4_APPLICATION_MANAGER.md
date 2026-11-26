@@ -29,16 +29,16 @@ An application implementation must leave itself inactive when `begin()` returns 
 - Touch sampling now runs at platform-loop level before manager updates. Launcher input therefore remains available when the launcher has stopped the active app; Weather-specific gesture handling is dispatched only while `weather` is active.
 - Weather retains the same staged connection/location/current-weather/forecast/asset/render sequence.
 - On `end()`, Weather becomes inactive and no longer processes input, time or refresh work. It retains its current state-machine stage, last-refresh timestamp, fetched data and platform hook bindings, so re-entry resumes the same instance without rebuilding shared services.
-- Returning to Weather resumes its prior state-machine stage and refresh schedule. If the shared platform connection is already established, Weather does not call `startConnection()` or show a false `Connecting Wi-Fi...` banner; the cached current view is redrawn immediately (or the unavailable-weather error is restored if there is no cached data). If the connection was lost while the launcher was open, Weather starts or reuses the platform connection attempt and resumes the appropriate startup/refresh path. `WeatherDataService`, `WeatherViewState` and `WeatherAssetCache` remain platform-composed objects and are not destroyed by an app switch.
+- Weather observes the platform-owned connection state; it does not start Wi-Fi association. The launcher starts the saved preferred profile at boot and `ConnectivityManager` advances/retries it from the platform loop, independently of which app is selected. Weather waits for the shared connection when starting and keeps cached data visible during offline resume/refresh paths. `WeatherDataService`, `WeatherViewState` and `WeatherAssetCache` remain platform-composed objects and are not destroyed by an app switch.
 
 ## Application launcher slice
 
-- A persistent four-square button in the top-left header opens the platform launcher. The location label is constrained to the remaining header width; the existing Wi-Fi button remains in its own hit area.
+- A quick upward swipe that starts within the bottom 24 px of the display opens the platform launcher. It must travel at least 52 px upward, stay within 40 px horizontal drift and complete within 650 ms. There is no launcher button in the header.
 - The launcher renders up to four registered application ids as a two-column, two-row grid. Its single-line title is vertically centred; the redundant registered-app-count subtitle is omitted. The shared clock and live Wi-Fi signal indicator remain visible and continue updating while the launcher is open. It does not introduce a separate app metadata registry or allocate applications dynamically.
 - Opening the launcher records the previous app id and calls `stopActive()`; platform display, touch, connectivity, location, time and storage services remain alive.
 - Selecting a tile starts that registered app through `switchTo()`. BACK re-enters the app that was active before the launcher opened. A failed app start leaves the launcher visible so the user can retry or return.
-- The Wi-Fi settings header includes the same launcher button, so the launcher can be opened from that platform modal too.
-- Only Weather is registered today. Selecting Weather or pressing BACK therefore re-enters Weather, restores its prior in-memory workflow stage when the Wi-Fi link remains available, and redraws its cached view; this is not yet proof of switching between independent applications.
+- The same bottom-edge gesture is handled before modal touch processing, so the launcher can also be opened from Wi-Fi settings. The launcher remains visible underneath the modal and is restored when settings close.
+- At boot, the launcher is opened with no active application, then the platform starts the saved preferred Wi-Fi profile without waiting. The launcher stays drawn while association/retry proceeds; the header signal icon changes from disconnected to connected/strength as the manager reports the link. With no previous app at boot, BACK is omitted.
 
 ## Scope deliberately deferred
 
@@ -57,16 +57,16 @@ sh scripts/test-application-manager.sh
 sh scripts/test-application-launcher-renderer.sh
 ```
 
-For merged PR #62, the user confirmed the strict C++11 runner passes (`ApplicationManager tests passed.`), including registration, null-id safety, lifecycle switching/restoration and Weather configure/start/stop/restart integration. The current branch extends the same runner with manager enumeration and launcher-controller coverage: open/stop, select by registration index, failed target start, BACK restoration and opening/closing with no active app. Weather-specific lifecycle tests now assert that returning while Wi-Fi is connected preserves the prior state, redraws cached data and does not call `startConnection()` or render `Connecting Wi-Fi...`; a separate offline-start case confirms connection setup still occurs when required. Neither expanded host suite has yet been run on the launcher branch; run both commands above before review.
+For merged PR #62, the user confirmed the strict C++11 runner passes (`ApplicationManager tests passed.`), including registration, null-id safety, lifecycle switching/restoration and Weather configure/start/stop/restart integration. This branch adds manager enumeration, launcher controller, Weather cached resume and offline reconnection-path coverage. Additional suites cover the launcher renderer and bottom-edge swipe recogniser. These expanded suites have not yet been run on the current branch; run the commands above before review.
 
 
 
 ## Launcher branch validation pending
 
-- Run the expanded strict C++11 host runner after pulling `phase4/02-application-launcher`; the renderer assertions cover the single-line, vertically centred title and verify no availability subtitle is drawn.
+- Run all focused strict C++11 suites after pulling `phase4/02-application-launcher`: application manager, launcher renderer, bottom-edge swipe gesture and Weather state/asset preparation.
 - Run Arduino IDE Verify with the recorded Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12.
-- Upload and confirm the app grid opens from the header button, the clock and Wi-Fi indicator remain visible/live, the Weather tile and BACK resume Weather without a spurious connection attempt while online, the Wi-Fi modal can launch the grid, and no existing Weather/Forecast gestures or Wi-Fi settings interactions regress.
-- Confirm the launcher remains touch-accessible while no app is active; multi-app selection remains pending until a second application is registered.
+- Upload and confirm boot lands on the launcher before Wi-Fi association completes; the saved profile connects in the background and the signal icon updates. Swipe up from the bottom edge in Weather and Wi-Fi settings to open the launcher. Confirm the clock and Wi-Fi indicator remain visible/live, tapping empty launcher space causes no redraw, the Weather tile restores cached data without starting Wi-Fi, and existing Weather/Forecast gestures and Wi-Fi settings interactions remain intact.
+- Confirm the launcher remains touch-accessible while no app is active; with no prior app (boot state), no BACK control is shown. Multi-app selection remains pending until a second application is registered.
 
 ## Firmware and device validation (2026-11-26)
 
