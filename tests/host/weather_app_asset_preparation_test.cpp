@@ -176,8 +176,8 @@ static bool testStartupAdvancesWithoutWaitingForConnection() {
   }
 
   app.end();
-  if (app.state() != WeatherApp::State::Inactive || app.isActive()) {
-    fprintf(stderr, "FAIL: end did not reset app state\n");
+  if (app.state() != WeatherApp::State::Ready || app.isActive()) {
+    fprintf(stderr, "FAIL: end did not suspend while retaining app state\n");
     return false;
   }
   return true;
