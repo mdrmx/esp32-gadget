@@ -87,7 +87,7 @@ class ApplicationLauncherRenderer {
         continue;
       }
 
-      const int x = cardLeft(i, width, cardWidth);
+      const int x = cardLeft(i, cardWidth);
       const int y = cardTop(i);
       const bool isReturnApplication =
           returnApplicationId != nullptr &&
@@ -144,7 +144,7 @@ class ApplicationLauncherRenderer {
         continue;
       }
 
-      const int left = cardLeft(i, width, cardWidth);
+      const int left = cardLeft(i, cardWidth);
       const int top = cardTop(i);
       if (x >= left && x < left + cardWidth &&
           y >= top && y < top + CardHeight) {
@@ -165,7 +165,7 @@ class ApplicationLauncherRenderer {
   TextRenderer& textRenderer_;
   Colours colours_;
 
-  static int cardLeft(uint8_t index, int width, int cardWidth) {
+  static int cardLeft(uint8_t index, int cardWidth) {
     return Margin + (index % 2) * (cardWidth + ColumnGap);
   }
 
