@@ -1138,7 +1138,7 @@ bool flushForecastGraphCanvasBody() {
 // Render graph motion off-screen and copy one cropped bitmap to the LCD. This
 // avoids flicker from dozens of direct draw calls and avoids repainting controls.
 void redrawForecastGraphAtCurrentScroll() {
-  // This redraw path is graph-only; keep its selector presentation explicit.
+  if (!forecastGraphView) return;
 
   if (displayManager.forecastCanvas() != nullptr && !displayManager.renderingTabTransition()) {
     displayManager.forecastCanvas()->fillScreen(BG);
