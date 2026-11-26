@@ -106,10 +106,11 @@ static bool testLauncherLayoutAndHitTargets() {
   CHECK(!renderer.applicationAt(20, 113, applicationIndex, manager));
   CHECK(!renderer.applicationAt(20, 200, applicationIndex, manager));
 
-  CHECK(renderer.backButtonContains(8, 210));
-  CHECK(renderer.backButtonContains(83, 233));
-  CHECK(!renderer.backButtonContains(84, 220));
-  CHECK(!renderer.backButtonContains(20, 209));
+  CHECK(renderer.backButtonContains(8, 210, "weather"));
+  CHECK(renderer.backButtonContains(83, 233, "weather"));
+  CHECK(!renderer.backButtonContains(8, 210, nullptr));
+  CHECK(!renderer.backButtonContains(84, 220, "weather"));
+  CHECK(!renderer.backButtonContains(20, 209, "weather"));
   return true;
 }
 
