@@ -2,7 +2,6 @@
 #define ESP32_GADGET_APPLICATION_LAUNCHER_RENDERER_H
 
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 
 #include <Arduino.h>
@@ -59,15 +58,9 @@ class ApplicationLauncherRenderer {
     const int cardWidth = (width - (Margin * 2) - ColumnGap) / 2;
     target->fillScreen(colours_.background);
     target->fillRect(0, 0, width, HeaderHeight, colours_.panel);
-    textRenderer_.drawText("APPLICATIONS", Margin, 5, 2, colours_.text);
-
-    char countLabel[24];
-    snprintf(
-        countLabel,
-        sizeof(countLabel),
-        "%u AVAILABLE",
-        static_cast<unsigned int>(manager.registeredCount()));
-    textRenderer_.drawText(countLabel, Margin, 24, 1, colours_.muted);
+    // One-line title is vertically centred in the same persistent header
+    // band used by the Weather and Wi-Fi settings screens.
+    textRenderer_.drawText("APPLICATIONS", Margin, 10, 2, colours_.text);
     target->drawFastHLine(0, HeaderHeight, width, colours_.accent);
 
     const uint8_t count = manager.registeredCount() <

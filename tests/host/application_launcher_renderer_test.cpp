@@ -80,13 +80,18 @@ static bool testLauncherLayoutAndHitTargets() {
 
   // Text layout remains within the recorded print buffer.
   CHECK(target->printedText[0] == String("APPLICATIONS"));
-  CHECK(target->printedText[1] == String("4 AVAILABLE"));
-  CHECK(target->printedText[2] == String("WEATHER"));
-  CHECK(target->printedText[3] == String("LAST USED"));
-  CHECK(target->printedText[4] == String("MAPS"));
-  CHECK(target->printedText[8] == String("DIAGNOSTI."));
-  CHECK(target->printedText[10] == String("BACK"));
-  CHECK(target->printedText[11] == String("SELECT AN APP"));
+  CHECK(target->printedX[0] == 8);
+  CHECK(target->printedY[0] == 10);  // 16 px text centred in 36 px header
+  CHECK(target->printedText[1] == String("WEATHER"));
+  CHECK(target->printedText[2] == String("LAST USED"));
+  CHECK(target->printedText[3] == String("MAPS"));
+  CHECK(target->printedText[7] == String("DIAGNOSTI."));
+  CHECK(target->printedText[9] == String("BACK"));
+  CHECK(target->printedText[10] == String("SELECT AN APP"));
+  for (int i = 0; i < target->printCount; ++i) {
+    CHECK(target->printedText[i] != String("4 AVAILABLE"));
+    CHECK(target->printedText[i] != String("1 AVAILABLE"));
+  }
 
   uint8_t applicationIndex = 99;
   CHECK(renderer.applicationAt(20, 60, applicationIndex, manager));
@@ -124,9 +129,11 @@ static bool testEmptyLauncherState() {
   Arduino_GFX* target = displayManager.target();
   CHECK(target != nullptr);
   CHECK(target->fillRoundRectCount == 1);  // BACK only
-  CHECK(target->printedText[2] == String("NO APPLICATIONS"));
-  CHECK(target->printedText[3] == String("BACK"));
-  CHECK(target->printedText[4] == String("SELECT AN APP"));
+  CHECK(target->printedText[0] == String("APPLICATIONS"));
+  CHECK(target->printedY[0] == 10);
+  CHECK(target->printedText[1] == String("NO APPLICATIONS"));
+  CHECK(target->printedText[2] == String("BACK"));
+  CHECK(target->printedText[3] == String("SELECT AN APP"));
   return true;
 }
 

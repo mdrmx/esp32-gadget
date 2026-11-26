@@ -34,7 +34,7 @@ An application implementation must leave itself inactive when `begin()` returns 
 ## Application launcher slice
 
 - A persistent four-square button in the top-left header opens the platform launcher. The location label is constrained to the remaining header width; the existing Wi-Fi button remains in its own hit area.
-- The launcher renders up to four registered application ids as a two-column, two-row grid. It does not introduce a separate app metadata registry or allocate applications dynamically.
+- The launcher renders up to four registered application ids as a two-column, two-row grid. Its single-line title is vertically centred; the redundant registered-app-count subtitle is omitted. The shared clock and live Wi-Fi signal indicator remain visible and continue updating while the launcher is open. It does not introduce a separate app metadata registry or allocate applications dynamically.
 - Opening the launcher records the previous app id and calls `stopActive()`; platform display, touch, connectivity, location, time and storage services remain alive.
 - Selecting a tile starts that registered app through `switchTo()`. BACK re-enters the app that was active before the launcher opened. A failed app start leaves the launcher visible so the user can retry or return.
 - The Wi-Fi settings header includes the same launcher button, so the launcher can be opened from that platform modal too.
@@ -62,7 +62,7 @@ For merged PR #62, the user confirmed the strict C++11 runner passes (`Applicati
 
 ## Launcher branch validation pending
 
-- Run the expanded strict C++11 host runner after pulling `phase4/02-application-launcher`.
+- Run the expanded strict C++11 host runner after pulling `phase4/02-application-launcher`; the renderer assertions cover the single-line, vertically centred title and verify no availability subtitle is drawn.
 - Run Arduino IDE Verify with the recorded Waveshare ESP32-S3 FQBN and ESP32 core 3.3.12.
 - Upload and confirm the app grid opens from the header button, the Weather tile and BACK both restart Weather, the Wi-Fi modal can launch the grid, and no existing Weather/Forecast gestures or Wi-Fi settings interactions regress.
 - Confirm the launcher remains touch-accessible while no app is active; multi-app selection remains pending until a second application is registered.

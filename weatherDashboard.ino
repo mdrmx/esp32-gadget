@@ -2337,7 +2337,10 @@ void drawApplicationLauncherScreen() {
       applicationManager,
       applicationLauncherController.returnApplicationId(),
       applicationLauncherMessage);
-  headerRenderer.drawWiFiIndicator(PANEL, UI_WHITE, ACCENT);
+
+  // The launcher is a platform screen, but it uses the same persistent clock
+  // and Wi-Fi indicator as Weather. drawClockOnly() also redraws the signal.
+  drawHeaderClockOnly(timeService.headerClockText());
 }
 
 bool openApplicationLauncher() {
@@ -3964,6 +3967,11 @@ void loop() {
       wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning);
   updateWiFiSignalIndicator();
   updateWiFiSettings();
+  if (applicationLauncherController.isOpen()) {
+    // Weather is suspended while the launcher is visible, so keep the clock's
+    // one-second presentation refresh alive at platform level.
+    refreshHeaderClock();
+  }
   pollTouch();
   applicationManager.update();
   delay(30);
