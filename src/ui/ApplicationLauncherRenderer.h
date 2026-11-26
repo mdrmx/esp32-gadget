@@ -9,10 +9,11 @@
 #include "../apps/ApplicationManager.h"
 #include "../hardware/DisplayManager.h"
 #include "TextRenderer.h"
+#include "icons/WeatherLauncherIcon.h"
 
-// Compact two-column launcher for the manager's fixed maximum of four apps.
-// It renders app ids as labels; friendly names/icons can be added when a
-// second application introduces a real metadata requirement.
+// Compact, mobile-style icon launcher for the manager's fixed maximum of four
+// apps. The Weather icon is a flash-resident monochrome bitmap; other apps use
+// a simple built-in fallback glyph until they provide their own artwork.
 class ApplicationLauncherRenderer {
  public:
   struct Colours {
@@ -26,11 +27,11 @@ class ApplicationLauncherRenderer {
 
   enum {
     HeaderHeight = 36,
-    Margin = 8,
-    ColumnGap = 8,
-    CardTop = 46,
-    CardHeight = 66,
-    RowGap = 8,
+    IconTileSize = 68,
+    IconTileRadius = 14,
+    GridColumnGap = 72,
+    GridTop = 50,
+    GridRowStep = 80,
     FooterTop = 210,
     BackLeft = 8,
     BackRight = 84,
@@ -55,19 +56,12 @@ class ApplicationLauncherRenderer {
     }
 
     const int width = displayManager_.width();
-    const int cardWidth = (width - (Margin * 2) - ColumnGap) / 2;
     target->fillScreen(colours_.background);
     target->fillRect(0, 0, width, HeaderHeight, colours_.panel);
-    // One-line title is vertically centred in the same persistent header
-    // band used by the Weather and Wi-Fi settings screens.
-    textRenderer_.drawText("APPLICATIONS", Margin, 10, 2, colours_.text);
+    textRenderer_.drawText("APPLICATIONS", 8, 10, 2, colours_.text);
     target->drawFastHLine(0, HeaderHeight, width, colours_.accent);
 
-    const uint8_t count = manager.registeredCount() <
-            MaximumVisibleApplications
-        ? manager.registeredCount()
-        : MaximumVisibleApplications;
-
+    const uint8_t count = visibleApplicationCount(manager);
     if (count == 0) {
       textRenderer_.drawCenteredText(
           "NO APPLICATIONS", 98, 2, colours_.muted);
@@ -75,33 +69,25 @@ class ApplicationLauncherRenderer {
 
     for (uint8_t i = 0; i < count; ++i) {
       const Application* application = manager.applicationAt(i);
-      if (application == nullptr || application->id() == nullptr ||
-          application->id()[0] == '\0') {
+      if (!isValidApplication(application)) {
         continue;
       }
 
-      const int x = cardLeft(i, cardWidth);
-      const int y = cardTop(i);
+      const int x = tileLeft(i, count, width);
+      const int y = tileTop(i, count);
       const bool isReturnApplication =
           returnApplicationId != nullptr &&
           strcmp(returnApplicationId, application->id()) == 0;
 
       target->fillRoundRect(
-          x, y, cardWidth, CardHeight, 8, colours_.panel);
+          x, y, IconTileSize, IconTileSize, IconTileRadius, colours_.panel);
       target->drawRoundRect(
-          x, y, cardWidth, CardHeight, 8,
+          x, y, IconTileSize, IconTileSize, IconTileRadius,
           isReturnApplication ? colours_.selected : colours_.muted);
-
-      String label = makeLabel(application->id(), cardWidth - 22);
-      textRenderer_.drawText(
-          label, x + 11, y + 15, 2, colours_.text);
-      textRenderer_.drawText(
-          isReturnApplication ? "LAST USED" : "OPEN",
-          x + 11, y + 43, 1,
-          isReturnApplication ? colours_.selected : colours_.muted);
+      drawApplicationIcon(target, application->id(), x, y);
     }
 
-    int footerX = Margin;
+    int footerX = 8;
     if (returnApplicationId != nullptr) {
       target->fillRoundRect(
           BackLeft, FooterTop, BackRight - BackLeft, 24, 6,
@@ -109,19 +95,17 @@ class ApplicationLauncherRenderer {
       target->drawRoundRect(
           BackLeft, FooterTop, BackRight - BackLeft, 24, 6,
           colours_.accent);
-      textRenderer_.drawText("BACK", BackLeft + 18, FooterTop + 7, 1,
-                             colours_.text);
+      textRenderer_.drawText(
+          "BACK", BackLeft + 18, FooterTop + 7, 1, colours_.text);
       footerX = BackRight + 8;
     }
 
-    // At boot there is no prior application to return to, so omit BACK and
-    // use the full footer for the prompt instead of presenting a dead control.
     const String footer = message.length() > 0
         ? message
         : String("SELECT AN APP");
-    textRenderer_.drawText(footer, footerX, FooterTop + 8, 1,
-                           message.length() > 0 ? colours_.selected
-                                               : colours_.muted);
+    textRenderer_.drawText(
+        footer, footerX, FooterTop + 8, 1,
+        message.length() > 0 ? colours_.selected : colours_.muted);
   }
 
   bool applicationAt(
@@ -129,24 +113,18 @@ class ApplicationLauncherRenderer {
       int y,
       uint8_t& applicationIndex,
       const ApplicationManager& manager) const {
+    const uint8_t count = visibleApplicationCount(manager);
     const int width = displayManager_.width();
-    const int cardWidth = (width - (Margin * 2) - ColumnGap) / 2;
-    const uint8_t count = manager.registeredCount() <
-            MaximumVisibleApplications
-        ? manager.registeredCount()
-        : MaximumVisibleApplications;
 
     for (uint8_t i = 0; i < count; ++i) {
-      const Application* application = manager.applicationAt(i);
-      if (application == nullptr || application->id() == nullptr ||
-          application->id()[0] == '\0') {
+      if (!isValidApplication(manager.applicationAt(i))) {
         continue;
       }
 
-      const int left = cardLeft(i, cardWidth);
-      const int top = cardTop(i);
-      if (x >= left && x < left + cardWidth &&
-          y >= top && y < top + CardHeight) {
+      const int left = tileLeft(i, count, width);
+      const int top = tileTop(i, count);
+      if (x >= left && x < left + IconTileSize &&
+          y >= top && y < top + IconTileSize) {
         applicationIndex = i;
         return true;
       }
@@ -168,43 +146,57 @@ class ApplicationLauncherRenderer {
   TextRenderer& textRenderer_;
   Colours colours_;
 
-  static int cardLeft(uint8_t index, int cardWidth) {
-    return Margin + (index % 2) * (cardWidth + ColumnGap);
+  static uint8_t visibleApplicationCount(
+      const ApplicationManager& manager) {
+    return manager.registeredCount() < MaximumVisibleApplications
+        ? manager.registeredCount()
+        : MaximumVisibleApplications;
   }
 
-  static int cardTop(uint8_t index) {
-    return CardTop + (index / 2) * (CardHeight + RowGap);
+  static bool isValidApplication(const Application* application) {
+    return application != nullptr &&
+           application->id() != nullptr &&
+           application->id()[0] != '\0';
   }
 
-  String makeLabel(const char* applicationId, int maximumWidth) const {
-    char labelBuffer[32];
-    strncpy(labelBuffer, applicationId, sizeof(labelBuffer) - 1);
-    labelBuffer[sizeof(labelBuffer) - 1] = '\0';
+  static int tileLeft(uint8_t index, uint8_t count, int displayWidth) {
+    if (count == 1) {
+      return (displayWidth - IconTileSize) / 2;
+    }
+    const int sideMargin =
+        (displayWidth - (IconTileSize * 2) - GridColumnGap) / 2;
+    return sideMargin + (index % 2) * (IconTileSize + GridColumnGap);
+  }
 
-    for (size_t i = 0; labelBuffer[i] != '\0'; ++i) {
-      if (labelBuffer[i] >= 'a' && labelBuffer[i] <= 'z') {
-        labelBuffer[i] = static_cast<char>(
-            labelBuffer[i] - 'a' + 'A');
-      }
+  static int tileTop(uint8_t index, uint8_t count) {
+    if (count == 1) {
+      // Centre the single registered app in the space between header and footer.
+      return (HeaderHeight + FooterTop - IconTileSize) / 2;
+    }
+    return GridTop + (index / 2) * GridRowStep;
+  }
+
+  void drawApplicationIcon(
+      Arduino_GFX* target, const char* applicationId, int tileX, int tileY
+  ) const {
+    const int iconX =
+        tileX + (IconTileSize - WeatherLauncherIcon::Width) / 2;
+    const int iconY =
+        tileY + (IconTileSize - WeatherLauncherIcon::Height) / 2;
+
+    if (strcmp(applicationId, "weather") == 0) {
+      target->drawBitmap(
+          iconX, iconY, WeatherLauncherIcon::Bitmap,
+          WeatherLauncherIcon::Width, WeatherLauncherIcon::Height,
+          colours_.text);
+      return;
     }
 
-    const size_t originalLength = strlen(labelBuffer);
-    String label(labelBuffer);
-    while (label.length() > 0 &&
-           textRenderer_.measureTextWidth(label, 2) > maximumWidth) {
-      label.remove(label.length() - 1, 1);
-    }
-
-    if (label.length() < originalLength && label.length() > 0) {
-      while (label.length() > 0 &&
-             textRenderer_.measureTextWidth(label + ".", 2) > maximumWidth) {
-        label.remove(label.length() - 1, 1);
-      }
-      if (label.length() > 0) {
-        label += ".";
-      }
-    }
-    return label;
+    // Neutral placeholder glyph for apps without a registered bitmap yet.
+    const int centreX = tileX + IconTileSize / 2;
+    const int centreY = tileY + IconTileSize / 2;
+    target->drawFastHLine(centreX - 10, centreY, 20, colours_.text);
+    target->drawFastVLine(centreX, centreY - 10, 20, colours_.text);
   }
 };
 
