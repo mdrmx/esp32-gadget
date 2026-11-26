@@ -34,7 +34,7 @@ An application implementation must leave itself inactive when `begin()` returns 
 ## Application launcher slice
 
 - A quick upward swipe that starts within the centred 64 px-wide band of the bottom 24 px opens the platform launcher. On the 320 px-wide panel the activation band is x=128–191. The swipe must travel at least 52 px upward, stay within 40 px horizontal drift and complete within 650 ms. Touches starting elsewhere along the bottom edge are not claimed by this gesture, so metric-card/list interactions remain available. There is no launcher button in the header.
-- The launcher renders up to four registered application ids as a two-column, two-row grid. Its single-line title is vertically centred; the redundant registered-app-count subtitle is omitted. The shared clock and live Wi-Fi signal indicator remain visible and continue updating while the launcher is open. It does not introduce a separate app metadata registry or allocate applications dynamically.
+- The launcher renders up to four apps as a two-column, two-row icon grid. A single registered app is centred in the available area. Tiles are 68 px rounded squares with no app-id, OPEN or LAST USED labels; the currently suspended app gets an orange outline. Weather uses the supplied cloudy glyph, converted to a 48×48 one-bit RGB565-display bitmap stored in PROGMEM and drawn in the current ink colour. Apps without artwork use a simple plus glyph until dedicated icon metadata is introduced. The shared clock and live Wi-Fi signal indicator remain visible and continue updating while the launcher is open.
 - Opening the launcher records the previous app id and calls `stopActive()`; platform display, touch, connectivity, location, time and storage services remain alive.
 - Selecting a tile starts that registered app through `switchTo()`. BACK re-enters the app that was active before the launcher opened. A failed app start leaves the launcher visible so the user can retry or return.
 - The same central-band bottom-edge gesture is handled at platform level before app/modal touch processing, so the launcher can be opened from any app or platform screen, including Wi-Fi settings. It only claims contacts that begin inside the central band; ordinary metric-card/list gestures outside that band continue to their app.
@@ -46,7 +46,7 @@ An application implementation must leave itself inactive when `begin()` returns 
 - Register and validate a second independent application, then verify launcher use and shared platform services while that app is active.
 - Move remaining sketch-owned Weather aliases, presentation state and Weather-specific input fully behind the Weather boundary.
 - Define more detailed state preservation and suspend/resume policy for longer-lived apps.
-- Provide friendly app names/icons only when a second app makes the metadata need concrete.
+- Add per-application icon metadata when a second app is introduced; the current Weather icon is intentionally a small renderer-side mapping until that requirement exists.
 - No dynamic loading, heap-owned app registration, FreeRTOS task model or asynchronous HTTP conversion is introduced.
 
 ## Host validation
@@ -60,7 +60,7 @@ sh scripts/test-bottom-edge-swipe-gesture.sh
 sh scripts/test-weather-app-asset-preparation.sh
 ```
 
-For merged PR #62, the user confirmed the strict C++11 runner passes (`ApplicationManager tests passed.`), including registration, null-id safety, lifecycle switching/restoration and Weather configure/start/stop/restart integration. This branch adds manager enumeration, launcher controller, Weather cached resume and offline reconnection-path coverage. Additional suites cover the launcher renderer and bottom-edge swipe recogniser. These expanded suites have not yet been run on the current branch; run the commands above before review.
+For merged PR #62, the user confirmed the strict C++11 runner passes (`ApplicationManager tests passed.`), including registration, null-id safety, lifecycle switching/restoration and Weather configure/start/stop/restart integration. This branch adds manager enumeration, launcher controller, Weather cached resume and offline reconnection-path coverage. Additional suites cover the launcher renderer and bottom-edge swipe recogniser. The launcher renderer suite now checks the icon bitmap coordinates, text-free tile layout, single-app centring and touch targets. Run all commands above after pulling the latest branch; the expanded suite results must still be recorded for this revision.
 
 
 
@@ -85,3 +85,19 @@ For merged PR #62, the user confirmed the strict C++11 runner passes (`Applicati
 - The user confirmed the updated launcher and navigation behaviour works as expected, including launcher-first boot, background Wi-Fi, central-band swipe, launcher redraw/touch behaviour and Wi-Fi settings access. This is user-confirmed physical regression; it is separate from the focused host test suites, which remain to be run.
 
 Independent multi-app switching remains deferred because only Weather is registered. Runtime heap/largest-block/PSRAM profiling remains outstanding.
+
+
+## E-ink-inspired OS palette (2026-11-26)
+
+The shared UI palette is now applied across the launcher, Weather, Forecast, Wi-Fi settings and status screens:
+
+| Role | RGB565 | Appearance |
+|---|---:|---|
+| Background | `0xF79C` | Warm off-white paper (RGB 246, 242, 230) |
+| Panels | `0xEF3B` | Slightly darker warm paper (RGB 238, 230, 222) |
+| Primary text / icons | `0x18C3` | Near-black ink |
+| Secondary text | `0x736C` | Muted warm grey |
+| Accent / selection / connected Wi-Fi | `0xD345` | Burnt retro orange |
+| Errors | `0xA205` | Dark rust |
+
+PNG weather-icon transparency now blends against the new warm-paper background. The Weather launcher bitmap itself is monochrome and flash-resident: it requires no runtime PNG decoding, network request or heap allocation.
