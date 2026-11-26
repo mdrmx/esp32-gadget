@@ -6,7 +6,7 @@
 
 // Draws the fixed Weather header and its live Wi-Fi signal indicator. The
 // sketch supplies connection state and a smoothed RSSI level; this class owns
-// only the indicator's presentation and keeps its hit area stable.
+// only the indicator's presentation and the Wi-Fi settings hit area.
 class HeaderRenderer {
 public:
   // Visible Wi-Fi glyph bounds. Keep these tight so redrawing the icon
@@ -16,14 +16,6 @@ public:
     WiFiIndicatorTop = 4,
     WiFiIndicatorRight = 240,
     WiFiIndicatorBottom = 32
-  };
-
-  // Touch-only target for the persistent application-launcher button.
-  enum {
-    ApplicationHitAreaLeft = 0,
-    ApplicationHitAreaTop = 0,
-    ApplicationHitAreaRight = 32,
-    ApplicationHitAreaBottom = 36
   };
 
   // Touch-only target for the Wi-Fi indicator; it remains separate from the
@@ -69,7 +61,6 @@ public:
 
     target->fillRect(
       0, 0, displayManager_.width(), HEADER_HEIGHT, panelColour);
-    drawApplicationLauncherButton(panelColour, accentColour);
     textRenderer_.drawText(
       fitLocationText(locationText), LOCATION_X, TEXT_Y,
       TEXT_SIZE, locationColour);
@@ -101,7 +92,7 @@ public:
   }
 
   // Redraw when the averaged RSSI crosses a level boundary or the connection
-  // state changes. The expanded 64x36 Wi-Fi touch target is independent of the
+  // state changes. The expanded Wi-Fi touch target is independent of the
   // smaller visible glyph bounds above.
   void drawWiFiIndicator(
     uint16_t panelColour,
@@ -149,7 +140,7 @@ public:
 private:
   enum {
     HEADER_HEIGHT = 36,
-    LOCATION_X = 36,
+    LOCATION_X = 8,
     TEXT_Y = 10,
     TEXT_SIZE = 2,
     LOCATION_MAX_WIDTH = WiFiIndicatorLeft - LOCATION_X - 8,
@@ -157,19 +148,6 @@ private:
     CLOCK_RIGHT_MARGIN = 10,
     CLOCK_MINIMUM_X_MARGIN = 70
   };
-
-  void drawApplicationLauncherButton(
-      uint16_t panelColour, uint16_t accentColour) const {
-    Arduino_GFX* target = displayManager_.target();
-    if (target == nullptr) return;
-
-    target->drawRoundRect(2, 4, 26, 28, 5, accentColour);
-    target->fillRoundRect(8, 10, 5, 5, 1, accentColour);
-    target->fillRoundRect(17, 10, 5, 5, 1, accentColour);
-    target->fillRoundRect(8, 19, 5, 5, 1, accentColour);
-    target->fillRoundRect(17, 19, 5, 5, 1, accentColour);
-    (void)panelColour;
-  }
 
   String fitLocationText(const String& locationText) const {
     String fitted = locationText;
