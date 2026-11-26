@@ -50,13 +50,14 @@ An application implementation must leave itself inactive when `begin()` returns 
 
 ## Host validation
 
-Run:
+Run both strict C++11 host suites:
 
 ```sh
 sh scripts/test-application-manager.sh
+sh scripts/test-application-launcher-renderer.sh
 ```
 
-For merged PR #62, the user confirmed the strict C++11 runner passes (`ApplicationManager tests passed.`), including registration, null-id safety, lifecycle switching/restoration and Weather configure/start/stop/restart integration. The current branch extends the same runner with manager enumeration and launcher-controller coverage: open/stop, select by registration index, failed target start, BACK restoration and opening/closing with no active app. Weather-specific lifecycle tests now assert that returning while Wi-Fi is connected preserves the prior state, redraws cached data and does not call `startConnection()` or render `Connecting Wi-Fi...`; a separate offline-start case confirms connection setup still occurs when required. This expanded suite has not yet been run on the launcher branch; rerun `sh scripts/test-application-manager.sh` before review.
+For merged PR #62, the user confirmed the strict C++11 runner passes (`ApplicationManager tests passed.`), including registration, null-id safety, lifecycle switching/restoration and Weather configure/start/stop/restart integration. The current branch extends the same runner with manager enumeration and launcher-controller coverage: open/stop, select by registration index, failed target start, BACK restoration and opening/closing with no active app. Weather-specific lifecycle tests now assert that returning while Wi-Fi is connected preserves the prior state, redraws cached data and does not call `startConnection()` or render `Connecting Wi-Fi...`; a separate offline-start case confirms connection setup still occurs when required. Neither expanded host suite has yet been run on the launcher branch; run both commands above before review.
 
 
 
@@ -73,4 +74,4 @@ For merged PR #62, the user confirmed the strict C++11 runner passes (`Applicati
 - Build footprint: 1,204,579 bytes program storage (38% of the 3,145,728-byte app partition) and 100,788 bytes global dynamic memory (30% of 327,680 bytes), leaving 226,892 bytes.
 - The uploaded image was written and its flash hash verified; the board hard-reset via RTS.
 - The user confirmed the full physical Weather regression passed with no issues noted.
-- Physical switching between multiple applications remains deferred because this slice registers only Weather and does not include a launcher or second application.
+- These firmware figures and physical regression results are the historical PR #62 lifecycle-only baseline, not validation of the launcher branch. PR #63 adds the launcher, but its Arduino Verify/upload and physical launcher regression remain pending. Independent multi-app switching also remains deferred because only Weather is registered.
