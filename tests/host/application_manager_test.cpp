@@ -62,8 +62,12 @@ static bool testRegistrationIsBoundedAndRejectsDuplicateIds() {
   FakeApplication settings("settings");
   FakeApplication diagnostics("diagnostics");
   FakeApplication duplicateWeather("weather");
+  FakeApplication nullId(nullptr);
+  FakeApplication emptyId("");
   FakeApplication overflow("overflow");
 
+  CHECK(!manager.registerApplication(nullId));
+  CHECK(!manager.registerApplication(emptyId));
   CHECK(manager.registerApplication(weather));
   CHECK(manager.registerApplication(maps));
   CHECK(manager.registerApplication(settings));
@@ -158,6 +162,13 @@ static bool testFailedSwitchRestoresPreviousApplication() {
   CHECK(manager.stopActive());
   CHECK(!manager.start("maps"));
   CHECK(manager.activeApplication() == nullptr);
+
+  // If both the requested app and the previous app fail to begin, the manager
+  // must not retain a stale active pointer.
+  weather.setBeginResult(false);
+  CHECK(!manager.switchTo("weather"));
+  CHECK(manager.activeApplication() == nullptr);
+  CHECK(manager.activeId() == nullptr);
   return true;
 }
 
