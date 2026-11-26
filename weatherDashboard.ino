@@ -39,6 +39,7 @@
 #include "src/services/Esp32WiFiGeolocationScanBackend.h"
 #include "src/services/LocationService.h"
 #include "src/services/WeatherDataService.h"
+#include "src/apps/ApplicationManager.h"
 #include "src/apps/weather/WeatherApp.h"
 #include "src/apps/weather/WeatherViewState.h"
 #include "src/apps/weather/WeatherAssetCache.h"
@@ -49,7 +50,11 @@ WeatherDataService weatherDataService;
 WeatherCurrentData& weatherCurrentData = weatherDataService.current();
 WeatherForecastData& weatherForecastData = weatherDataService.forecast();
 
-// Owns Weather application startup, update cadence and coordination.
+// Owns registered application lifecycles; the sketch remains the composition root.
+ApplicationManager applicationManager;
+
+// Weather is the first registered application. Its shared services and
+// renderers remain owned by the platform composition root below.
 WeatherApp weatherApp;
 
 // Owns the single cached provider icon buffer and its identity.
@@ -3757,8 +3762,18 @@ void setup() {
   weatherHooks.refreshStarted = weatherAppRefreshStarted;
   weatherHooks.pauseWorkflow = weatherAppPauseWorkflow;
 
-  if (!weatherApp.begin(weatherHooks)) {
-    Serial.println("Weather application failed to start: incomplete hooks or already active.");
+  if (!weatherApp.configure(weatherHooks)) {
+    Serial.println("Weather application failed to configure: incomplete hooks or already active.");
+    while (true) delay(1000);
+  }
+
+  if (!applicationManager.registerApplication(weatherApp)) {
+    Serial.println("Weather application registration failed.");
+    while (true) delay(1000);
+  }
+
+  if (!applicationManager.start("weather")) {
+    Serial.println("Weather application failed to start.");
     while (true) delay(1000);
   }
 }
@@ -3775,6 +3790,6 @@ void loop() {
       wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning);
   updateWiFiSignalIndicator();
   updateWiFiSettings();
-  weatherApp.update();
+  applicationManager.update();
   delay(30);
 }

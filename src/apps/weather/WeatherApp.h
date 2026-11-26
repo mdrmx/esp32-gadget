@@ -3,10 +3,12 @@
 
 #include <stdint.h>
 
+#include "../Application.h"
+
 // Coordinates the Weather application's startup, update cadence and recurring
 // work. Connectivity is platform-owned and injected as a small status/start
 // interface; this class never includes Arduino or Wi-Fi headers.
-class WeatherApp {
+class WeatherApp : public Application {
  public:
   enum class View : uint8_t {
     Weather = 0,
@@ -93,14 +95,28 @@ class WeatherApp {
         active_(false),
         currentWeatherSucceeded_(false) {}
 
-  // Binds platform/application operations and starts connection acquisition.
-  // No association wait, location lookup or HTTP request runs inside begin().
-  bool begin(const Hooks& hooks) {
+  const char* id() const override {
+    return "weather";
+  }
+
+  // Bind long-lived platform adapters before registering the application.
+  // The hooks are retained across end()/begin() so the manager can switch
+  // away and back without rebuilding platform-owned services.
+  bool configure(const Hooks& hooks) {
     if (active_ || !hasRequiredHooks(hooks)) {
       return false;
     }
-
     hooks_ = hooks;
+    return true;
+  }
+
+  // Starts or resumes Weather using its previously configured platform hooks.
+  // No association wait, location lookup or HTTP request runs inside begin().
+  bool begin() override {
+    if (active_ || !hasRequiredHooks(hooks_)) {
+      return false;
+    }
+
     active_ = true;
     currentWeatherSucceeded_ = false;
 
@@ -114,6 +130,11 @@ class WeatherApp {
     return true;
   }
 
+  // Compatibility convenience for existing callers and focused app tests.
+  bool begin(const Hooks& hooks) {
+    return configure(hooks) && begin();
+  }
+
   // Called from the device loop. While associating, input, clock and other
   // loop-level work continue on every pass. Each startup/refresh stage is
   // advanced separately rather than waiting for connectivity here.
@@ -121,7 +142,7 @@ class WeatherApp {
   // Location lookup, HTTP requests and asset preparation are still synchronous
   // operations when their individual stages run. Their transport-level
   // asynchronous conversion is intentionally a separate follow-up.
-  void update() {
+  void update() override {
     if (!active_) {
       return;
     }
@@ -228,11 +249,12 @@ class WeatherApp {
 
   // Leaves the application inactive without releasing shared platform
   // resources. Resource lifetime remains with the platform owners.
-  void end() {
+  void end() override {
     active_ = false;
     currentWeatherSucceeded_ = false;
     state_ = State::Inactive;
-    hooks_ = Hooks();
+    // Keep the injected platform callbacks: the ApplicationManager can
+    // reactivate Weather without reinitialising shared platform services.
   }
 
   bool isActive() const {
