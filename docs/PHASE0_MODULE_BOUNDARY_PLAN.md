@@ -354,3 +354,12 @@ PR #60's full-repository `sh scripts/test-weather-scroll-state.sh` runner passed
 - Arduino IDE Verify, firmware upload and flash hash verification passed on the Waveshare ESP32-S3 Touch LCD 2 with the recorded ESP32-S3 FQBN, ESP32 core 3.3.12 and esptool 5.3.1. Build footprint: 1,203,887 bytes program storage, 100,764 bytes global dynamic memory, 226,916 bytes remaining.
 - The user confirmed the full physical regression passed: Forecast List/Graph switching, selector redraw after viewport/canvas frames, tab transitions, buttons and existing touch/gesture/scroll interactions. A transient touch interruption cleared after a board reboot and reflash; no persistent firmware regression remained. Temporary diagnostic instrumentation was removed after diagnosis.
 
+
+
+## Phase 4 — Application lifecycle manager (first slice)
+
+The first Phase 4 slice on `phase4/01-application-manager-lifecycle` adds `src/apps/Application.h` and `src/apps/ApplicationManager.h`. The manager stores up to four non-owning application references in a fixed-size array and introduces no dynamic allocation. It owns only registration and active-app lifecycle dispatch; display, touch, connectivity, location, time, storage, and renderers remain owned by the platform composition root.
+
+`WeatherApp` implements the shared `Application` contract. The sketch configures its existing platform hooks, registers it, starts it by the stable `weather` id, and calls `ApplicationManager::update()` from the normal loop. The manager updates only the active app. Switching first validates the target, ends the old app, then starts the target; if startup fails it attempts to restore the previous app. `WeatherApp::end()` stops app-owned update work while retaining its injected callbacks for a subsequent `begin()`; shared Weather data, view state and cache objects are not destroyed by the manager. Re-entry starts the Weather startup path again.
+
+The strict C++11 runner is `sh scripts/test-application-manager.sh`. It covers bounded registration, duplicate/invalid ids, start/idempotency, active-only update, switch/stop, failed-start restoration, and Weather manager integration. Launcher UI, a second application, remaining sketch-state migration and physical app-switch validation are intentionally deferred to later Phase 4 slices.
