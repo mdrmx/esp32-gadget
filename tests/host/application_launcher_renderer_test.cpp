@@ -128,12 +128,11 @@ static bool testEmptyLauncherState() {
   renderer.draw(manager, nullptr);
   Arduino_GFX* target = displayManager.target();
   CHECK(target != nullptr);
-  CHECK(target->fillRoundRectCount == 1);  // BACK only
+  CHECK(target->fillRoundRectCount == 0);  // No previous app means no BACK control
   CHECK(target->printedText[0] == String("APPLICATIONS"));
   CHECK(target->printedY[0] == 10);
   CHECK(target->printedText[1] == String("NO APPLICATIONS"));
-  CHECK(target->printedText[2] == String("BACK"));
-  CHECK(target->printedText[3] == String("SELECT AN APP"));
+  CHECK(target->printedText[2] == String("SELECT AN APP"));
   return true;
 }
 
