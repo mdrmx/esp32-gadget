@@ -43,6 +43,10 @@ class FakeApplication : public Application {
     beginResult_ = result;
   }
 
+  void setId(const char* applicationId) {
+    applicationId_ = applicationId;
+  }
+
   int beginCalls() const { return beginCalls_; }
   int updateCalls() const { return updateCalls_; }
   int endCalls() const { return endCalls_; }
@@ -80,6 +84,33 @@ static bool testRegistrationIsBoundedAndRejectsDuplicateIds() {
   CHECK(!manager.hasApplication("missing"));
   CHECK(!manager.hasApplication(nullptr));
   CHECK(!manager.hasApplication(""));
+  return true;
+}
+
+static bool testChangingRegisteredIdToNullIsSafe() {
+  ApplicationManager manager;
+  FakeApplication unstable("weather");
+  FakeApplication maps("maps");
+
+  CHECK(manager.registerApplication(unstable));
+  CHECK(manager.registeredCount() == 1);
+
+  // The id() contract should be stable, but the manager must remain safe if
+  // an implementation violates it after registration.
+  unstable.setId(nullptr);
+  CHECK(!manager.hasApplication("weather"));
+  CHECK(!manager.start("weather"));
+  CHECK(manager.activeApplication() == nullptr);
+
+  // A null id from an existing registration must not break duplicate checks
+  // or prevent other valid applications from being registered and found.
+  CHECK(manager.registerApplication(maps));
+  CHECK(manager.registeredCount() == 2);
+  CHECK(manager.hasApplication("maps"));
+  CHECK(manager.start("maps"));
+  CHECK(manager.activeApplication() == &maps);
+  manager.update();
+  CHECK(maps.updateCalls() == 1);
   return true;
 }
 
@@ -258,6 +289,7 @@ static bool testWeatherAppUsesSharedLifecycleManager() {
 
 int main() {
   if (!testRegistrationIsBoundedAndRejectsDuplicateIds()) return EXIT_FAILURE;
+  if (!testChangingRegisteredIdToNullIsSafe()) return EXIT_FAILURE;
   if (!testStartUpdateSwitchAndStopLifecycle()) return EXIT_FAILURE;
   if (!testFailedSwitchRestoresPreviousApplication()) return EXIT_FAILURE;
   if (!testWeatherAppUsesSharedLifecycleManager()) return EXIT_FAILURE;
