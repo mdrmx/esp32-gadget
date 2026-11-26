@@ -529,7 +529,7 @@ Runtime internal free-heap/largest-block and PSRAM profiling remains a separate 
 
 **Branch:** `phase2/06-wifi-geolocation-scan-capability`  
 **PR:** [#57 — Extract Google Wi-Fi geolocation scan capability](https://github.com/mdrmx/esp32-gadget/pull/57)  
-**Status:** Implementation and local strict C++11 host test pass; Arduino Verify/upload and physical regression are pending.
+**Status:** Implementation complete; Arduino Verify/upload and general physical regression passed on 2026-11-26. The earlier strict C++11 scanner pass predates the final workspace-buffer refinement, so rerun the host runner. Google → IP → configured-coordinate provider-failure paths remain unverified on hardware because device fault injection is unavailable.
 
 - [x] Extract the neutral BSSID/RSSI/channel observation and backend contract into `WiFiGeolocationScanner.h`.
 - [x] Move BSSID eligibility, reserved/zero MAC rejection, RSSI bounds, de-duplication and strongest-15 descending ranking into the platform-neutral scanner.
@@ -537,10 +537,14 @@ Runtime internal free-heap/largest-block and PSRAM profiling remains a separate 
 - [x] Inject the scanner into `LocationService`; confirm the service no longer includes `WiFi.h` or calls `WiFi.status()`, `WiFi.scanNetworks()`, `WiFi.BSSID()`, `WiFi.RSSI()`, `WiFi.channel()` or `WiFi.scanDelete()`.
 - [x] Preserve the Google request payload, two-access-point minimum and Google → IP → configured-coordinate fallback order.
 - [x] Run `sh scripts/test-wifi-geolocation-scanner.sh` locally with `-std=c++11 -Wall -Wextra -Werror -pedantic`; result: `WiFiGeolocationScanner tests passed.`
-- [ ] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN.
-- [ ] Upload/hash verification and normal boot.
-- [ ] Confirm Google Wi-Fi location succeeds with multiple eligible APs and still reports provider accuracy when supplied.
-- [ ] Confirm insufficient/failed Google scans fall through to IP geolocation, and IP failure returns configured fallback coordinates.
-- [ ] Confirm Weather/Forecast data, location display, Settings/network scanning, touch, gestures, scrolling and all existing interactions remain intact.
+- [x] Arduino IDE Verify using the recorded Waveshare ESP32-S3 16 MB / OPI PSRAM FQBN, ESP32 core 3.3.12 / esptool 5.3.1.
+- [x] Build footprint: 1,203,379 bytes program storage (38%); 100,748 bytes global dynamic memory (30%); 226,932 bytes remaining.
+- [x] Upload/hash verification: bootloader, partition table, boot-app and application image all reported `Hash of data verified`; board hard-reset via RTS.
+- [x] General physical regression: user confirmed the tests passed on 2026-11-26.
+- [ ] Repeat `sh scripts/test-wifi-geolocation-scanner.sh` after the final in-place workspace-buffer refinement; the recorded local pass predates that optimisation.
+- [ ] Separately confirm the Google Wi-Fi provider path and returned accuracy on this exact revision; not independently evidenced by the general regression confirmation.
+- [ ] Fault-inject insufficient/failed Google scans to exercise IP geolocation, then fault-inject IP failure to exercise configured coordinates. No device fault-injection mechanism is currently available, so these fallback paths remain unverified on hardware.
+
+**Validation boundary:** firmware upload and general physical regression passed, but no claim is made that provider-failure fallback branches were exercised. A host-side provider-result seam would be a suitable future way to test the Google → IP → configured-coordinate sequence deterministically.
 
 **Known constraint:** this extraction preserves the current synchronous passive scan and synchronous HTTP/TLS requests. It does not yet make LocationService non-blocking or replace the Wi-Fi-specific HTTP transport.
