@@ -3260,7 +3260,15 @@ bool processApplicationLauncherTouch(
   if (applicationLauncherTouchActive && observation.touchReleased) {
     bool redrawLauncher = false;
     if (!applicationLauncherTouchMoved) {
-      if (applicationLauncherRenderer.backButtonContains(
+      const bool wifiIndicatorTapped =
+          applicationLauncherTouchStartX >= HeaderRenderer::WiFiHitAreaLeft &&
+          applicationLauncherTouchStartX < HeaderRenderer::WiFiHitAreaRight &&
+          applicationLauncherTouchStartY >= HeaderRenderer::WiFiHitAreaTop &&
+          applicationLauncherTouchStartY < HeaderRenderer::WiFiHitAreaBottom;
+      if (wifiIndicatorTapped) {
+        applicationLauncherMessage = "";
+        openWiFiSettings();
+      } else if (applicationLauncherRenderer.backButtonContains(
               applicationLauncherTouchStartX,
               applicationLauncherTouchStartY,
               applicationLauncherController.returnApplicationId())) {
@@ -3318,7 +3326,9 @@ void pollTouch() {
   }
 
   bool launcherGestureRecognised = false;
-  if (!applicationLauncherController.isOpen()) {
+  const bool wifiSettingsOverlayOpen =
+      wifiSettingsScreen != WiFiSettingsScreen::Closed;
+  if (!applicationLauncherController.isOpen() || wifiSettingsOverlayOpen) {
     launcherGestureRecognised = applicationLauncherGesture.update(
         observation.touchStarted,
         observation.touchPresent,
@@ -3334,10 +3344,12 @@ void pollTouch() {
   const bool consumeBottomEdgeTouch =
       applicationLauncherGesture.consumeTouchSample();
   if (launcherGestureRecognised) {
-    if (wifiSettingsScreen != WiFiSettingsScreen::Closed) {
+    if (wifiSettingsOverlayOpen) {
       closeWiFiSettings();
     }
-    openApplicationLauncher();
+    if (!applicationLauncherController.isOpen()) {
+      openApplicationLauncher();
+    }
     return;
   }
   if (consumeBottomEdgeTouch) {
