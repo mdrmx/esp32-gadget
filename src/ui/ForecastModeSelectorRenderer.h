@@ -21,23 +21,21 @@ public:
     uint16_t unselectedText;
   };
 
-  enum {
-    TrackX = 179,
-    TrackY = 41,
-    TrackWidth = 137,
-    TrackHeight = 26,
-    TrackRadius = 6,
-    ListSegmentX = 181,
-    GraphSegmentX = 248,
-    SegmentY = 41,
-    SegmentWidth = 67,
-    SegmentHeight = 24,
-    SegmentRadius = 5,
-    ListLabelX = 201,
-    GraphLabelX = 265,
-    LabelY = 50,
-    LabelTextSize = 1
-  };
+  static constexpr int16_t TrackX = 179;
+  static constexpr int16_t TrackY = 41;
+  static constexpr int16_t TrackWidth = 137;
+  static constexpr int16_t TrackHeight = 26;
+  static constexpr int16_t TrackRadius = 6;
+  static constexpr int16_t ListSegmentX = 181;
+  static constexpr int16_t GraphSegmentX = 248;
+  static constexpr int16_t SegmentY = 41;
+  static constexpr int16_t SegmentWidth = 67;
+  static constexpr int16_t SegmentHeight = 24;
+  static constexpr int16_t SegmentRadius = 5;
+  static constexpr int16_t ListLabelX = 201;
+  static constexpr int16_t GraphLabelX = 265;
+  static constexpr int16_t LabelY = 50;
+  static constexpr uint8_t LabelTextSize = 1;
 
   ForecastModeSelectorRenderer(
     DisplayManager& displayManager,
