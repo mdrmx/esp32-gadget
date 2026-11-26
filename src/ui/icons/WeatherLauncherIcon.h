@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <stdint.h>
 
-// 48x48 monochrome launcher glyph derived from assets/icons/weather-cloudy.png.
+// 48x48 monochrome launcher glyph converted from the supplied transparent cloudy PNG.
 // It is stored in flash and drawn transparently in the OS ink colour.
 namespace WeatherLauncherIcon {
 
