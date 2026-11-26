@@ -324,17 +324,18 @@ PR #58 is merged into `main` at `807c850afb1afb1588a874cb2e0acdc25032c3b3`. Its 
 
 The source guard `sh scripts/test-network-transport-boundary.sh` passed, Arduino IDE Verify passed on ESP32-S3 / core 3.3.12, and the user confirmed all physical regression tests passed. The change remains synchronous and retains the existing insecure-TLS compatibility policy. A future cellular decision must distinguish a modem with an ESP32-routed IP interface (validate PPP/socket integration) from a modem providing AT-command HTTP/TLS (add a separate transport adapter). No cellular compatibility is claimed here.
 
-## Current Phase 3 scroll-state boundary (2026-11-26)
+## Current Phase 3 shared scroll-range boundary (2026-11-26)
 
-**Branch:** `phase3/01-weather-scroll-state-boundary`  
-**Base:** merged PR #58 at `807c850afb1afb1588a874cb2e0acdc25032c3b3`  
-**Intent:** finish the remaining Phase 3 separation between per-view scroll state and renderer composition without creating a generic UI scroll framework.
+**Branch:** `phase3/02-shared-scroll-range-calculation`  
+**Base:** merged PR #59 at `429d4c1662243ffa1019dfe096763331711e3889`  
+**Intent:** reconcile the shared scroll range against metric, list and graph content bounds without moving independent view state or interaction policy.
 
-- `WeatherScrollState` owns the canonical Weather metric, Forecast List and Forecast Graph scroll positions, including the graph's pixel position and derived first-visible-record offset.
-- The model owns view-specific conversion from scroll pixels to renderer viewport inputs. Metric and list paths preserve their distinct top/bottom edge displacement rules; graph panning retains its pixel offset and separate point-index calculation.
-- `WeatherViewState` keeps tab selection and forecast presentation mode, composing a `WeatherScrollState` rather than storing scroll positions itself.
-- The renderers remain unchanged and receive only resolved offsets/displacements. Weather retains hit testing, touch ownership, drag thresholds, release suppression, animation timing, graph hold/quick-swipe/point-selection and canvas/display lifecycle.
-- `WeatherScrollState` reuses `ScrollController::clampElasticPosition` for viewport-edge bounds. The shared `ScrollController` arithmetic remains stateless; its `constexpr` helpers now use C++11-compatible single-return bodies so the Weather state headers remain usable by the strict C++11 host tests without duplicating the clamp policy.
-- Host coverage uses strict C++11 and checks initial/reset state, list/graph resets, metric/list viewport conversions, elastic top/bottom boundaries, short content and graph point indexing. Runner: `sh scripts/test-weather-scroll-state.sh`.
+- `WeatherScrollState` owns canonical metric, Forecast List and Forecast Graph offsets and resolves renderer-facing viewport positions for metric/list scrolling.
+- `WeatherViewState` keeps tab selection and forecast presentation mode; it composes the scroll state without taking ownership of gesture handling.
+- `ScrollController` remains stateless and owns drag-delta, elastic-resistance/bounds and snap calculations.
+- `WeatherScrollState::maximumScrollPixels(itemCount, visibleCount, pixelsPerItem)` centralises the maximum pixel extent from the item range and per-item spacing.
+- The Weather sketch uses the same `WeatherScrollState::maximumOffset` and `maximumScrollPixels` calculations for metric cards, Forecast List and Forecast Graph. Content counts, visible counts, spacing and canonical offsets remain view-specific.
+- Weather retains hit-testing, touch ownership, intent thresholds, per-view drag state, redraw throttling, release suppression, snap-animation timing, graph hold/quick-swipe/point-selection and canvas/display lifecycle.
+- Host coverage in `sh scripts/test-weather-scroll-state.sh` now includes maximum pixel-range behaviour for exact-fit/short content, one extra item, invalid spacing and a configuration sweep against `maximumOffset * pixelsPerItem`.
 
-Validation completed 2026-11-26: strict C++11 `weather-scroll-state` and `weather-view-state` host tests passed with GCC and Clang in the source-layout fixture. Arduino IDE Verify passed on the Waveshare ESP32-S3 Touch LCD 2 using ESP32 core 3.3.12; esptool 5.3.1 uploaded the firmware and verified the flash hash. The user confirmed all physical regression tests passed and all existing interactions were preserved, including metric-card scrolling, forecast-list scrolling, graph panning, tab transitions and existing touch/gesture behaviour. Build footprint: 1,203,491 bytes program storage (38% of the 3,145,728-byte partition), 100,748 bytes global dynamic memory (30% of 327,680 bytes), leaving 226,932 bytes. A full repository host-test run remains unverified because the build container could not resolve GitHub; runtime heap/largest-block/PSRAM measurement remains outstanding.
+PR #59's device and host validation remains recorded in its merge handover. For this follow-up branch, a focused strict C++11 range harness passed under GCC and Clang. The full repository host runner, Arduino IDE Verify, upload/boot and physical regression are still pending. The change is arithmetic-only and does not move touch, gesture, snap, animation or rendering policy. Runtime heap/largest-block/PSRAM measurement remains a separate outstanding item.
