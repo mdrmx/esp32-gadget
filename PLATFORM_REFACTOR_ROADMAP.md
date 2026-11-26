@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 5.03  
+**Version:** 5.04  
 **Last reviewed:** 2026-11-26  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -502,7 +502,7 @@ The user confirmed host runner, Arduino Verify, upload/hash verification and ful
 - [x] Define leave/re-entry behaviour: Weather stops app-owned work while inactive, retains injected platform hooks and restarts its startup path when selected again.
 - [x] Add a system-level application launcher controller, bounded two-column renderer and bottom-edge swipe-up navigation. Opening the launcher stops the active app; selecting an entry re-enters the selected app through the manager.
 - [ ] Run the expanded strict C++11 application manager, launcher renderer, bottom-edge swipe and Weather state/asset test suites on this branch and resolve any failures.
-- [ ] Arduino IDE Verify/upload and physical launcher boot, background Wi-Fi association, swipe entry, app selection and touch regression on the Waveshare ESP32-S3.
+- [x] Arduino IDE Verify/upload and user-confirmed physical launcher boot, background Wi-Fi association, swipe entry, app selection and touch regression on the Waveshare ESP32-S3 (2026-11-26).
 - [ ] Move remaining Weather-specific sketch state and compatibility aliases into the Weather application boundary incrementally.
 - [ ] Register and validate a second independent application; verify launcher interaction from that app.
 - [ ] Finalise app-state preservation and suspend/resume policy for longer-lived apps.
@@ -671,7 +671,7 @@ The user also confirmed Arduino IDE Verify, firmware upload/boot and all physica
 - **Phase 2:** PRs #52–#58 are merged. PR #56 adds bounded manager-owned retry/backoff, periodic saved-profile scans and retained `WiFiAvailabilitySnapshot` values. PR #57 extracts Google Wi-Fi scan/BSSID/RSSI/channel policy behind the ESP32 adapter. PR #58 changes `HttpRequestClient` to `NetworkClientSecure` and uses `ConnectivityManager.isConnected()` for Weather icon preparation. Its structural runner, Arduino Verify and user-confirmed physical regression passed. Google/IP provider-failure injection remains deferred/non-blocking; NVS encryption is not enabled, TLS certificate verification remains a separate security task, and runtime heap/largest-block/PSRAM profiling remains outstanding.
 
 - **Phase 3:** complete; PRs #59–#61 are merged. `WeatherScrollState` owns canonical metric/list/graph offsets and shared range calculations; the Forecast selector has its own renderer. Touch arbitration, per-view drag lifecycle, redraw throttling, animations and graph-specific interaction policy remain Weather-owned. PR #61's host runner, Arduino Verify, upload/hash verification and user-confirmed physical regression passed. Runtime heap/largest-block/PSRAM profiling remains outstanding.
-- **Phase 4:** PR #62 is merged at `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`. The fixed-capacity lifecycle manager, Weather integration, strict C++11 host tests, Arduino Verify/upload and user-confirmed physical Weather regression are complete. Current branch `phase4/02-application-launcher` adds a system-level launcher controller and renderer, bottom-edge swipe-up navigation, launcher-first boot and platform-owned background Wi-Fi startup; no launcher button is drawn in the header. The launcher keeps its clock and Wi-Fi indicator live, and tapping empty space does not repaint. Weather consumes shared connection state and restores cached data on offline resume/refresh paths. Expanded host suites and Arduino/device launcher regression remain pending. Only Weather is registered; second-app integration remains pending.
+- **Phase 4:** PR #62 is merged at `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`. The fixed-capacity lifecycle manager, Weather integration, strict C++11 host tests, Arduino Verify/upload and user-confirmed physical Weather regression are complete. Current branch `phase4/02-application-launcher` adds a system-level launcher controller and renderer, bottom-edge swipe-up navigation, launcher-first boot and platform-owned background Wi-Fi startup; no launcher button is drawn in the header. The launcher keeps its clock and Wi-Fi indicator live, and tapping empty space does not repaint. Weather consumes shared connection state and restores cached data on offline resume/refresh paths. Arduino IDE Verify/upload and user-confirmed physical launcher regression passed on 2026-11-26 (1,209,815 program bytes; 100,868 global dynamic bytes; 226,812 bytes remaining; flash hash verified and board hard-reset via RTS). Expanded host suites remain unverified. Only Weather is registered; second-app integration remains pending.
 
 - **PR #27:** `TouchSample` value-type extraction is merged after successful compile, upload and physical input regression.
 - **PR #28:** `DisplayManager` extraction and resource-lifecycle fixes are merged after successful compile, upload and physical display/input regression. Exact post-change heap comparison remains unrecorded.
@@ -1050,3 +1050,6 @@ The checked-in `sh scripts/test-forecast-mode-selector-renderer.sh` runner passe
 
 
 - **2026-11-26 — Version 5.03:** Narrowed the global launcher swipe-up activation zone to a centred 64 px-wide band within the bottom 24 px. On the 320 px display this is x=128–191. Swipes beginning elsewhere along the bottom edge are not captured, so metric-card scrolling and other app gestures remain available. Updated the strict C++11 gesture suite for both band boundaries and off-band non-capture; the new suite and physical gesture regression remain pending.
+
+
+- **2026-11-26 — Version 5.04:** Recorded successful Arduino IDE Verify/compile and upload for PR #63 on the Waveshare ESP32-S3 Touch LCD 2 using ESP32 core 3.3.12 / esptool 5.3.1. The supplied log reports 1,209,815 bytes program storage (38% of 3,145,728 bytes), 100,868 bytes global dynamic memory (30% of 327,680 bytes), leaving 226,812 bytes. The 1,044,480-byte image (730,023 compressed) was written, flash data hash verified and the board hard-reset via RTS. The user confirmed the launcher changes work correctly on hardware: launcher-first boot, background Wi-Fi, central-band swipe navigation, launcher touch/redraw behaviour and Wi-Fi settings access. The focused host test suites remain unverified on this branch; second-app integration and runtime heap/largest-block/PSRAM profiling remain outstanding.
