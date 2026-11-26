@@ -94,11 +94,8 @@ public:
 
     const int maxOffset = maximumOffset(itemCount, visibleCount);
     const int maxScrollPixels = maxOffset * rowStepPixels;
-    const int overscroll = overscrollLimitPixels > 0
-      ? overscrollLimitPixels
-      : 0;
-    const int boundedPixels = ScrollController::clampElasticPosition(
-      pixels, maxScrollPixels, overscroll);
+    const int boundedPixels = clampViewportPixels(
+      pixels, maxScrollPixels, overscrollLimitPixels);
 
     int baseOffset = boundedPixels < 0
       ? 0
