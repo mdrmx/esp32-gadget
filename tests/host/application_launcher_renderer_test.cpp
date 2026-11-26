@@ -27,7 +27,7 @@ class FakeApplication : public Application {
 };
 
 static const ApplicationLauncherRenderer::Colours LauncherColours = {
-  0xF79C, 0xEF3B, 0x18C3, 0x736C, 0xD345, 0xD345
+  0xFF9C, 0xF56A, 0x28C1, 0xD303, 0xD303, 0xD303
 };
 
 static bool testIconGridLayoutAndHitTargets() {
