@@ -25,8 +25,10 @@ class ApplicationManager {
     }
 
     for (uint8_t i = 0; i < count_; ++i) {
+      const char* registeredId = applications_[i]->id();
       if (&application == applications_[i] ||
-          strcmp(applicationId, applications_[i]->id()) == 0) {
+          (registeredId != nullptr &&
+           strcmp(applicationId, registeredId) == 0)) {
         return false;
       }
     }
@@ -131,7 +133,9 @@ class ApplicationManager {
     }
 
     for (uint8_t i = 0; i < count_; ++i) {
-      if (strcmp(applicationId, applications_[i]->id()) == 0) {
+      const char* registeredId = applications_[i]->id();
+      if (registeredId != nullptr &&
+          strcmp(applicationId, registeredId) == 0) {
         return applications_[i];
       }
     }
