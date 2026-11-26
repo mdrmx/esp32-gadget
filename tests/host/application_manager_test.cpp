@@ -220,7 +220,7 @@ static bool weatherConnectionPending() { return false; }
 static bool weatherIsConnected() { return true; }
 static void weatherResolveLocation() { ++weatherEndToEndFetchCalls; }
 static bool weatherFetchCurrent() { ++weatherEndToEndFetchCalls; return true; }
-static bool weatherFetchForecast() { ++weatherEndToEndFetchCalls; return true; }
+static void weatherFetchForecast() { ++weatherEndToEndFetchCalls; }
 static void weatherPrepareAssets() {}
 static bool weatherAvailable() { return true; }
 static WeatherApp::View weatherActiveView() { return WeatherApp::View::Weather; }
