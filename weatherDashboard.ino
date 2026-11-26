@@ -795,8 +795,8 @@ int drawOpenWeatherIcon(int x, int y) {
   WeatherPngDrawContext context;
   context.x = x;
   context.y = y;
-  // Match the warm-paper screen background. PNGdec expects 00BBGGRR.
-  // Match the supplied paper background #FEF3E2. PNGdec expects 00BBGGRR.
+  // Blend transparent PNG pixels against the supplied paper colour.
+  // PNGdec expects 00BBGGRR, so #FEF3E2 becomes 0x00E2F3FE.
   context.backgroundBGR = 0x00E2F3FEUL;
 
   int decodeResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
