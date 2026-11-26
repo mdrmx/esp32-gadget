@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <WiFi.h>
 #include <Arduino_GFX_Library.h>
 #include <PNGdec.h>
@@ -3453,9 +3454,12 @@ bool loadDemoWeatherData() {
 
   locationLat = 53.4808f;
   locationLon = -2.2426f;
-  forecastOffset = min(forecastOffset, WeatherScrollState::maximumOffset(forecastCount, ITEMS_PER_PAGE));
-  forecastGraphOffset = constrain(
-    forecastGraphOffset, 0, WeatherScrollState::maximumOffset(forecastCount, FORECAST_GRAPH_POINTS));
+  forecastOffset = (std::min)(
+    forecastOffset,
+    WeatherScrollState::maximumOffset(forecastCount, ITEMS_PER_PAGE));
+  forecastGraphOffset = (std::min)(
+    (std::max)(forecastGraphOffset, 0),
+    WeatherScrollState::maximumOffset(forecastCount, FORECAST_GRAPH_POINTS));
   forecastGraphScrollPixels =
     forecastGraphOffset * FORECAST_GRAPH_POINT_SPACING;
   return true;
@@ -3477,12 +3481,14 @@ bool fetchForecast() {
   // service state. Clamp them only after a response has produced usable data,
   // matching the original early-failure behaviour.
   if (result.success || result.pagesFetched > 0) {
-    forecastGraphOffset = constrain(
-      forecastGraphOffset, 0, WeatherScrollState::maximumOffset(forecastCount, FORECAST_GRAPH_POINTS));
+    forecastGraphOffset = (std::min)(
+      (std::max)(forecastGraphOffset, 0),
+      WeatherScrollState::maximumOffset(forecastCount, FORECAST_GRAPH_POINTS));
     forecastGraphScrollPixels =
       forecastGraphOffset * FORECAST_GRAPH_POINT_SPACING;
-    forecastOffset = constrain(
-      forecastOffset, 0, WeatherScrollState::maximumOffset(forecastCount, ITEMS_PER_PAGE));
+    forecastOffset = (std::min)(
+      (std::max)(forecastOffset, 0),
+      WeatherScrollState::maximumOffset(forecastCount, ITEMS_PER_PAGE));
   }
 
   if (!result.success) {
