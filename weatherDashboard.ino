@@ -150,6 +150,19 @@ StatusScreenRenderer statusScreenRenderer(
 // The raw reader owns I2C access and the recognizer interprets controller
 // samples. Weather chooses view owners and retains view-specific suppression/actions.
 Cst816Reader touchReader;
+
+// Temporary PR #61 hardware diagnostics. These counters are updated only from
+// loop()/pollTouch() so the Serial Monitor can distinguish controller,
+// I2C-sampling and application-input failures.
+uint32_t touchDiagnosticPolls = 0;
+uint32_t touchDiagnosticReadSuccesses = 0;
+uint32_t touchDiagnosticReadFailures = 0;
+uint8_t touchDiagnosticLastFingerCount = 0;
+uint8_t touchDiagnosticLastEvent = 0;
+uint8_t touchDiagnosticLastGesture = 0;
+uint16_t touchDiagnosticLastRawX = 0;
+uint16_t touchDiagnosticLastRawY = 0;
+
 GestureRecognizer gestureRecognizer;
 InteractionArbiter interactionArbiter;
 
@@ -3175,11 +3188,34 @@ void handleGesture(GestureCode gesture) {
 }
 
 void pollTouch() {
+  ++touchDiagnosticPolls;
   if (!touchReader.available()) return;
 
   TouchSample sample;
-  if (!touchReader.readSample(sample)) return;
+  if (!touchReader.readSample(sample)) {
+    ++touchDiagnosticReadFailures;
+    return;
+  }
+
+  ++touchDiagnosticReadSuccesses;
+  touchDiagnosticLastFingerCount = sample.fingerCount;
+  touchDiagnosticLastEvent = sample.event;
+  touchDiagnosticLastGesture = sample.gesture;
+  touchDiagnosticLastRawX = sample.rawX;
+  touchDiagnosticLastRawY = sample.rawY;
+
   const GestureObservation observation = gestureRecognizer.update(sample);
+  if (observation.touchStarted || observation.touchReleased ||
+      observation.rawGestureChanged) {
+    Serial.printf(
+      "TOUCH EVENT: fingers=%u event=%u gesture=0x%02X raw=(%u,%u) interpreted=%u\\n",
+      (unsigned)sample.fingerCount,
+      (unsigned)sample.event,
+      (unsigned)sample.gesture,
+      (unsigned)sample.rawX,
+      (unsigned)sample.rawY,
+      (unsigned)observation.gesture);
+  }
   const GestureCode gesture = observation.gesture;
 
   // The settings modal owns all touch contacts while open. Its visible header
@@ -3720,11 +3756,10 @@ void setup() {
   reportHeapSummary();
 
   DEBUG_PRINTF("Logical display size: %d x %d\n", displayManager.width(), displayManager.height());
-  touchReader.begin();
-  DEBUG_PRINTLN(
-    touchReader.available()
-      ? "CST816 detected at 0x15"
-      : "Touch controller not detected");
+  const bool touchAvailable = touchReader.begin();
+  Serial.printf(
+    "TOUCH INIT: CST816 at 0x15: %s\\n",
+    touchAvailable ? "DETECTED" : "NOT DETECTED");
 
   timeService.begin();
   currentLocationFix =
@@ -3776,5 +3811,27 @@ void loop() {
   updateWiFiSignalIndicator();
   updateWiFiSettings();
   weatherApp.update();
+
+  // Report every two seconds so missing controller detection, I2C read
+  // failures and an inactive WeatherApp input hook are easy to distinguish.
+  static uint32_t lastTouchDiagnosticReportMs = 0;
+  const uint32_t touchDiagnosticNowMs = millis();
+  if (touchDiagnosticNowMs - lastTouchDiagnosticReportMs >= 2000UL) {
+    lastTouchDiagnosticReportMs = touchDiagnosticNowMs;
+    Serial.printf(
+      "TOUCH DIAG: appActive=%u appReady=%u controller=%s polls=%lu reads=%lu readErrors=%lu last=(fingers:%u event:%u gesture:0x%02X raw:%u,%u)\\n",
+      weatherApp.isActive() ? 1U : 0U,
+      weatherApp.isReady() ? 1U : 0U,
+      touchReader.available() ? "available" : "unavailable",
+      (unsigned long)touchDiagnosticPolls,
+      (unsigned long)touchDiagnosticReadSuccesses,
+      (unsigned long)touchDiagnosticReadFailures,
+      (unsigned)touchDiagnosticLastFingerCount,
+      (unsigned)touchDiagnosticLastEvent,
+      (unsigned)touchDiagnosticLastGesture,
+      (unsigned)touchDiagnosticLastRawX,
+      (unsigned)touchDiagnosticLastRawY);
+  }
+
   delay(30);
 }
