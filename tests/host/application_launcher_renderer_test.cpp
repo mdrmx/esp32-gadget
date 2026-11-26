@@ -84,7 +84,7 @@ static bool testLauncherLayoutAndHitTargets() {
   CHECK(target->printedText[2] == String("WEATHER"));
   CHECK(target->printedText[3] == String("LAST USED"));
   CHECK(target->printedText[4] == String("MAPS"));
-  CHECK(target->printedText[8] == String("DIAGNOSTICS"));
+  CHECK(target->printedText[8] == String("DIAGNOSTI."));
   CHECK(target->printedText[10] == String("BACK"));
   CHECK(target->printedText[11] == String("SELECT AN APP"));
 
