@@ -135,7 +135,7 @@ class WeatherApp : public Application {
         // The platform launcher starts the shared boot-time association.
         // Weather waits for that service and never initiates Wi-Fi itself.
         state_ = State::Connecting;
-        drawCachedViewOrLoading("Waiting for Wi-Fi...");
+        hooks_.drawLoading("Waiting for Wi-Fi...");
       }
       return true;
     }
@@ -168,9 +168,9 @@ class WeatherApp : public Application {
       return true;
     }
 
-    // A link can disappear while the launcher is open. Restart only the
-    // relevant connection stage, then recover the workflow from its safe
-    // beginning; do not tear down or reconfigure the platform Wi-Fi service.
+    // A link can disappear while the launcher is open. Preserve the relevant
+    // connection-wait stage and let the platform connectivity manager recover
+    // in the background; Weather never starts or reconfigures Wi-Fi.
     if (!connected) {
       const bool refreshFlow =
           previousState == State::RefreshingCurrentWeather ||
