@@ -334,6 +334,7 @@ The source guard `sh scripts/test-network-transport-boundary.sh` passed, Arduino
 - The model owns view-specific conversion from scroll pixels to renderer viewport inputs. Metric and list paths preserve their distinct top/bottom edge displacement rules; graph panning retains its pixel offset and separate point-index calculation.
 - `WeatherViewState` keeps tab selection and forecast presentation mode, composing a `WeatherScrollState` rather than storing scroll positions itself.
 - The renderers remain unchanged and receive only resolved offsets/displacements. Weather retains hit testing, touch ownership, drag thresholds, release suppression, animation timing, graph hold/quick-swipe/point-selection and canvas/display lifecycle.
+- `WeatherScrollState` reuses `ScrollController::clampElasticPosition` for viewport-edge bounds. The shared `ScrollController` arithmetic remains stateless; its `constexpr` helpers now use C++11-compatible single-return bodies so the Weather state headers remain usable by the strict C++11 host tests without duplicating the clamp policy.
 - Host coverage uses strict C++11 and checks initial/reset state, list/graph resets, metric/list viewport conversions, elastic top/bottom boundaries, short content and graph point indexing. Runner: `sh scripts/test-weather-scroll-state.sh`.
 
 Device Verify, upload/boot and physical regression for this branch must be recorded separately; this source change does not claim those validations.
