@@ -1,4 +1,4 @@
-**Status:** Connectivity PRs #52–#57 are merged. PR #57 merged into `main` at `8185eff26c955e5d24f425a2bb34856b1b87fc77`; the user confirmed the final strict C++11 scanner suite, Arduino Verify/upload and general physical regression. Google/IP API-failure injection remains deliberately deferred/non-blocking and those branches are unverified. Current follow-up branch `phase2/07-network-http-transport-boundary` replaces `WiFiClientSecure` with ESP32 `NetworkClientSecure` in `HttpRequestClient` and routes the Weather icon-preparation guard through `ConnectivityManager.isConnected()`. The new source-boundary runner is structural only; Arduino Verify/upload and hardware regression for this follow-up remain pending. Phase 2 remains in progress.
+**Status:** Connectivity PRs #52–#57 are merged. PR #57 merged into `main` at `8185eff26c955e5d24f425a2bb34856b1b87fc77`; the user confirmed the final strict C++11 scanner suite, Arduino Verify/upload and general physical regression. Google/IP API-failure injection remains deliberately deferred/non-blocking and those branches are unverified. Current follow-up branch `phase2/07-network-http-transport-boundary` replaces `WiFiClientSecure` with ESP32 `NetworkClientSecure` in `HttpRequestClient` and routes the Weather icon-preparation guard through `ConnectivityManager.isConnected()`. The source-boundary runner passed, Arduino IDE Verify passed on ESP32-S3 / ESP32 core 3.3.12, and the user confirmed all physical regression tests passed on 2026-11-26. Compile-time footprint: 1,203,415 program bytes, 100,748 global dynamic bytes and 226,932 bytes remaining. Runtime heap/PSRAM profiling remains outstanding. Phase 2 remains in progress.
 
 **Merged Wi-Fi manager:** PR #55 merged into `main` at `4ba2017a02eb6e614b94c0f3df79e7540ed81e12` after the user confirmed the final UI revision and hardware validation. It adds the saved/scan profile screens, asynchronous scanning, availability tags, password keyboard feedback, live RSSI indicator and shared touch-scroll presentation. The final selected-profile card outline, centred SSID/badge and 8 px badge inset are part of the merged implementation; no PR #55 validation gate remains open.
 **Base:** `main` at `32a9e3908b5af96759590c94cd8a3a123a1ac223`  
@@ -319,7 +319,7 @@ The saved-profile badges are based on the most recent successfully completed vis
 
 **Branch:** `phase2/07-network-http-transport-boundary`  
 **Base:** merged PR #57 at `8185eff26c955e5d24f425a2bb34856b1b87fc77`  
-**Status:** Implemented on the branch; structural test, Arduino Verify/upload and physical regression remain to be run.
+**Status:** Implemented and validated on the branch. The structural test and Arduino IDE Verify passed; the user confirmed all physical regression tests passed on 2026-11-26. Runtime heap/largest-block/PSRAM profiling remains outstanding.
 
 ### Changes
 
@@ -332,9 +332,10 @@ The saved-profile badges are based on the most recent successfully completed vis
 
 This change targets the ESP32 core's `NetworkClient` / `NetworkClientSecure` TCP/IP stack. It does **not** provide generic arbitrary-modem support or implement PPP. A future modem using ESP32's IP network interface may be able to use the same socket path, but this must be checked against the selected modem/library. A modem exposing only AT-command HTTP/TLS will need a separate request transport adapter. All request calls remain synchronous and retain the existing timeout and TLS policy.
 
-### Validation still required
+### Validation record
 
-- [ ] Run `sh scripts/test-network-transport-boundary.sh` on the branch.
-- [ ] Arduino IDE Verify with the recorded Waveshare ESP32-S3 / ESP32 core 3.3.12 configuration.
-- [ ] Upload, confirm normal boot and run the existing Weather/Forecast, connectivity, Wi-Fi settings, icon-download and touch/scroll/gesture regression.
-- [ ] Record the resulting firmware footprint; do not infer runtime heap/PSRAM from compile-time figures.
+- [x] User ran `sh scripts/test-network-transport-boundary.sh`; output: `Network transport boundary checks passed.`
+- [x] Arduino IDE Verify passed on Waveshare ESP32-S3 using ESP32 core 3.3.12 / esptool 5.3.1, 16 MB flash, `app3M_fat9M_16MB` partition and OPI PSRAM.
+- [x] User confirmed all physical regression tests passed on 2026-11-26.
+- [x] Compile-time footprint: 1,203,415 bytes sketch (38% of 3,145,728-byte app partition); 100,748 bytes global variables (30% of 327,680-byte dynamic-memory region); 226,932 bytes reported remaining.
+- [ ] Runtime heap / largest-block / PSRAM measurements remain a separate follow-up; they must not be inferred from compile-time figures.
