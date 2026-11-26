@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include "secrets.h"
 #include "src/input/TouchSample.h"
+#include "src/input/BottomEdgeSwipeGesture.h"
 #include "src/input/GestureCode.h"
 #include "src/input/GestureRecognizer.h"
 #include "src/input/InteractionArbiter.h"
@@ -159,6 +160,7 @@ StatusScreenRenderer statusScreenRenderer(
 // samples. Weather chooses view owners and retains view-specific suppression/actions.
 Cst816Reader touchReader;
 GestureRecognizer gestureRecognizer;
+BottomEdgeSwipeGesture applicationLauncherGesture;
 InteractionArbiter interactionArbiter;
 
 // Duplicate-event suppression and navigation debounce remain Weather policy.
@@ -310,10 +312,6 @@ bool wifiHeaderTouchValid = false;
 int wifiHeaderTouchStartX = 0;
 int wifiHeaderTouchStartY = 0;
 
-bool applicationLauncherButtonTouchActive = false;
-bool applicationLauncherButtonTouchValid = false;
-int applicationLauncherButtonTouchStartX = 0;
-int applicationLauncherButtonTouchStartY = 0;
 bool applicationLauncherTouchActive = false;
 bool applicationLauncherTouchMoved = false;
 int applicationLauncherTouchStartX = 0;
@@ -2275,7 +2273,17 @@ void openWiFiSettings() {
   drawWiFiSettingsScreen();
 }
 
+void drawApplicationLauncherScreen();
+
 void restoreWeatherScreenAfterWiFiSettings() {
+  if (applicationLauncherController.isOpen()) {
+    // The launcher remains the foreground screen while the platform Wi-Fi
+    // manager is open. Do not reveal or refresh Weather behind it.
+    wifiPendingWeatherRefresh = false;
+    drawApplicationLauncherScreen();
+    return;
+  }
+
   if (wifiPendingWeatherRefresh && weatherApp.isReady()) {
     wifiPendingWeatherRefresh = false;
     weatherApp.requestRefresh();
@@ -2350,7 +2358,6 @@ bool openApplicationLauncher() {
   applicationLauncherMessage = "";
   applicationLauncherTouchActive = false;
   applicationLauncherTouchMoved = false;
-  applicationLauncherButtonTouchActive = false;
   drawApplicationLauncherScreen();
   return true;
 }
@@ -3075,20 +3082,12 @@ bool processWiFiSettingsTouch(
       wifiListTouchDragActive = false;
 
       if (!wifiUiTouchMoved) {
-        const bool headerApplicationsTapped =
-            wifiUiTouchStartX >= HeaderRenderer::ApplicationHitAreaLeft &&
-            wifiUiTouchStartX < HeaderRenderer::ApplicationHitAreaRight &&
-            wifiUiTouchStartY >= HeaderRenderer::ApplicationHitAreaTop &&
-            wifiUiTouchStartY < HeaderRenderer::ApplicationHitAreaBottom;
         const bool headerWiFiTapped =
             wifiUiTouchStartX >= HeaderRenderer::WiFiHitAreaLeft &&
             wifiUiTouchStartX < HeaderRenderer::WiFiHitAreaRight &&
             wifiUiTouchStartY >= HeaderRenderer::WiFiHitAreaTop &&
             wifiUiTouchStartY < HeaderRenderer::WiFiHitAreaBottom;
-        if (headerApplicationsTapped) {
-          closeWiFiSettings();
-          openApplicationLauncher();
-        } else if (headerWiFiTapped) {
+        if (headerWiFiTapped) {
           closeWiFiSettings();
         } else {
           handleWiFiSettingsTap(wifiUiTouchStartX, wifiUiTouchStartY);
@@ -3231,51 +3230,6 @@ void handleGesture(GestureCode gesture) {
 }
 
 
-bool processApplicationLauncherButtonTouch(
-    const TouchSample& sample,
-    const GestureObservation& observation) {
-  if (wifiSettingsScreen != WiFiSettingsScreen::Closed ||
-      applicationLauncherController.isOpen()) {
-    return false;
-  }
-
-  int x = 0;
-  int y = 0;
-  if (observation.touchPresent) {
-    touchCoordinatesToScreen(sample, x, y);
-  }
-
-  if (observation.touchStarted &&
-      x >= HeaderRenderer::ApplicationHitAreaLeft &&
-      x < HeaderRenderer::ApplicationHitAreaRight &&
-      y >= HeaderRenderer::ApplicationHitAreaTop &&
-      y < HeaderRenderer::ApplicationHitAreaBottom) {
-    applicationLauncherButtonTouchActive = true;
-    applicationLauncherButtonTouchValid = true;
-    applicationLauncherButtonTouchStartX = x;
-    applicationLauncherButtonTouchStartY = y;
-  }
-
-  if (applicationLauncherButtonTouchActive &&
-      observation.touchPresent &&
-      (abs(x - applicationLauncherButtonTouchStartX) > 14 ||
-       abs(y - applicationLauncherButtonTouchStartY) > 14)) {
-    applicationLauncherButtonTouchValid = false;
-  }
-
-  if (applicationLauncherButtonTouchActive && observation.touchReleased) {
-    const bool tapped = applicationLauncherButtonTouchValid;
-    applicationLauncherButtonTouchActive = false;
-    applicationLauncherButtonTouchValid = false;
-    if (tapped) {
-      openApplicationLauncher();
-    }
-    return true;
-  }
-
-  return applicationLauncherButtonTouchActive;
-}
-
 bool processApplicationLauncherTouch(
     const TouchSample& sample,
     const GestureObservation& observation) {
@@ -3304,12 +3258,17 @@ bool processApplicationLauncherTouch(
   }
 
   if (applicationLauncherTouchActive && observation.touchReleased) {
+    bool redrawLauncher = false;
     if (!applicationLauncherTouchMoved) {
-      if (applicationLauncherRenderer.backButtonContains(
+      const bool canReturnToPreviousApplication =
+          applicationLauncherController.returnApplicationId() != nullptr;
+      if (canReturnToPreviousApplication &&
+          applicationLauncherRenderer.backButtonContains(
               applicationLauncherTouchStartX,
               applicationLauncherTouchStartY)) {
         if (!applicationLauncherController.back()) {
           applicationLauncherMessage = "COULD NOT RESUME APP";
+          redrawLauncher = true;
         } else {
           applicationLauncherMessage = "";
         }
@@ -3322,6 +3281,7 @@ bool processApplicationLauncherTouch(
                 applicationManager)) {
           if (!applicationLauncherController.select(applicationIndex)) {
             applicationLauncherMessage = "APP FAILED TO START";
+            redrawLauncher = true;
           } else {
             applicationLauncherMessage = "";
           }
@@ -3331,7 +3291,9 @@ bool processApplicationLauncherTouch(
 
     applicationLauncherTouchActive = false;
     applicationLauncherTouchMoved = false;
-    if (applicationLauncherController.isOpen()) {
+    // Ignore touches outside an app tile/BACK. In particular, do not repaint
+    // the full-screen launcher for a harmless background tap.
+    if (applicationLauncherController.isOpen() && redrawLauncher) {
       drawApplicationLauncherScreen();
     }
   }
@@ -3347,18 +3309,43 @@ void pollTouch() {
   const GestureObservation observation = gestureRecognizer.update(sample);
   const GestureCode gesture = observation.gesture;
 
+  // The bottom-edge swipe is a platform gesture, so it takes precedence over
+  // app gestures and modal touches. Use the release sample's final coordinates
+  // even though the recognizer marks that sample as no longer touching.
+  int launcherGestureX = 0;
+  int launcherGestureY = 0;
+  if (observation.touchStarted || observation.touchPresent ||
+      observation.touchReleased) {
+    touchCoordinatesToScreen(sample, launcherGestureX, launcherGestureY);
+  }
+
+  if (!applicationLauncherController.isOpen() &&
+      applicationLauncherGesture.update(
+          observation.touchStarted,
+          observation.touchPresent,
+          observation.touchReleased,
+          launcherGestureX,
+          launcherGestureY,
+          millis(),
+          displayManager.height())) {
+    if (wifiSettingsScreen != WiFiSettingsScreen::Closed) {
+      closeWiFiSettings();
+    }
+    openApplicationLauncher();
+    return;
+  }
+  if (applicationLauncherController.isOpen()) {
+    applicationLauncherGesture.reset();
+  }
+
   // The launcher is platform-level input: it remains usable while the active
   // application is stopped and the manager has no app receiving updates.
   if (processApplicationLauncherTouch(sample, observation)) {
     return;
   }
 
-  // The settings modal owns all touch contacts while open.
+  // The settings modal owns all remaining touch contacts while open.
   if (processWiFiSettingsTouch(sample, observation)) {
-    return;
-  }
-
-  if (processApplicationLauncherButtonTouch(sample, observation)) {
     return;
   }
 
@@ -3718,10 +3705,6 @@ uint32_t weatherAppMillisNow() {
   return (uint32_t)millis();
 }
 
-bool weatherAppStartConnection(uint32_t nowMs) {
-  return startWiFiConnection(nowMs);
-}
-
 bool weatherAppConnectionPendingForApp() {
   return weatherAppConnectionPending();
 }
@@ -3923,7 +3906,6 @@ void setup() {
   weatherHooks.syncTime = weatherAppSyncTime;
   weatherHooks.refreshClock = weatherAppRefreshClock;
   weatherHooks.millisNow = weatherAppMillisNow;
-  weatherHooks.startConnection = weatherAppStartConnection;
   weatherHooks.connectionPending = weatherAppConnectionPendingForApp;
   weatherHooks.isConnected = weatherAppIsConnected;
   weatherHooks.resolveLocation = weatherAppResolveLocation;
@@ -3949,10 +3931,14 @@ void setup() {
     while (true) delay(1000);
   }
 
-  if (!applicationManager.start("weather")) {
-    Serial.println("Weather application failed to start.");
+  // Boot into the platform launcher with no application active. Draw the
+  // launcher first, then start the preferred Wi-Fi association asynchronously
+  // from the platform layer; ConnectivityManager keeps it advancing in loop().
+  if (!openApplicationLauncher()) {
+    Serial.println("Application launcher failed to open.");
     while (true) delay(1000);
   }
+  startWiFiConnection(millis());
 }
 
 // =====================================================
