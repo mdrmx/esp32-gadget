@@ -21,16 +21,38 @@ static bool swipe(
     uint32_t startMs,
     uint32_t endMs) {
   CHECK(!gesture.update(
-      true, true, false, startX, startY, startMs, 240));
+      true, true, false, startX, startY, startMs, 320, 240));
   CHECK(!gesture.update(
-      false, true, false, endX, endY, endMs - 1, 240));
+      false, true, false, endX, endY, endMs - 1, 320, 240));
   return gesture.update(
-      false, false, true, endX, endY, endMs, 240);
+      false, false, true, endX, endY, endMs, 320, 240);
 }
 
 static bool testQuickBottomEdgeSwipeIsRecognised() {
   BottomEdgeSwipeGesture gesture;
   CHECK(swipe(gesture, 158, 234, 160, 174, 100, 360));
+  return true;
+}
+
+static bool testGestureRequiresCentralActivationBand() {
+  BottomEdgeSwipeGesture left;
+  CHECK(!swipe(left, 40, 234, 42, 174, 100, 360));
+  CHECK(!left.consumeTouchSample());
+
+  BottomEdgeSwipeGesture right;
+  CHECK(!swipe(right, 260, 234, 258, 174, 100, 360));
+  CHECK(!right.consumeTouchSample());
+
+  // On a 320 px display, the 64 px band is [128, 192).
+  BottomEdgeSwipeGesture innerLeftBoundary;
+  CHECK(swipe(innerLeftBoundary, 128, 234, 130, 174, 100, 360));
+
+  BottomEdgeSwipeGesture innerRightBoundary;
+  CHECK(swipe(innerRightBoundary, 191, 234, 189, 174, 100, 360));
+
+  BottomEdgeSwipeGesture outsideRightBoundary;
+  CHECK(!swipe(outsideRightBoundary, 192, 234, 190, 174, 100, 360));
+  CHECK(!outsideRightBoundary.consumeTouchSample());
   return true;
 }
 
@@ -57,11 +79,11 @@ static bool testGestureRejectsSlowAndHorizontalContacts() {
 
 static bool testBottomEdgeContactsAreConsumedEvenWhenNotGestures() {
   BottomEdgeSwipeGesture gesture;
-  CHECK(!gesture.update(true, true, false, 158, 234, 100, 240));
+  CHECK(!gesture.update(true, true, false, 158, 234, 100, 320, 240));
   CHECK(gesture.consumeTouchSample());
-  CHECK(!gesture.update(false, true, false, 159, 220, 150, 240));
+  CHECK(!gesture.update(false, true, false, 159, 220, 150, 320, 240));
   CHECK(gesture.consumeTouchSample());
-  CHECK(!gesture.update(false, false, true, 159, 220, 170, 240));
+  CHECK(!gesture.update(false, false, true, 159, 220, 170, 320, 240));
   CHECK(gesture.consumeTouchSample());
   CHECK(!gesture.consumeTouchSample());
   return true;
@@ -69,9 +91,9 @@ static bool testBottomEdgeContactsAreConsumedEvenWhenNotGestures() {
 
 static bool testNonBottomContactsAreNotClaimed() {
   BottomEdgeSwipeGesture gesture;
-  CHECK(!gesture.update(true, true, false, 158, 180, 100, 240));
+  CHECK(!gesture.update(true, true, false, 158, 180, 100, 320, 240));
   CHECK(!gesture.consumeTouchSample());
-  CHECK(!gesture.update(false, false, true, 158, 180, 140, 240));
+  CHECK(!gesture.update(false, false, true, 158, 180, 140, 320, 240));
   CHECK(!gesture.consumeTouchSample());
   return true;
 }
@@ -86,6 +108,7 @@ static bool testGestureHandlesMillisecondRollover() {
 
 int main() {
   if (!testQuickBottomEdgeSwipeIsRecognised()) return EXIT_FAILURE;
+  if (!testGestureRequiresCentralActivationBand()) return EXIT_FAILURE;
   if (!testGestureRequiresBottomEdgeOrigin()) return EXIT_FAILURE;
   if (!testGestureRequiresUpwardTravel()) return EXIT_FAILURE;
   if (!testGestureRejectsSlowAndHorizontalContacts()) return EXIT_FAILURE;
