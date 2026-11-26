@@ -6,8 +6,8 @@
 #include "../Application.h"
 
 // Coordinates the Weather application's startup, update cadence and recurring
-// work. Connectivity is platform-owned and injected as a small status/start
-// interface; this class never includes Arduino or Wi-Fi headers.
+// work. Connectivity is platform-owned; Weather observes shared link state but
+// does not initiate Wi-Fi association. This class has no Arduino/Wi-Fi headers.
 class WeatherApp : public Application {
  public:
   enum class View : uint8_t {
@@ -35,9 +35,7 @@ class WeatherApp : public Application {
     void (*refreshClock)();
     uint32_t (*millisNow)();
 
-    // ConnectivityManager remains owned by the platform composition root.
-    // startConnection must only initiate the attempt and must never wait.
-    bool (*startConnection)(uint32_t nowMs);
+    // ConnectivityManager remains owned and advanced by the platform.
     bool (*connectionPending)();
     bool (*isConnected)();
 
@@ -63,7 +61,6 @@ class WeatherApp : public Application {
           syncTime(nullptr),
           refreshClock(nullptr),
           millisNow(nullptr),
-          startConnection(nullptr),
           connectionPending(nullptr),
           isConnected(nullptr),
           resolveLocation(nullptr),
@@ -135,16 +132,18 @@ class WeatherApp : public Application {
         state_ = State::ResolvingLocation;
         drawCachedViewOrLoading("Finding your location...");
       } else {
+        // The platform launcher starts the shared boot-time association.
+        // Weather waits for that service and never initiates Wi-Fi itself.
         state_ = State::Connecting;
-        hooks_.drawLoading("Connecting Wi-Fi...");
-        hooks_.startConnection(now);
+        drawCachedViewOrLoading("Waiting for Wi-Fi...");
       }
       return true;
     }
 
-    // Returning to an already-ready Weather app should reveal its cached view
-    // immediately and retain the existing refresh schedule.
-    if (previousState == State::Ready && connected) {
+    // A ready app always restores its cached view, even if the shared link
+    // dropped while it was suspended in the launcher. The platform connectivity
+    // manager owns any background recovery; Weather keeps its refresh cadence.
+    if (previousState == State::Ready) {
       drawCachedViewOrError("Weather unavailable");
       return true;
     }
@@ -164,10 +163,7 @@ class WeatherApp : public Application {
                 : "Refreshing weather...");
       } else {
         state_ = previousState;
-        hooks_.drawLoading("Connecting Wi-Fi...");
-        if (!hooks_.connectionPending()) {
-          hooks_.startConnection(now);
-        }
+        drawCachedViewOrLoading("Connecting Wi-Fi...");
       }
       return true;
     }
@@ -181,10 +177,7 @@ class WeatherApp : public Application {
           previousState == State::RefreshingForecast ||
           previousState == State::PreparingRefreshAssets;
       state_ = refreshFlow ? State::RefreshConnecting : State::Connecting;
-      hooks_.drawLoading("Connecting Wi-Fi...");
-      if (!hooks_.connectionPending()) {
-        hooks_.startConnection(now);
-      }
+      drawCachedViewOrLoading("Connecting Wi-Fi...");
       return true;
     }
 
@@ -271,7 +264,6 @@ class WeatherApp : public Application {
             hooks_.refreshStarted();
           }
           state_ = State::RefreshConnecting;
-          hooks_.startConnection(now);
         }
         return;
 
@@ -341,7 +333,6 @@ class WeatherApp : public Application {
       hooks_.refreshStarted();
     }
     state_ = State::RefreshConnecting;
-    hooks_.startConnection(now);
     return true;
   }
 
@@ -400,7 +391,6 @@ class WeatherApp : public Application {
            hooks.syncTime != nullptr &&
            hooks.refreshClock != nullptr &&
            hooks.millisNow != nullptr &&
-           hooks.startConnection != nullptr &&
            hooks.connectionPending != nullptr &&
            hooks.isConnected != nullptr &&
            hooks.resolveLocation != nullptr &&
