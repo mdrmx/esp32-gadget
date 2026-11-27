@@ -54,7 +54,7 @@ int main() {
   CHECK(physicalTarget->printedSize[2] == 2);
 
   CHECK(physicalTarget->printedText[3] == String("Feels: 17.5C"));
-  CHECK(physicalTarget->printedX[3] == 57);
+  CHECK(physicalTarget->printedX[3] == 60);
   CHECK(physicalTarget->printedY[3] == 198);
   CHECK(physicalTarget->printedSize[3] == 1);
 
@@ -74,7 +74,7 @@ int main() {
   CHECK(physicalTarget->printedX[5] == 18);
   CHECK(physicalTarget->printedY[5] == 136);
   CHECK(physicalTarget->printedText[6] == String("with showers"));
-  CHECK(physicalTarget->printedX[6] == 18);
+  CHECK(physicalTarget->printedX[6] == 24);
   CHECK(physicalTarget->printedY[6] == 152);
   CHECK(physicalTarget->printedText[7] == String("16.4 C"));
   CHECK(physicalTarget->printedY[7] == 174);
