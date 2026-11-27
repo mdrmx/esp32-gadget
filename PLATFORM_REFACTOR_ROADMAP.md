@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 5.26  
+**Version:** 5.27  
 **Last reviewed:** 2026-11-27  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -1105,3 +1105,5 @@ The checked-in `sh scripts/test-forecast-mode-selector-renderer.sh` runner passe
 - **2026-11-27 — Version 5.25:** Recorded the user's successful rerun of `sh scripts/test-forecast-graph-renderer.sh` (`ForecastGraphRenderer tests passed.`) after the -20 px elastic-scroll expectation was corrected. The metric-card, metrics-viewport, metric-catalog, selector and Forecast List viewport host runners were also previously confirmed passing. The latest seven-hour graph spacing, equal 22 px edge padding, gridline/curve/icon styling and overall Weather UI revision passed the user's Waveshare hardware regression. Launcher and Forecast List item renderer host-test status remains unconfirmed; no result is inferred. The Weather identity/Current Conditions/Forecast presentation branch is ready for PR review.
 
 - **2026-11-27 — Version 5.26:** Addressed all seven inline review threads on PR #65 concerning feels-like temperature formatting. The Weather sketch now emits a space before the Celsius unit, matching the current-temperature value; the WeatherConditionsRenderer host fixtures and assertions were updated for every affected sample, including zero and transition cases. All seven review threads were replied to and resolved. The existing Forecast Graph host result and Waveshare hardware regression remain valid; rerun `sh scripts/test-weather-conditions-renderer.sh` to confirm this last formatting/test update.
+
+- **2026-11-27 — Version 5.27:** Updated the `WeatherConditionsRenderer` host test's centred feels-like text coordinate from x=60 to x=57 to account for the additional space before `C` (one extra 6 px glyph at text size 1). This is an expected text-width/centering change only; no renderer positioning constants or hardware layout were changed. `sh scripts/test-weather-conditions-renderer.sh` must be rerun after this assertion update.
