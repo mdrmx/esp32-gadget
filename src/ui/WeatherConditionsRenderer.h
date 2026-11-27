@@ -36,28 +36,28 @@ public:
         colours.location);
     }
 
-    // The large temperature and smaller feels-like line sit to the right of
-    // the compact provider icon; the description remains centred beneath it.
-    textRenderer_.drawText(
-      temperatureText,
-      TEMPERATURE_X,
-      TEMPERATURE_Y,
-      TEMPERATURE_TEXT_SIZE,
-      colours.temperature);
-    textRenderer_.drawText(
-      feelsLikeText,
-      FEELS_LIKE_X,
-      FEELS_LIKE_Y,
-      FEELS_LIKE_TEXT_SIZE,
-      colours.feelsLike);
-
+    // Keep the condition description and both temperature readings in one
+    // vertical stack beneath the provider icon.
     textRenderer_.drawWrappedCenteredText(
       description,
-      DESCRIPTION_CENTRE_X,
+      CONTENT_CENTRE_X,
       DESCRIPTION_MAX_WIDTH,
       DESCRIPTION_TOP,
       DESCRIPTION_TEXT_SIZE,
       colours.description);
+
+    textRenderer_.drawCenteredWeatherLine(
+      temperatureText,
+      CONTENT_CENTRE_X,
+      TEMPERATURE_Y,
+      TEMPERATURE_TEXT_SIZE,
+      colours.temperature);
+    textRenderer_.drawCenteredWeatherLine(
+      feelsLikeText,
+      CONTENT_CENTRE_X,
+      FEELS_LIKE_Y,
+      FEELS_LIKE_TEXT_SIZE,
+      colours.feelsLike);
   }
 
 private:
@@ -66,16 +66,14 @@ private:
     LOCATION_Y = 47,
     LOCATION_MAX_WIDTH = 176,
     LOCATION_TEXT_SIZE = 2,
-    TEMPERATURE_X = 96,
-    TEMPERATURE_Y = 96,
+    CONTENT_CENTRE_X = 96,
+    DESCRIPTION_MAX_WIDTH = 176,
+    DESCRIPTION_TOP = 136,
+    DESCRIPTION_TEXT_SIZE = 2,
+    TEMPERATURE_Y = 174,
     TEMPERATURE_TEXT_SIZE = 2,
-    FEELS_LIKE_X = 92,
-    FEELS_LIKE_Y = 122,
-    FEELS_LIKE_TEXT_SIZE = 1,
-    DESCRIPTION_CENTRE_X = 54,
-    DESCRIPTION_MAX_WIDTH = 112,
-    DESCRIPTION_TOP = 169,
-    DESCRIPTION_TEXT_SIZE = 1
+    FEELS_LIKE_Y = 198,
+    FEELS_LIKE_TEXT_SIZE = 1
   };
 
   String fitLocationText(const String& location) const {
