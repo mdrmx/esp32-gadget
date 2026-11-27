@@ -1,4 +1,4 @@
-# Location header clock using a time API
+# Application header clock using a time API
 
 ## Behaviour
 
@@ -23,7 +23,7 @@ If the request fails, Serial Monitor logs the HTTP status or JSON failure. The d
 
 ## Libraries
 
-- **PNGdec by Larry Bank**: required for the official OpenWeather condition icons.
+- **PNGdec by Larry Bank**: required for the official OpenWeather condition icons (2x source, downsampled for the compact current-conditions view).
 
 No DS1307 wiring or RTClib library is needed for this version.
 
