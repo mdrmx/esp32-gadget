@@ -27,11 +27,13 @@ int main() {
 
   renderer.draw("Manchester", "13:58", PAPER, INK, INK);
 
-  CHECK(physicalTarget->fillRectCount == 1);
-  CHECK(physicalTarget->lastFillRectX == 0);
-  CHECK(physicalTarget->lastFillRectY == 0);
-  CHECK(physicalTarget->lastFillRectWidth == 320);
-  CHECK(physicalTarget->lastFillRectHeight == 36);
+  CHECK(physicalTarget->fillRectCount == 2);
+  CHECK(physicalTarget->lastFillRectX == HeaderRenderer::WiFiIndicatorLeft);
+  CHECK(physicalTarget->lastFillRectY == HeaderRenderer::WiFiIndicatorTop);
+  CHECK(physicalTarget->lastFillRectWidth ==
+        HeaderRenderer::WiFiIndicatorRight - HeaderRenderer::WiFiIndicatorLeft);
+  CHECK(physicalTarget->lastFillRectHeight ==
+        HeaderRenderer::WiFiIndicatorBottom - HeaderRenderer::WiFiIndicatorTop);
   CHECK(physicalTarget->lastFillRectColour == PAPER);
 
   CHECK(physicalTarget->printCount == 2);
@@ -54,7 +56,7 @@ int main() {
 
   renderer.drawClockOnly("14:00", PAPER, INK, INK);
   // Clock region and Wi-Fi glyph are both repainted in the paper colour.
-  CHECK(physicalTarget->fillRectCount == 3);
+  CHECK(physicalTarget->fillRectCount == 4);
   CHECK(physicalTarget->lastFillRectX == HeaderRenderer::WiFiIndicatorLeft);
   CHECK(physicalTarget->lastFillRectY == HeaderRenderer::WiFiIndicatorTop);
   CHECK(physicalTarget->lastFillRectWidth ==
@@ -95,7 +97,7 @@ int main() {
   CHECK(transitionTarget != physicalTarget);
 
   renderer.draw("Transition", "15:01", PAPER, INK, INK);
-  CHECK(transitionTarget->fillRectCount == 1);
+  CHECK(transitionTarget->fillRectCount == 2);
   CHECK(transitionTarget->printCount == 2);
   CHECK(transitionTarget->printedText[0] == String("Transition"));
   CHECK(transitionTarget->printedText[1] == String("15:01"));
