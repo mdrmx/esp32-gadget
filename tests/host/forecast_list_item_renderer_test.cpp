@@ -38,7 +38,7 @@ int main() {
   CHECK(target->lastFillRoundRectRadius == 4);
   CHECK(target->lastFillRoundRectColour == PAPER);
   CHECK(target->drawRoundRectCount == 1);
-  CHECK(target->lastDrawRoundRectColour == INK);
+  CHECK(target->drawRoundRectColour[0] == INK);
   CHECK(target->printCount == 4);
   CHECK(target->printedText[0] == String("15:00"));
   CHECK(target->printedX[0] == 10);
