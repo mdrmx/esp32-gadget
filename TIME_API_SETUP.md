@@ -3,10 +3,11 @@
 ## Behaviour
 
 - The shared header displays the weather location on the left and a 24-hour `HH:MM` clock on the right, on both current-weather and hourly-forecast screens.
-- At startup, the ESP32 requests the current date and time from TimeAPI.io for `Europe/London`.
+- After Wi-Fi becomes available, the platform loop requests the current date and time from TimeAPI.io for `Europe/London`. This runs while the boot launcher is visible, even though no application is active.
 - The response's date and local-time fields are converted to a Unix epoch using the configured UK timezone and daylight-saving rules, then written into the ESP32 system clock with `settimeofday()`.
 - After the initial request, the ESP32 system clock advances locally, so the screen does not need to query the time API every second.
-- The API is refreshed every six hours while online. If no valid time has been received yet or a refresh fails, it retries no more often than every five minutes.
+- The platform loop checks synchronisation on every pass. The API is refreshed every six hours while online. If no valid time has been received yet or a refresh fails, it retries no more often than every five minutes.
+- The shared header clock is refreshed once per second by the platform loop, independently of the active application.
 - With no RTC fitted, a reboot while offline means the device cannot know the real date/time until the API request succeeds again.
 
 ## Time API
