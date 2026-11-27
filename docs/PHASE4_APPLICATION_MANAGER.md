@@ -1,6 +1,6 @@
 # Phase 4 — Application Manager and lifecycle
 
-**Status:** Lifecycle manager PR #62 and launcher PR #63 are merged into `main`. The final icon-grid, paper-and-ink card treatment, shared-header and card-outline revision passed the user's full hardware regression on 2026-11-27. The expanded strict C++11 host-suite results for the final launcher revision have not yet been confirmed. Weather remains the only registered application; second-app integration, remaining Weather-boundary cleanup and runtime memory profiling remain outstanding.  
+**Status:** Lifecycle manager PR #62 and launcher PR #63 are merged into `main`. The final icon-grid, paper-and-ink card treatment, shared-header and card-outline revision passed the user's full hardware regression on 2026-11-27. The expanded strict C++11 host-suite results for the final launcher revision have not yet been confirmed. The clock-ownership refinement is in progress; host and device validation for it are pending. Weather remains the only registered application; second-app integration, remaining Weather-boundary cleanup and runtime memory profiling remain outstanding.  
 **Base:** PR #62 merge `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`; launcher PR #63 merge `0af82bf94d2419f8d59be9aecb1d13f67e5d10c`.  
 **Goal:** Give the platform one bounded, transport- and hardware-neutral way to register, start, update, switch and stop applications.
 
@@ -28,7 +28,7 @@ An application implementation must leave itself inactive when `begin()` returns 
 - The device loop continues to update platform connectivity and Wi-Fi settings before calling `ApplicationManager::update()`.
 - Touch sampling now runs at platform-loop level before manager updates. Launcher input therefore remains available when the launcher has stopped the active app; Weather-specific gesture handling is dispatched only while `weather` is active.
 - Weather retains the same staged connection/location/current-weather/forecast/asset/render sequence.
-- On `end()`, Weather becomes inactive and no longer processes input, time or refresh work. It retains its current state-machine stage, last-refresh timestamp, fetched data and platform hook bindings, so re-entry resumes the same instance without rebuilding shared services.
+- On `end()`, Weather becomes inactive and no longer processes Weather input or refresh work. It retains its current state-machine stage, last-refresh timestamp, fetched data and platform hook bindings, so re-entry resumes the same instance without rebuilding shared services. Time synchronisation and shared-header clock redraw are platform-loop responsibilities and continue while no app is active.
 - Weather observes the platform-owned connection state; it does not start Wi-Fi association. The launcher starts the saved preferred profile at boot and `ConnectivityManager` advances/retries it from the platform loop, independently of which app is selected. Weather waits for the shared connection when starting and keeps cached data visible during offline resume/refresh paths. `WeatherDataService`, `WeatherViewState` and `WeatherAssetCache` remain platform-composed objects and are not destroyed by an app switch.
 
 ## Application launcher slice
@@ -39,6 +39,7 @@ An application implementation must leave itself inactive when `begin()` returns 
 - Selecting a tile starts that registered app through `switchTo()`. To resume the previously active app, select its icon again; the launcher has no separate BACK control. A failed app start leaves the launcher visible with a brief diagnostic message.
 - The same central-band bottom-edge gesture is handled at platform level before app/modal touch processing, so the launcher can be opened from any app or platform screen, including Wi-Fi settings. It only claims contacts that begin inside the central band; ordinary metric-card/list gestures outside that band continue to their app.
 - At boot, the launcher is opened with no active application, then the platform starts the saved preferred Wi-Fi profile without waiting. The launcher stays drawn while association/retry proceeds; the header signal icon changes from disconnected to connected/strength as the manager reports the link. The launcher presents only app icons and optional failure feedback; it does not show a BACK button or selection prompt.
+- The platform loop calls `maybeSyncTimeFromAPI()` independently of `ApplicationManager::update()`, then refreshes the shared header clock at a one-second cadence. This ensures the boot launcher can obtain valid time while no application is active and keeps the shared clock independent of Weather lifecycle.
 - The Wi-Fi header target is dispatched before the launcher's catch-all touch handler, including while the launcher itself is open. This keeps network settings reachable from the boot launcher; once open, the modal owns touch interaction and the central-band swipe returns to the launcher.
 
 ## Scope deliberately deferred
