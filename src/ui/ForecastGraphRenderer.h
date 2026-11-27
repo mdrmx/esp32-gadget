@@ -93,9 +93,6 @@ public:
     target->drawFastHLine(
       left, originY + plotTop, plotWidth, colours_.grid);
     target->drawFastHLine(
-      left, originY + (plotTop + plotBottom) / 2,
-      plotWidth, colours_.grid);
-    target->drawFastHLine(
       left, originY + plotBottom, plotWidth, colours_.grid);
 
     // Draw neighbouring points too, allowing the first/last visible line
@@ -138,9 +135,11 @@ public:
             lineEndX = right;
           }
           if (lineStartX <= lineEndX) {
-            target->drawLine(
+            drawTemperatureLine(
+              target,
               lineStartX, originY + lineStartY,
-              lineEndX, originY + lineEndY, colours_.line);
+              lineEndX, originY + lineEndY,
+              colours_.line);
           }
         }
       }
@@ -153,7 +152,7 @@ public:
       // the physical logical display bounds, not the inner chart boundary.
       if (item.description != nullptr &&
           x >= ICON_HALF_WIDTH && x <= displayWidth - ICON_HALF_WIDTH) {
-        listItemRenderer_.drawConditionIcon(
+        listItemRenderer_.drawGraphConditionIcon(
           target,
           *item.description,
           x - ICON_HALF_WIDTH,
@@ -206,13 +205,14 @@ public:
 private:
   static constexpr int LEFT_INSET = 23;
   static constexpr int RIGHT_INSET = 17;
-  static constexpr int VISIBLE_POINTS = 6;
-  static constexpr int POINT_SPACING = 56;
+  static constexpr int VISIBLE_POINTS = 8;
+  static constexpr int POINT_SPACING = 40;
   static constexpr int VERTICAL_SHIFT = 12;
   static constexpr int BASE_PLOT_TOP = 37;
   static constexpr int BASE_PLOT_BOTTOM = 89;
-  static constexpr int ICON_HALF_WIDTH = 8;
-  static constexpr int ICON_TOP = 2;
+  static constexpr int ICON_HALF_WIDTH = 10;
+  static constexpr int ICON_TOP = 6;
+  static constexpr int ICON_SCALE_PERCENT = 120;
   static constexpr int TEMPERATURE_LABEL_OFFSET = 10;
   static constexpr int TIME_LABEL_TOP = 99;
   static constexpr int RAIN_BAR_BOTTOM = 139;
@@ -226,6 +226,20 @@ private:
     if (percent < 0) return 0;
     if (percent > 100) return 100;
     return percent;
+  }
+
+  // A second parallel pass one pixel below the primary path gives the
+  // temperature curve a clear two-pixel stroke without changing its geometry.
+  static void drawTemperatureLine(
+    Arduino_GFX* target,
+    int x1,
+    int y1,
+    int x2,
+    int y2,
+    uint16_t colour
+  ) {
+    target->drawLine(x1, y1, x2, y2, colour);
+    target->drawLine(x1, y1 + 1, x2, y2 + 1, colour);
   }
 
   static void drawCentredLabel(
