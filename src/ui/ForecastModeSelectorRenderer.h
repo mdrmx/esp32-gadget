@@ -52,15 +52,26 @@ public:
 
     target->fillRoundRect(
       TrackX, TrackY, TrackWidth, TrackHeight, TrackRadius, colours_.track);
+    target->drawRoundRect(
+      TrackX, TrackY, TrackWidth, TrackHeight, TrackRadius,
+      colours_.unselectedText);
 
     const bool graphSelected = mode == Mode::Graph;
+    const int selectedX = graphSelected ? GraphSegmentX : ListSegmentX;
     target->fillRoundRect(
-      graphSelected ? GraphSegmentX : ListSegmentX,
+      selectedX,
       SegmentY,
       SegmentWidth,
       SegmentHeight,
       SegmentRadius,
       colours_.selectedSegment);
+    target->drawRoundRect(
+      selectedX,
+      SegmentY,
+      SegmentWidth,
+      SegmentHeight,
+      SegmentRadius,
+      colours_.unselectedText);
 
     textRenderer_.drawText(
       "LIST",

@@ -6,7 +6,7 @@
 
 // Draws the fixed Weather header and its live Wi-Fi signal indicator. The
 // sketch supplies connection state and a smoothed RSSI level; this class owns
-// only the indicator's presentation and keeps its hit area stable.
+// only the indicator's presentation and the Wi-Fi settings hit area.
 class HeaderRenderer {
 public:
   // Visible Wi-Fi glyph bounds. Keep these tight so redrawing the icon
@@ -18,8 +18,8 @@ public:
     WiFiIndicatorBottom = 32
   };
 
-  // Touch-only target: wider and taller than the glyph, but stops immediately
-  // before the clock's leftmost layout position (x = display width - 70).
+  // Touch-only target for the Wi-Fi indicator; it remains separate from the
+  // location text and clock.
   enum {
     WiFiHitAreaLeft = 186,
     WiFiHitAreaTop = 0,
@@ -62,11 +62,16 @@ public:
     target->fillRect(
       0, 0, displayManager_.width(), HEADER_HEIGHT, panelColour);
     textRenderer_.drawText(
-      locationText, LOCATION_X, TEXT_Y, TEXT_SIZE, locationColour);
+      fitLocationText(locationText), LOCATION_X, TEXT_Y,
+      TEXT_SIZE, locationColour);
+    // Use the supplied ink/divider colour for the clock, Wi-Fi state and
+    // the slightly heavier two-pixel header rule.
     drawClockText(clockText, accentColour);
 
     target->drawFastHLine(
       0, HEADER_HEIGHT, displayManager_.width(), accentColour);
+    target->drawFastHLine(
+      0, HEADER_HEIGHT + 1, displayManager_.width(), accentColour);
     drawWiFiIndicator(panelColour, locationColour, accentColour);
   }
 
@@ -91,7 +96,7 @@ public:
   }
 
   // Redraw when the averaged RSSI crosses a level boundary or the connection
-  // state changes. The expanded 64x36 Wi-Fi touch target is independent of the
+  // state changes. The expanded Wi-Fi touch target is independent of the
   // smaller visible glyph bounds above.
   void drawWiFiIndicator(
     uint16_t panelColour,
@@ -139,13 +144,38 @@ public:
 private:
   enum {
     HEADER_HEIGHT = 36,
-    LOCATION_X = 10,
+    LOCATION_X = 8,
     TEXT_Y = 10,
     TEXT_SIZE = 2,
+    LOCATION_MAX_WIDTH = WiFiIndicatorLeft - LOCATION_X - 8,
     CLOCK_REGION_WIDTH = 78,
     CLOCK_RIGHT_MARGIN = 10,
     CLOCK_MINIMUM_X_MARGIN = 70
   };
+
+  String fitLocationText(const String& locationText) const {
+    String fitted = locationText;
+    if (textRenderer_.measureTextWidth(fitted, TEXT_SIZE) <=
+        LOCATION_MAX_WIDTH) {
+      return fitted;
+    }
+
+    while (fitted.length() > 0 &&
+           textRenderer_.measureTextWidth(fitted, TEXT_SIZE) >
+               LOCATION_MAX_WIDTH) {
+      fitted.remove(fitted.length() - 1, 1);
+    }
+
+    if (fitted.length() < locationText.length() && fitted.length() > 1) {
+      while (fitted.length() > 1 &&
+             textRenderer_.measureTextWidth(fitted + ".", TEXT_SIZE) >
+                 LOCATION_MAX_WIDTH) {
+        fitted.remove(fitted.length() - 1, 1);
+      }
+      fitted += ".";
+    }
+    return fitted;
+  }
 
   static void drawOuterArc(
     Arduino_GFX* target, int cx, int y, uint16_t colour) {

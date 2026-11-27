@@ -52,13 +52,10 @@ static bool readItem(
 }
 
 int main() {
-  const uint16_t PANEL = 0x2128;
-  const uint16_t WHITE = 0xFFFF;
-  const uint16_t YELLOW = 0xFEA0;
-  const uint16_t MUTED = 0xBDF7;
-  const uint16_t ACCENT = 0x5DDF;
+  const uint16_t PAPER = 0xFF9C;
+  const uint16_t INK = 0x28C1;
   const ForecastListItemRenderer::Colours colours = {
-    PANEL, WHITE, YELLOW, MUTED, ACCENT
+    PAPER, INK, INK, INK, INK, INK
   };
 
   DisplayManager displayManager;
@@ -88,6 +85,8 @@ int main() {
   CHECK(bufferedTarget.lastFillRectWidth == 312);
   CHECK(bufferedTarget.lastFillRectHeight == 4);
   CHECK(bufferedTarget.fillRoundRectCount == 3);
+  CHECK(bufferedTarget.drawRoundRectCount == 3);
+  CHECK(bufferedTarget.drawRoundRectColour[0] == INK);
   CHECK(bufferedTarget.printCount == 12);
   CHECK(bufferedTarget.printedText[0] == String("TIME 1"));
   CHECK(bufferedTarget.printedY[0] == 26);
@@ -105,6 +104,8 @@ int main() {
   CHECK(fallbackSource.indices[1] == 2);
   CHECK(fallbackSource.indices[2] == 3);
   CHECK(fallbackTarget.fillRoundRectCount == 3);
+  CHECK(fallbackTarget.drawRoundRectCount == 3);
+  CHECK(fallbackTarget.drawRoundRectColour[0] == INK);
   CHECK(fallbackTarget.printCount == 12);
   CHECK(fallbackTarget.lastFillRoundRectY == 168);
   CHECK(fallbackTarget.printedText[0] == String("TIME 1"));

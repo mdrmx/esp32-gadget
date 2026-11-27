@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include "secrets.h"
 #include "src/input/TouchSample.h"
+#include "src/input/BottomEdgeSwipeGesture.h"
 #include "src/input/GestureCode.h"
 #include "src/input/GestureRecognizer.h"
 #include "src/input/InteractionArbiter.h"
@@ -15,6 +16,7 @@
 #include "src/ui/TextRenderer.h"
 #include "src/ui/ForecastModeSelectorRenderer.h"
 #include "src/ui/HeaderRenderer.h"
+#include "src/ui/ApplicationLauncherRenderer.h"
 #include "src/ui/StatusScreenRenderer.h"
 #include "src/ui/WiFiSettingsRenderer.h"
 #include "src/ui/ForecastListItemRenderer.h"
@@ -40,6 +42,7 @@
 #include "src/services/LocationService.h"
 #include "src/services/WeatherDataService.h"
 #include "src/apps/ApplicationManager.h"
+#include "src/apps/ApplicationLauncherController.h"
 #include "src/apps/weather/WeatherApp.h"
 #include "src/apps/weather/WeatherViewState.h"
 #include "src/apps/weather/WeatherAssetCache.h"
@@ -52,6 +55,7 @@ WeatherForecastData& weatherForecastData = weatherDataService.forecast();
 
 // Owns registered application lifecycles; the sketch remains the composition root.
 ApplicationManager applicationManager;
+ApplicationLauncherController applicationLauncherController(applicationManager);
 
 // Weather is the first registered application. Its shared services and
 // renderers remain owned by the platform composition root below.
@@ -156,6 +160,7 @@ StatusScreenRenderer statusScreenRenderer(
 // samples. Weather chooses view owners and retains view-specific suppression/actions.
 Cst816Reader touchReader;
 GestureRecognizer gestureRecognizer;
+BottomEdgeSwipeGesture applicationLauncherGesture;
 InteractionArbiter interactionArbiter;
 
 // Duplicate-event suppression and navigation debounce remain Weather policy.
@@ -220,25 +225,34 @@ unsigned long forecastGestureSuppressionStartedMs = 0;
 // COLOURS
 // =====================================================
 
-const uint16_t BG = 0x1082;
-const uint16_t PANEL = 0x2128;
-const uint16_t UI_WHITE = 0xFFFF;
-const uint16_t MUTED = 0xBDF7;
-const uint16_t ACCENT = 0x5DDF;
-const uint16_t UI_YELLOW = 0xFEA0;
-const uint16_t UI_GREEN = 0x7E8A;
-const uint16_t ERROR_COLOUR = 0xF986;
+// Warm paper, ink and burnt-orange palette inspired by e-ink devices.
+// Shared OS palette supplied for the e-ink / retro-terminal visual style.
+const uint16_t BG = 0xFF9C;          // #FEF3E2 — warm off-white paper
+const uint16_t PANEL = BG;              // Card surfaces stay paper-coloured.
+const uint16_t BURNT_ORANGE_LIGHT = 0xF56A; // #F4AE52 — lighter burnt orange.
+const uint16_t UI_INK = 0x28C1;      // #2A1A0E — dark brown ink
+const uint16_t ACCENT = 0xD303;      // #D4621A — burnt orange
+const uint16_t MUTED = UI_INK;        // Secondary text remains ink-coloured.
+const uint16_t UI_ORANGE = ACCENT;
+const uint16_t ERROR_COLOUR = ACCENT;
 
 const StatusScreenRenderer::Colours STATUS_SCREEN_COLOURS = {
-  BG, PANEL, UI_WHITE, ACCENT, UI_WHITE, ERROR_COLOUR, MUTED
+  BG, PANEL, UI_INK, UI_INK, UI_INK, UI_INK, UI_INK
 };
 
+const ApplicationLauncherRenderer::Colours APPLICATION_LAUNCHER_COLOURS = {
+  BG, BG, UI_INK, UI_INK, ACCENT, UI_INK
+};
+
+ApplicationLauncherRenderer applicationLauncherRenderer(
+  displayManager, textRenderer, APPLICATION_LAUNCHER_COLOURS);
+
 const WiFiSettingsRenderer::Colours WIFI_SETTINGS_COLOURS = {
-  BG, PANEL, UI_WHITE, MUTED, ACCENT, UI_GREEN, ERROR_COLOUR
+  BG, BG, UI_INK, UI_INK, ACCENT, BURNT_ORANGE_LIGHT, ACCENT
 };
 
 const ForecastModeSelectorRenderer::Colours FORECAST_MODE_SELECTOR_COLOURS = {
-  PANEL, UI_WHITE, BG, MUTED
+  BG, BURNT_ORANGE_LIGHT, UI_INK, UI_INK
 };
 
 enum class WiFiSettingsScreen : uint8_t {
@@ -300,6 +314,12 @@ bool wifiHeaderTouchValid = false;
 int wifiHeaderTouchStartX = 0;
 int wifiHeaderTouchStartY = 0;
 
+bool applicationLauncherTouchActive = false;
+bool applicationLauncherTouchMoved = false;
+int applicationLauncherTouchStartX = 0;
+int applicationLauncherTouchStartY = 0;
+String applicationLauncherMessage = "";
+
 bool wifiPendingWeatherRefresh = false;
 
 WiFiSettingsRenderer wifiSettingsRenderer(
@@ -308,7 +328,7 @@ ForecastModeSelectorRenderer forecastModeSelectorRenderer(
     displayManager, textRenderer, FORECAST_MODE_SELECTOR_COLOURS);
 
 const ForecastListItemRenderer::Colours FORECAST_LIST_ITEM_COLOURS = {
-  PANEL, UI_WHITE, UI_YELLOW, MUTED, ACCENT
+  BG, UI_INK, UI_INK, UI_INK, UI_INK, UI_INK
 };
 ForecastListItemRenderer forecastListItemRenderer(
   displayManager, FORECAST_LIST_ITEM_COLOURS);
@@ -316,13 +336,13 @@ ForecastListViewportRenderer forecastListViewportRenderer(
   forecastListItemRenderer);
 
 const ForecastGraphRenderer::Colours FORECAST_GRAPH_COLOURS = {
-  PANEL, UI_YELLOW, UI_WHITE, UI_WHITE, MUTED, ACCENT
+  UI_INK, ACCENT, ACCENT, UI_INK, UI_INK, ACCENT
 };
 ForecastGraphRenderer forecastGraphRenderer(
   forecastListItemRenderer, FORECAST_GRAPH_COLOURS);
 
 const WeatherMetricCardRenderer::Colours WEATHER_METRIC_CARD_COLOURS = {
-  PANEL, MUTED, ACCENT
+  BG, UI_INK, UI_INK, UI_INK
 };
 WeatherMetricCardRenderer weatherMetricCardRenderer(
   WEATHER_METRIC_CARD_COLOURS);
@@ -330,7 +350,7 @@ WeatherMetricsViewportRenderer weatherMetricsViewportRenderer(
   weatherMetricCardRenderer);
 
 const WeatherConditionsRenderer::Colours WEATHER_CONDITIONS_COLOURS = {
-  MUTED, UI_YELLOW, MUTED
+  UI_INK, UI_INK, UI_INK
 };
 
 // =====================================================
@@ -479,7 +499,7 @@ String getHeaderLocationText() {
 }
 
 void drawHeaderClockOnly(const String& clockText) {
-  headerRenderer.drawClockOnly(clockText, PANEL, UI_WHITE, ACCENT);
+  headerRenderer.drawClockOnly(clockText, BG, UI_INK, UI_INK);
   lastHeaderClock = clockText;
 }
 
@@ -499,7 +519,7 @@ void updateWiFiSignalIndicator() {
   const uint8_t strengthLevel =
       connected ? wifiSignalMeter.level() : 0;
   if (headerRenderer.setWiFiStatus(connected, strengthLevel)) {
-    headerRenderer.drawWiFiIndicator(PANEL, UI_WHITE, ACCENT);
+    headerRenderer.drawWiFiIndicator(BG, UI_INK, UI_INK);
   }
 }
 
@@ -534,14 +554,14 @@ void maybeSyncTimeFromAPI() {
 void drawHeader() {
   const String clockText = timeService.headerClockText();
   headerRenderer.draw(
-    getHeaderLocationText(), clockText, PANEL, UI_WHITE, ACCENT);
+    getHeaderLocationText(), clockText, BG, UI_INK, UI_INK);
   lastHeaderClock = clockText;
 }
 
 void drawTabIndicator() {
   int y = displayManager.height() - 8;
-  displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24, y, 48, 4, 2, PANEL);
-  displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24 + (currentTab * 24), y, 24, 4, 2, UI_YELLOW);
+  displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24, y, 48, 4, 2, BG);
+  displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24 + (currentTab * 24), y, 24, 4, 2, UI_ORANGE);
 }
 
 // =====================================================
@@ -776,9 +796,9 @@ int drawOpenWeatherIcon(int x, int y) {
   WeatherPngDrawContext context;
   context.x = x;
   context.y = y;
-  // BG is RGB565 0x1082, approximately RGB(16,16,16). PNGdec expects
-  // the background as 00BBGGRR when blending transparent PNG pixels.
-  context.backgroundBGR = 0x00101010UL;
+  // Blend transparent PNG pixels against the supplied paper colour.
+  // PNGdec expects 00BBGGRR, so #FEF3E2 becomes 0x00E2F3FE.
+  context.backgroundBGR = 0x00E2F3FEUL;
 
   int decodeResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
   if (decodeResult != PNG_SUCCESS) {
@@ -1055,7 +1075,7 @@ void drawForecastControls() {
     BG);
 
   if (!forecastGraphView) {
-    textRenderer.drawText("HOURLY", 8, 50, 1, UI_WHITE);
+    textRenderer.drawText("HOURLY", 8, 50, 1, UI_INK);
   }
 
   drawForecastModeSelector();
@@ -2255,7 +2275,17 @@ void openWiFiSettings() {
   drawWiFiSettingsScreen();
 }
 
+void drawApplicationLauncherScreen();
+
 void restoreWeatherScreenAfterWiFiSettings() {
+  if (applicationLauncherController.isOpen()) {
+    // The launcher remains the foreground screen while the platform Wi-Fi
+    // manager is open. Do not reveal or refresh Weather behind it.
+    wifiPendingWeatherRefresh = false;
+    drawApplicationLauncherScreen();
+    return;
+  }
+
   if (wifiPendingWeatherRefresh && weatherApp.isReady()) {
     wifiPendingWeatherRefresh = false;
     weatherApp.requestRefresh();
@@ -2310,6 +2340,28 @@ void closeWiFiSettings() {
   wifiHighlightedKeyRow = -1;
   wifiHighlightedKeyColumn = -1;
   restoreWeatherScreenAfterWiFiSettings();
+}
+
+void drawApplicationLauncherScreen() {
+  applicationLauncherRenderer.draw(
+      applicationManager,
+      applicationLauncherController.returnApplicationId(),
+      applicationLauncherMessage);
+
+  // The launcher is a platform screen, but it uses the same persistent clock
+  // and Wi-Fi indicator as Weather. drawClockOnly() also redraws the signal.
+  drawHeaderClockOnly(timeService.headerClockText());
+}
+
+bool openApplicationLauncher() {
+  if (!applicationLauncherController.open()) {
+    return false;
+  }
+  applicationLauncherMessage = "";
+  applicationLauncherTouchActive = false;
+  applicationLauncherTouchMoved = false;
+  drawApplicationLauncherScreen();
+  return true;
 }
 
 bool beginWiFiProfileConnection(
@@ -3179,6 +3231,64 @@ void handleGesture(GestureCode gesture) {
   }
 }
 
+
+bool processApplicationLauncherTouch(
+    const TouchSample& sample,
+    const GestureObservation& observation) {
+  if (!applicationLauncherController.isOpen()) {
+    return false;
+  }
+
+  int x = 0;
+  int y = 0;
+  if (observation.touchPresent) {
+    touchCoordinatesToScreen(sample, x, y);
+  }
+
+  if (observation.touchStarted) {
+    applicationLauncherTouchActive = true;
+    applicationLauncherTouchMoved = false;
+    applicationLauncherTouchStartX = x;
+    applicationLauncherTouchStartY = y;
+  }
+
+  if (applicationLauncherTouchActive &&
+      observation.touchPresent &&
+      (abs(x - applicationLauncherTouchStartX) > 14 ||
+       abs(y - applicationLauncherTouchStartY) > 14)) {
+    applicationLauncherTouchMoved = true;
+  }
+
+  if (applicationLauncherTouchActive && observation.touchReleased) {
+    bool redrawLauncher = false;
+    if (!applicationLauncherTouchMoved) {
+      uint8_t applicationIndex = 0;
+      if (applicationLauncherRenderer.applicationAt(
+              applicationLauncherTouchStartX,
+              applicationLauncherTouchStartY,
+              applicationIndex,
+              applicationManager)) {
+        if (!applicationLauncherController.select(applicationIndex)) {
+          applicationLauncherMessage = "APP FAILED TO START";
+          redrawLauncher = true;
+        } else {
+          applicationLauncherMessage = "";
+        }
+      }
+    }
+
+    applicationLauncherTouchActive = false;
+    applicationLauncherTouchMoved = false;
+    // Ignore touches outside app tiles. There is no BACK or prompt region.
+    // Re-enter the previous app by selecting its icon again.
+    if (applicationLauncherController.isOpen() && redrawLauncher) {
+      drawApplicationLauncherScreen();
+    }
+  }
+
+  return true;
+}
+
 void pollTouch() {
   if (!touchReader.available()) return;
 
@@ -3187,9 +3297,66 @@ void pollTouch() {
   const GestureObservation observation = gestureRecognizer.update(sample);
   const GestureCode gesture = observation.gesture;
 
-  // The settings modal owns all touch contacts while open. Its visible header
-  // button is also consumed as a tap target on the normal Weather screens.
+  // The bottom-edge swipe is a platform gesture, so it takes precedence over
+  // app gestures and modal touches. Use the release sample's final coordinates
+  // even though the recognizer marks that sample as no longer touching.
+  int launcherGestureX = 0;
+  int launcherGestureY = 0;
+  if (observation.touchStarted || observation.touchPresent ||
+      observation.touchReleased) {
+    touchCoordinatesToScreen(sample, launcherGestureX, launcherGestureY);
+  }
+
+  bool launcherGestureRecognised = false;
+  const bool wifiSettingsOverlayOpen =
+      wifiSettingsScreen != WiFiSettingsScreen::Closed;
+  if (!applicationLauncherController.isOpen() || wifiSettingsOverlayOpen) {
+    launcherGestureRecognised = applicationLauncherGesture.update(
+        observation.touchStarted,
+        observation.touchPresent,
+        observation.touchReleased,
+        launcherGestureX,
+        launcherGestureY,
+        millis(),
+        displayManager.width(),
+        displayManager.height());
+  } else {
+    applicationLauncherGesture.reset();
+  }
+
+  const bool consumeBottomEdgeTouch =
+      applicationLauncherGesture.consumeTouchSample();
+  if (launcherGestureRecognised) {
+    if (wifiSettingsOverlayOpen) {
+      closeWiFiSettings();
+    }
+    if (!applicationLauncherController.isOpen()) {
+      openApplicationLauncher();
+    }
+    return;
+  }
+  if (consumeBottomEdgeTouch) {
+    return;
+  }
+
+  // Wi-Fi settings owns its header hit target even when the modal is
+  // closed. Dispatch it before the launcher captures all remaining contacts;
+  // otherwise a launcher-screen tap on the signal icon is swallowed as a
+  // harmless background touch.
   if (processWiFiSettingsTouch(sample, observation)) {
+    return;
+  }
+
+  // The launcher is platform-level input: it remains usable while the active
+  // application is stopped and the manager has no app receiving updates.
+  if (processApplicationLauncherTouch(sample, observation)) {
+    return;
+  }
+
+  // Weather-specific gestures run only while Weather is the active app.
+  const char* activeApplicationId = applicationManager.activeId();
+  if (activeApplicationId == nullptr ||
+      strcmp(activeApplicationId, "weather") != 0) {
     return;
   }
 
@@ -3308,8 +3475,8 @@ void pollTouch() {
 // WI-FI
 // =====================================================
 
-// Load the preferred saved profile before WeatherApp starts its first
-// connection attempt. On a genuinely empty NVS store, migrate the legacy
+// Load the preferred saved profile before the platform launcher starts its
+// background connection attempt. On a genuinely empty NVS store, migrate the legacy
 // secrets.h values once. Corrupt/unknown data is left untouched and falls back
 // to the compile-time values rather than silently overwriting saved records.
 void initialiseWiFiProfiles() {
@@ -3526,7 +3693,8 @@ bool fetchForecast() {
 // sketch-owned data/renderers. WeatherApp owns startup/refresh sequencing;
 // platform and renderer resources remain with their existing owners.
 void weatherAppProcessInput() {
-  pollTouch();
+  // Touch sampling is promoted to loop() so the platform launcher remains
+  // available even while ApplicationManager has no active application.
 }
 
 void weatherAppSyncTime() {
@@ -3539,10 +3707,6 @@ void weatherAppRefreshClock() {
 
 uint32_t weatherAppMillisNow() {
   return (uint32_t)millis();
-}
-
-bool weatherAppStartConnection(uint32_t nowMs) {
-  return startWiFiConnection(nowMs);
 }
 
 bool weatherAppConnectionPendingForApp() {
@@ -3746,7 +3910,6 @@ void setup() {
   weatherHooks.syncTime = weatherAppSyncTime;
   weatherHooks.refreshClock = weatherAppRefreshClock;
   weatherHooks.millisNow = weatherAppMillisNow;
-  weatherHooks.startConnection = weatherAppStartConnection;
   weatherHooks.connectionPending = weatherAppConnectionPendingForApp;
   weatherHooks.isConnected = weatherAppIsConnected;
   weatherHooks.resolveLocation = weatherAppResolveLocation;
@@ -3772,10 +3935,14 @@ void setup() {
     while (true) delay(1000);
   }
 
-  if (!applicationManager.start("weather")) {
-    Serial.println("Weather application failed to start.");
+  // Boot into the platform launcher with no application active. Draw the
+  // launcher first, then start the preferred Wi-Fi association asynchronously
+  // from the platform layer; ConnectivityManager keeps it advancing in loop().
+  if (!openApplicationLauncher()) {
+    Serial.println("Application launcher failed to open.");
     while (true) delay(1000);
   }
+  startWiFiConnection(millis());
 }
 
 // =====================================================
@@ -3790,6 +3957,12 @@ void loop() {
       wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning);
   updateWiFiSignalIndicator();
   updateWiFiSettings();
+  if (applicationLauncherController.isOpen()) {
+    // Weather is suspended while the launcher is visible, so keep the clock's
+    // one-second presentation refresh alive at platform level.
+    refreshHeaderClock();
+  }
+  pollTouch();
   applicationManager.update();
   delay(30);
 }

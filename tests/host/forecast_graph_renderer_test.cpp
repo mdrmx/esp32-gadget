@@ -65,17 +65,15 @@ static TestData makeTestData() {
 }
 
 int main() {
-  const uint16_t PANEL = 0x2128;
-  const uint16_t WHITE = 0xFFFF;
-  const uint16_t YELLOW = 0xFEA0;
-  const uint16_t MUTED = 0xBDF7;
-  const uint16_t ACCENT = 0x5DDF;
+  const uint16_t PAPER = 0xFF9C;
+  const uint16_t BURNT_ORANGE = 0xD303;
+  const uint16_t INK = 0x28C1;
 
   const ForecastListItemRenderer::Colours listColours = {
-    PANEL, WHITE, YELLOW, MUTED, ACCENT
+    PAPER, INK, INK, INK, INK, INK
   };
   const ForecastGraphRenderer::Colours graphColours = {
-    PANEL, YELLOW, WHITE, WHITE, MUTED, ACCENT
+    INK, BURNT_ORANGE, BURNT_ORANGE, INK, INK, BURNT_ORANGE
   };
 
   DisplayManager displayManager;
@@ -112,13 +110,13 @@ int main() {
   CHECK(target->printedText[3] == String("12C"));
   CHECK(target->printedText[4] == String("11:00"));
   CHECK(target->printedText[5] == String("25%"));
-  CHECK(target->printedColour[0] == WHITE);
-  CHECK(target->printedColour[1] == MUTED);
-  CHECK(target->printedColour[2] == WHITE);
+  CHECK(target->printedColour[0] == INK);
+  CHECK(target->printedColour[1] == INK);
+  CHECK(target->printedColour[2] == INK);
   CHECK(target->printedY[2] == 64 + 143);
-  CHECK(target->lastFillRectColour == ACCENT);
+  CHECK(target->lastFillRectColour == BURNT_ORANGE);
   CHECK(target->drawLineCount >= 5);
-  CHECK(target->lastLineColour == YELLOW);
+  CHECK(target->lastLineColour == BURNT_ORANGE);
 
   // At one full point spacing, index zero moves off-screen and the next six
   // forecast points become visible. Scroll is supplied by Weather, unchanged.

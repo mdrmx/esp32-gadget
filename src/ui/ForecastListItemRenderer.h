@@ -12,6 +12,7 @@ class ForecastListItemRenderer {
 public:
   struct Colours {
     uint16_t panel;
+    uint16_t outline;
     uint16_t text;
     uint16_t temperature;
     uint16_t muted;
@@ -43,8 +44,11 @@ public:
   ) const {
     if (target == nullptr) return;
 
+    const int cardWidth = displayManager_.width() - 8;
     target->fillRoundRect(
-      4, y, displayManager_.width() - 8, CARD_HEIGHT, 4, colours_.panel);
+      4, y, cardWidth, CARD_HEIGHT, 4, colours_.panel);
+    target->drawRoundRect(
+      4, y, cardWidth, CARD_HEIGHT, 4, colours_.outline);
 
     target->setTextSize(1);
     target->setTextColor(colours_.text);
@@ -109,12 +113,27 @@ public:
       return;
     }
 
+    const int cardX = 4;
+    const int cardWidth = displayManager_.width() - 8;
+    const int visibleHeight = clippedBottom - clippedTop;
     target->fillRect(
-      4,
+      cardX,
       clippedTop,
-      displayManager_.width() - 8,
-      clippedBottom - clippedTop,
+      cardWidth,
+      visibleHeight,
       colours_.panel);
+    target->drawFastVLine(
+      cardX, clippedTop, visibleHeight, colours_.outline);
+    target->drawFastVLine(
+      cardX + cardWidth - 1, clippedTop, visibleHeight, colours_.outline);
+    if (cardTop >= 0) {
+      target->drawFastHLine(
+        cardX, cardTop, cardWidth, colours_.outline);
+    }
+    if (cardBottom <= viewportHeight) {
+      target->drawFastHLine(
+        cardX, cardBottom - 1, cardWidth, colours_.outline);
+    }
 
     const int fieldY = cardTop + 18;
     if (fieldY >= 0 && fieldY + 8 <= viewportHeight) {

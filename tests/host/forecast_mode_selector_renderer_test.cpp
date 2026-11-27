@@ -13,15 +13,14 @@ static void check(bool condition, const char* expression, int line) {
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
 int main() {
-  const uint16_t PANEL = 0x2128;
-  const uint16_t WHITE = 0xFFFF;
-  const uint16_t BG = 0x1082;
-  const uint16_t MUTED = 0xBDF7;
+  const uint16_t PAPER = 0xFF9C;
+  const uint16_t BURNT_ORANGE = 0xF56A;
+  const uint16_t INK = 0x28C1;
 
   DisplayManager displayManager;
   TextRenderer textRenderer(displayManager);
   const ForecastModeSelectorRenderer::Colours colours = {
-    PANEL, WHITE, BG, MUTED
+    PAPER, BURNT_ORANGE, INK, INK
   };
   ForecastModeSelectorRenderer renderer(
     displayManager, textRenderer, colours);
@@ -36,42 +35,46 @@ int main() {
 
   renderer.draw(ForecastModeSelectorRenderer::Mode::List);
   CHECK(physicalTarget->fillRoundRectCount == 2);
+  CHECK(physicalTarget->drawRoundRectCount == 2);
+  CHECK(physicalTarget->drawRoundRectColour[0] == INK);
+  CHECK(physicalTarget->drawRoundRectColour[1] == INK);
   CHECK(physicalTarget->fillRoundRectX[0] == 179);
   CHECK(physicalTarget->fillRoundRectY[0] == 41);
   CHECK(physicalTarget->fillRoundRectWidth[0] == 137);
   CHECK(physicalTarget->fillRoundRectHeight[0] == 26);
   CHECK(physicalTarget->fillRoundRectRadius[0] == 6);
-  CHECK(physicalTarget->fillRoundRectColour[0] == PANEL);
+  CHECK(physicalTarget->fillRoundRectColour[0] == PAPER);
   CHECK(physicalTarget->fillRoundRectX[1] == 181);
   CHECK(physicalTarget->fillRoundRectY[1] == 41);
   CHECK(physicalTarget->fillRoundRectWidth[1] == 67);
   CHECK(physicalTarget->fillRoundRectHeight[1] == 24);
   CHECK(physicalTarget->fillRoundRectRadius[1] == 5);
-  CHECK(physicalTarget->fillRoundRectColour[1] == WHITE);
+  CHECK(physicalTarget->fillRoundRectColour[1] == BURNT_ORANGE);
 
   CHECK(physicalTarget->printCount == 2);
   CHECK(physicalTarget->printedText[0] == String("LIST"));
   CHECK(physicalTarget->printedX[0] == 201);
   CHECK(physicalTarget->printedY[0] == 50);
   CHECK(physicalTarget->printedSize[0] == 1);
-  CHECK(physicalTarget->printedColour[0] == BG);
+  CHECK(physicalTarget->printedColour[0] == INK);
   CHECK(physicalTarget->printedText[1] == String("GRAPH"));
   CHECK(physicalTarget->printedX[1] == 265);
   CHECK(physicalTarget->printedY[1] == 50);
   CHECK(physicalTarget->printedSize[1] == 1);
-  CHECK(physicalTarget->printedColour[1] == MUTED);
+  CHECK(physicalTarget->printedColour[1] == INK);
 
   // Graph mode moves the selected segment without changing the track or labels.
   renderer.draw(ForecastModeSelectorRenderer::Mode::Graph);
   CHECK(physicalTarget->fillRoundRectCount == 4);
+  CHECK(physicalTarget->drawRoundRectCount == 4);
   CHECK(physicalTarget->fillRoundRectX[2] == 179);
   CHECK(physicalTarget->fillRoundRectX[3] == 248);
-  CHECK(physicalTarget->fillRoundRectColour[3] == WHITE);
+  CHECK(physicalTarget->fillRoundRectColour[3] == BURNT_ORANGE);
   CHECK(physicalTarget->printCount == 4);
   CHECK(physicalTarget->printedText[2] == String("LIST"));
-  CHECK(physicalTarget->printedColour[2] == MUTED);
+  CHECK(physicalTarget->printedColour[2] == INK);
   CHECK(physicalTarget->printedText[3] == String("GRAPH"));
-  CHECK(physicalTarget->printedColour[3] == BG);
+  CHECK(physicalTarget->printedColour[3] == INK);
 
   // The renderer follows DisplayManager onto the tab-transition canvas.
   CHECK(displayManager.createTabTransitionCanvas(
@@ -83,6 +86,7 @@ int main() {
 
   renderer.draw(ForecastModeSelectorRenderer::Mode::List);
   CHECK(transitionTarget->fillRoundRectCount == 2);
+  CHECK(transitionTarget->drawRoundRectCount == 2);
   CHECK(transitionTarget->fillRoundRectX[1] == 181);
   CHECK(transitionTarget->printCount == 2);
   CHECK(transitionTarget->printedText[0] == String("LIST"));

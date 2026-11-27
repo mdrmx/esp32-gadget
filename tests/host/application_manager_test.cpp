@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "../../src/apps/ApplicationManager.h"
+#include "../../src/apps/ApplicationLauncherController.h"
 #include "../../src/apps/weather/WeatherApp.h"
 
 static void check(bool condition, const char* expression, int line) {
@@ -81,6 +82,9 @@ static bool testRegistrationIsBoundedAndRejectsDuplicateIds() {
   CHECK(manager.registeredCount() == ApplicationManager::MaxApplications);
   CHECK(manager.hasApplication("weather"));
   CHECK(manager.hasApplication("maps"));
+  CHECK(manager.applicationAt(0) == &weather);
+  CHECK(manager.applicationAt(1) == &maps);
+  CHECK(manager.applicationAt(ApplicationManager::MaxApplications) == nullptr);
   CHECK(!manager.hasApplication("missing"));
   CHECK(!manager.hasApplication(nullptr));
   CHECK(!manager.hasApplication(""));
@@ -202,31 +206,82 @@ static bool testFailedSwitchRestoresPreviousApplication() {
   return true;
 }
 
+
+static bool testLauncherControllerSelectsAndRestoresApplications() {
+  ApplicationManager manager;
+  FakeApplication weather("weather");
+  FakeApplication maps("maps");
+
+  CHECK(manager.registerApplication(weather));
+  CHECK(manager.registerApplication(maps));
+  CHECK(manager.start("weather"));
+
+  ApplicationLauncherController launcher(manager);
+  CHECK(!launcher.isOpen());
+  CHECK(launcher.open());
+  CHECK(launcher.isOpen());
+  CHECK(strcmp(launcher.returnApplicationId(), "weather") == 0);
+  CHECK(manager.activeApplication() == nullptr);
+  CHECK(weather.endCalls() == 1);
+  CHECK(!launcher.open());
+  CHECK(!launcher.select(2));
+
+  CHECK(launcher.select(1));
+  CHECK(!launcher.isOpen());
+  CHECK(manager.activeApplication() == &maps);
+  CHECK(maps.beginCalls() == 1);
+
+  // A failed app start leaves the launcher open and BACK restores the app
+  // that was active before opening the launcher.
+  weather.setBeginResult(false);
+  CHECK(launcher.open());
+  CHECK(strcmp(launcher.returnApplicationId(), "maps") == 0);
+  CHECK(!launcher.select(0));
+  CHECK(launcher.isOpen());
+  CHECK(manager.activeApplication() == nullptr);
+  CHECK(launcher.back());
+  CHECK(!launcher.isOpen());
+  CHECK(manager.activeApplication() == &maps);
+  CHECK(maps.beginCalls() == 2);
+
+  // Opening with no active app is safe; BACK simply closes without inventing
+  // an application to start.
+  CHECK(manager.stopActive());
+  CHECK(launcher.open());
+  CHECK(launcher.returnApplicationId() == nullptr);
+  CHECK(launcher.back());
+  CHECK(manager.activeApplication() == nullptr);
+  return true;
+}
+
 static uint32_t fakeMillis = 100;
 static int weatherInputCalls = 0;
 static int weatherSyncCalls = 0;
-static int weatherConnectionStarts = 0;
 static int weatherEndToEndFetchCalls = 0;
+static bool weatherConnected = true;
+static int weatherDrawLoadingCalls = 0;
+static int weatherDrawWeatherCalls = 0;
+static int weatherDrawForecastCalls = 0;
+static const char* weatherLastLoadingMessage = nullptr;
 
 static void weatherProcessInput() { ++weatherInputCalls; }
 static void weatherSyncTime() { ++weatherSyncCalls; }
 static void weatherRefreshClock() {}
 static uint32_t weatherMillisNow() { return fakeMillis; }
-static bool weatherStartConnection(uint32_t) {
-  ++weatherConnectionStarts;
-  return true;
-}
 static bool weatherConnectionPending() { return false; }
-static bool weatherIsConnected() { return true; }
+static bool weatherIsConnected() { return weatherConnected; }
 static void weatherResolveLocation() { ++weatherEndToEndFetchCalls; }
 static bool weatherFetchCurrent() { ++weatherEndToEndFetchCalls; return true; }
 static void weatherFetchForecast() { ++weatherEndToEndFetchCalls; }
 static void weatherPrepareAssets() {}
 static bool weatherAvailable() { return true; }
 static WeatherApp::View weatherActiveView() { return WeatherApp::View::Weather; }
-static void weatherDrawLoading(const char*) {}
-static void weatherDrawWeather() {}
-static void weatherDrawForecast() {}
+static void weatherDrawLoading(const char* message) {
+  ++weatherDrawLoadingCalls;
+  weatherLastLoadingMessage = message;
+}
+static void weatherDrawWeather() { ++weatherDrawWeatherCalls; }
+static void weatherDrawForecast() { ++weatherDrawForecastCalls; }
 static void weatherDrawError(const char*) {}
 
 static WeatherApp::Hooks makeWeatherHooks() {
@@ -235,7 +290,6 @@ static WeatherApp::Hooks makeWeatherHooks() {
   hooks.syncTime = weatherSyncTime;
   hooks.refreshClock = weatherRefreshClock;
   hooks.millisNow = weatherMillisNow;
-  hooks.startConnection = weatherStartConnection;
   hooks.connectionPending = weatherConnectionPending;
   hooks.isConnected = weatherIsConnected;
   hooks.resolveLocation = weatherResolveLocation;
@@ -251,38 +305,182 @@ static WeatherApp::Hooks makeWeatherHooks() {
   return hooks;
 }
 
-static bool testWeatherAppUsesSharedLifecycleManager() {
+static bool testWeatherAppResumesWithoutReconnectingWhenOnline() {
   ApplicationManager manager;
   WeatherApp weather;
   WeatherApp::Hooks hooks = makeWeatherHooks();
+
+  fakeMillis = 100;
+  weatherInputCalls = 0;
+  weatherSyncCalls = 0;
+  weatherEndToEndFetchCalls = 0;
+  weatherConnected = true;
+  weatherDrawLoadingCalls = 0;
+  weatherDrawWeatherCalls = 0;
+  weatherDrawForecastCalls = 0;
+  weatherLastLoadingMessage = nullptr;
 
   CHECK(strcmp(weather.id(), "weather") == 0);
   CHECK(weather.configure(hooks));
   CHECK(manager.registerApplication(weather));
   CHECK(manager.start("weather"));
   CHECK(weather.isActive());
-  CHECK(weather.state() == WeatherApp::State::Connecting);
-  CHECK(weatherConnectionStarts == 1);
+  CHECK(weather.state() == WeatherApp::State::ResolvingLocation);
+  CHECK(weatherDrawLoadingCalls == 0);
+  CHECK(weatherDrawWeatherCalls == 1);
 
+  // Advance one startup stage, then open the launcher. The suspended stage and
+  // platform connection are retained while the app is inactive.
   manager.update();
   CHECK(weatherInputCalls == 1);
   CHECK(weatherSyncCalls == 1);
-  CHECK(weather.state() == WeatherApp::State::ResolvingLocation);
+  CHECK(weather.state() == WeatherApp::State::FetchingCurrentWeather);
 
+  const uint32_t lastRefreshBeforeStop = weather.lastRefreshMs();
   CHECK(manager.stopActive());
   CHECK(!weather.isActive());
+  CHECK(weather.state() == WeatherApp::State::FetchingCurrentWeather);
   const int inputCallsAtStop = weatherInputCalls;
   const int syncCallsAtStop = weatherSyncCalls;
   manager.update();
   CHECK(weatherInputCalls == inputCallsAtStop);
   CHECK(weatherSyncCalls == syncCallsAtStop);
 
-  // Weather keeps its injected platform hooks and can be restarted by the
-  // manager without reconstructing shared services or the application object.
+  // Returning from the launcher resumes Weather's existing state and redraws
+  // its cached view. It must not start Wi-Fi association or show a connecting
+  // banner when the shared platform link is already established.
+  CHECK(manager.start("weather"));
+  CHECK(weather.isActive());
+  CHECK(weather.state() == WeatherApp::State::FetchingCurrentWeather);
+  CHECK(weatherDrawLoadingCalls == 0);
+  CHECK(weatherDrawWeatherCalls == 2);
+  CHECK(weather.lastRefreshMs() == lastRefreshBeforeStop);
+
+  manager.update();
+  CHECK(weather.state() == WeatherApp::State::FetchingForecast);
+  CHECK(manager.stopActive());
+  return true;
+}
+
+static bool testReadyWeatherRestoresCacheWhenOffline() {
+  ApplicationManager manager;
+  WeatherApp weather;
+  WeatherApp::Hooks hooks = makeWeatherHooks();
+
+  fakeMillis = 1000;
+  weatherConnected = true;
+  weatherDrawLoadingCalls = 0;
+  weatherDrawWeatherCalls = 0;
+  weatherDrawForecastCalls = 0;
+  weatherLastLoadingMessage = nullptr;
+
+  CHECK(weather.configure(hooks));
+  CHECK(manager.registerApplication(weather));
+  CHECK(manager.start("weather"));
+  for (int i = 0; i < 4; ++i) manager.update();
+  CHECK(weather.state() == WeatherApp::State::Ready);
+  CHECK(weatherDrawWeatherCalls == 1);
+  const uint32_t lastRefresh = weather.lastRefreshMs();
+
+  CHECK(manager.stopActive());
+  weatherConnected = false;
+  CHECK(manager.start("weather"));
+  CHECK(weather.state() == WeatherApp::State::Ready);
+  CHECK(weatherDrawWeatherCalls == 2);
+  CHECK(weatherDrawLoadingCalls == 0);
+  CHECK(weather.lastRefreshMs() == lastRefresh);
+  CHECK(manager.stopActive());
+  return true;
+}
+
+static bool testRefreshConnectingResumeKeepsCachedWeatherVisible() {
+  ApplicationManager manager;
+  WeatherApp weather;
+  WeatherApp::Hooks hooks = makeWeatherHooks();
+
+  fakeMillis = 2000;
+  weatherConnected = true;
+  weatherDrawLoadingCalls = 0;
+  weatherDrawWeatherCalls = 0;
+  weatherDrawForecastCalls = 0;
+
+  CHECK(weather.configure(hooks));
+  CHECK(manager.registerApplication(weather));
+  CHECK(manager.start("weather"));
+  for (int i = 0; i < 4; ++i) manager.update();
+  CHECK(weather.isReady());
+  CHECK(weather.requestRefresh());
+  CHECK(weather.state() == WeatherApp::State::RefreshConnecting);
+
+  CHECK(manager.stopActive());
+  weatherConnected = false;
+  CHECK(manager.start("weather"));
+  CHECK(weather.state() == WeatherApp::State::RefreshConnecting);
+  CHECK(weatherDrawWeatherCalls == 2);
+  CHECK(weatherDrawLoadingCalls == 0);
+  CHECK(manager.stopActive());
+  return true;
+}
+
+static bool testLostLinkDuringRefreshRestoresCachedWeather() {
+  ApplicationManager manager;
+  WeatherApp weather;
+  WeatherApp::Hooks hooks = makeWeatherHooks();
+
+  fakeMillis = 3000;
+  weatherConnected = true;
+  weatherDrawLoadingCalls = 0;
+  weatherDrawWeatherCalls = 0;
+  weatherDrawForecastCalls = 0;
+
+  CHECK(weather.configure(hooks));
+  CHECK(manager.registerApplication(weather));
+  CHECK(manager.start("weather"));
+  for (int i = 0; i < 4; ++i) manager.update();
+  CHECK(weather.isReady());
+  CHECK(weather.requestRefresh());
+  manager.update();
+  CHECK(weather.state() == WeatherApp::State::RefreshingCurrentWeather);
+
+  CHECK(manager.stopActive());
+  weatherConnected = false;
+  CHECK(manager.start("weather"));
+  CHECK(weather.state() == WeatherApp::State::RefreshConnecting);
+  CHECK(weatherDrawWeatherCalls == 2);
+  CHECK(weatherDrawLoadingCalls == 0);
+  CHECK(manager.stopActive());
+  return true;
+}
+
+static bool testWeatherAppWaitsForPlatformConnectionWhenOffline() {
+  ApplicationManager manager;
+  WeatherApp weather;
+  WeatherApp::Hooks hooks = makeWeatherHooks();
+
+  fakeMillis = 500;
+  weatherInputCalls = 0;
+  weatherSyncCalls = 0;
+  weatherEndToEndFetchCalls = 0;
+  weatherConnected = false;
+  weatherDrawLoadingCalls = 0;
+  weatherDrawWeatherCalls = 0;
+  weatherDrawForecastCalls = 0;
+  weatherLastLoadingMessage = nullptr;
+
+  CHECK(weather.configure(hooks));
+  CHECK(manager.registerApplication(weather));
   CHECK(manager.start("weather"));
   CHECK(weather.isActive());
   CHECK(weather.state() == WeatherApp::State::Connecting);
-  CHECK(weatherConnectionStarts == 2);
+  CHECK(weatherDrawLoadingCalls == 1);
+  CHECK(weatherLastLoadingMessage != nullptr);
+  CHECK(strcmp(weatherLastLoadingMessage, "Waiting for Wi-Fi...") == 0);
+
+  // The connection manager brings the link up while the app is active; the
+  // next update advances directly into the location stage.
+  weatherConnected = true;
+  manager.update();
+  CHECK(weather.state() == WeatherApp::State::ResolvingLocation);
   manager.stopActive();
   return true;
 }
@@ -292,7 +490,12 @@ int main() {
   if (!testChangingRegisteredIdToNullIsSafe()) return EXIT_FAILURE;
   if (!testStartUpdateSwitchAndStopLifecycle()) return EXIT_FAILURE;
   if (!testFailedSwitchRestoresPreviousApplication()) return EXIT_FAILURE;
-  if (!testWeatherAppUsesSharedLifecycleManager()) return EXIT_FAILURE;
+  if (!testLauncherControllerSelectsAndRestoresApplications()) return EXIT_FAILURE;
+  if (!testWeatherAppResumesWithoutReconnectingWhenOnline()) return EXIT_FAILURE;
+  if (!testReadyWeatherRestoresCacheWhenOffline()) return EXIT_FAILURE;
+  if (!testRefreshConnectingResumeKeepsCachedWeatherVisible()) return EXIT_FAILURE;
+  if (!testLostLinkDuringRefreshRestoresCachedWeather()) return EXIT_FAILURE;
+  if (!testWeatherAppWaitsForPlatformConnectionWhenOffline()) return EXIT_FAILURE;
 
   printf("ApplicationManager tests passed.\n");
   return EXIT_SUCCESS;

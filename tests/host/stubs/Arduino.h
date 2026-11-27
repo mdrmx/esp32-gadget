@@ -1,3 +1,7 @@
+#ifndef PROGMEM
+#define PROGMEM
+#endif
+
 #pragma once
 
 #include <stddef.h>
@@ -66,6 +70,21 @@ public:
 
   bool operator==(const String& other) const {
     return value_ == other.value_;
+  }
+
+  bool operator!=(const String& other) const {
+    return value_ != other.value_;
+  }
+
+  void remove(unsigned int index, unsigned int count = 1) {
+    if (index < value_.length()) {
+      value_.erase(static_cast<size_t>(index), static_cast<size_t>(count));
+    }
+  }
+
+  String& operator+=(const char* suffix) {
+    if (suffix != nullptr) value_ += suffix;
+    return *this;
   }
 
 private:

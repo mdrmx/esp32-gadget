@@ -12,7 +12,6 @@ static WeatherApp::View view = WeatherApp::View::Weather;
 static bool fetchResult = true;
 static bool connected = false;
 static bool connectionPending = true;
-static int startCalls = 0;
 
 static void record(char event) {
   if (eventCount < sizeof(events) - 1) {
@@ -34,19 +33,12 @@ static void resetEnvironment() {
   fetchResult = true;
   connected = false;
   connectionPending = true;
-  startCalls = 0;
 }
 
 static void processInput() { record('I'); }
 static void syncTime() { record('S'); }
 static void refreshClock() { record('C'); }
 static uint32_t millisNow() { return clockMs; }
-
-static bool startConnection(uint32_t) {
-  ++startCalls;
-  record('N');
-  return true;
-}
 
 static bool isConnectionPending() { return connectionPending; }
 static bool isConnected() { return connected; }
@@ -76,7 +68,6 @@ static WeatherApp::Hooks makeHooks(bool includeAssetHook = true) {
   hooks.syncTime = syncTime;
   hooks.refreshClock = refreshClock;
   hooks.millisNow = millisNow;
-  hooks.startConnection = startConnection;
   hooks.connectionPending = isConnectionPending;
   hooks.isConnected = isConnected;
   hooks.resolveLocation = resolveLocation;
@@ -124,9 +115,9 @@ static bool testStartupAdvancesWithoutWaitingForConnection() {
     fprintf(stderr, "FAIL: async startup begin\n");
     return false;
   }
-  if (!expectEvents("GN", "startup begin")) return false;
-  if (app.state() != WeatherApp::State::Connecting || startCalls != 1) {
-    fprintf(stderr, "FAIL: startup did not enter Connecting exactly once\n");
+  if (!expectEvents("G", "startup begin")) return false;
+  if (app.state() != WeatherApp::State::Connecting) {
+    fprintf(stderr, "FAIL: startup did not wait in Connecting\n");
     return false;
   }
 
@@ -185,8 +176,8 @@ static bool testStartupAdvancesWithoutWaitingForConnection() {
   }
 
   app.end();
-  if (app.state() != WeatherApp::State::Inactive || app.isActive()) {
-    fprintf(stderr, "FAIL: end did not reset app state\n");
+  if (app.state() != WeatherApp::State::Ready || app.isActive()) {
+    fprintf(stderr, "FAIL: end did not suspend while retaining app state\n");
     return false;
   }
   return true;
@@ -252,9 +243,9 @@ static bool testRefreshWaitsForConnectionAndPreservesViewOrdering() {
   connectionPending = true;
   clockMs = 151;
   app.update();
-  if (!expectEvents("ISXN", "refresh connection start")) return false;
-  if (app.state() != WeatherApp::State::RefreshConnecting || startCalls != 2) {
-    fprintf(stderr, "FAIL: refresh did not initiate one new connection attempt\n");
+  if (!expectEvents("ISX", "refresh connection wait")) return false;
+  if (app.state() != WeatherApp::State::RefreshConnecting) {
+    fprintf(stderr, "FAIL: refresh did not enter its connection wait stage\n");
     return false;
   }
 

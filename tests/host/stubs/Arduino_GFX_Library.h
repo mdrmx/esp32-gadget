@@ -40,6 +40,23 @@ public:
     lastFillScreenColour = colour;
   }
 
+  void drawBitmap(
+    int16_t x,
+    int16_t y,
+    const uint8_t* bitmap,
+    int16_t width,
+    int16_t height,
+    uint16_t colour
+  ) {
+    ++drawBitmapCount;
+    lastBitmapX = x;
+    lastBitmapY = y;
+    lastBitmapWidth = width;
+    lastBitmapHeight = height;
+    lastBitmapColour = colour;
+    lastBitmap = bitmap;
+  }
+
   void fillRect(
     int16_t x,
     int16_t y,
@@ -94,6 +111,26 @@ public:
     lastFillRoundRectColour = colour;
   }
 
+  void drawRoundRect(
+    int16_t x,
+    int16_t y,
+    int16_t width,
+    int16_t height,
+    int16_t radius,
+    uint16_t colour
+  ) {
+    const int recordIndex = drawRoundRectCount;
+    if (recordIndex < MAX_RECORDED_ROUND_RECTS) {
+      drawRoundRectX[recordIndex] = x;
+      drawRoundRectY[recordIndex] = y;
+      drawRoundRectWidth[recordIndex] = width;
+      drawRoundRectHeight[recordIndex] = height;
+      drawRoundRectRadius[recordIndex] = radius;
+      drawRoundRectColour[recordIndex] = colour;
+    }
+    ++drawRoundRectCount;
+  }
+
   void fillCircle(int16_t, int16_t, int16_t, uint16_t colour) {
     ++fillCircleCount;
     lastFillCircleColour = colour;
@@ -145,6 +182,13 @@ public:
 
   int fillScreenCount = 0;
   uint16_t lastFillScreenColour = 0;
+  int drawBitmapCount = 0;
+  int lastBitmapX = 0;
+  int lastBitmapY = 0;
+  int lastBitmapWidth = 0;
+  int lastBitmapHeight = 0;
+  uint16_t lastBitmapColour = 0;
+  const uint8_t* lastBitmap = nullptr;
 
   int fillRectCount = 0;
   int lastFillRectX = 0;
@@ -173,6 +217,14 @@ public:
   int lastFillRoundRectHeight = 0;
   int lastFillRoundRectRadius = 0;
   uint16_t lastFillRoundRectColour = 0;
+
+  int drawRoundRectCount = 0;
+  int drawRoundRectX[MAX_RECORDED_ROUND_RECTS] = {};
+  int drawRoundRectY[MAX_RECORDED_ROUND_RECTS] = {};
+  int drawRoundRectWidth[MAX_RECORDED_ROUND_RECTS] = {};
+  int drawRoundRectHeight[MAX_RECORDED_ROUND_RECTS] = {};
+  int drawRoundRectRadius[MAX_RECORDED_ROUND_RECTS] = {};
+  uint16_t drawRoundRectColour[MAX_RECORDED_ROUND_RECTS] = {};
 
   int fillCircleCount = 0;
   uint16_t lastFillCircleColour = 0;
