@@ -11,6 +11,7 @@ class WeatherMetricCardRenderer {
 public:
   struct Colours {
     uint16_t panel;
+    uint16_t outline;
     uint16_t label;
     uint16_t value;
   };
@@ -52,6 +53,13 @@ public:
         CARD_HEIGHT,
         6,
         colours_.panel);
+      target->drawRoundRect(
+        x + 2,
+        viewportTop + localY,
+        panelWidth - 4,
+        CARD_HEIGHT,
+        6,
+        colours_.outline);
 
       target->setTextSize(1);
       target->setTextColor(colours_.label);
@@ -72,12 +80,30 @@ public:
 
     // Partial edge cards use a clipped rectangular slice. Only draw text
     // fields whose full glyph bounds fit inside the viewport.
+    const int cardX = x + 2;
+    const int cardWidth = panelWidth - 4;
+    const int visibleY = viewportTop + clippedTop;
+    const int visibleHeight = clippedBottom - clippedTop;
     target->fillRect(
-      x + 2,
-      viewportTop + clippedTop,
-      panelWidth - 4,
-      clippedBottom - clippedTop,
+      cardX,
+      visibleY,
+      cardWidth,
+      visibleHeight,
       colours_.panel);
+
+    // Draw only the card outline edges that are visible inside the viewport.
+    target->drawFastVLine(
+      cardX, visibleY, visibleHeight, colours_.outline);
+    target->drawFastVLine(
+      cardX + cardWidth - 1, visibleY, visibleHeight, colours_.outline);
+    if (localY >= 0) {
+      target->drawFastHLine(
+        cardX, viewportTop + localY, cardWidth, colours_.outline);
+    }
+    if (cardBottom <= viewportHeight) {
+      target->drawFastHLine(
+        cardX, viewportTop + cardBottom - 1, cardWidth, colours_.outline);
+    }
 
     const int labelLocalY = localY + 7;
     if (labelLocalY >= 0 && labelLocalY + 8 <= viewportHeight) {
