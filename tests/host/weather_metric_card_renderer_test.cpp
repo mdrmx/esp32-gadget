@@ -48,7 +48,7 @@ int main() {
   CHECK(target.lastFillRoundRectRadius == 6);
   CHECK(target.lastFillRoundRectColour == PAPER);
   CHECK(target.drawRoundRectCount == 1);
-  CHECK(target.lastDrawRoundRectColour == INK);
+  CHECK(target.drawRoundRectColour[0] == INK);
 
   CHECK(target.printCount == 2);
   CHECK(target.printedText[0] == String("HUMIDITY"));
