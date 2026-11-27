@@ -63,16 +63,16 @@ int main() {
   CHECK(target.printedSize[1] == 2);
   CHECK(target.printedColour[1] == INK);
 
-  // Longer values keep the original smaller type size and vertical offset.
+  // Longer values retain the same size-2 type and consistent vertical offset.
   renderer.draw(
     &target, "CLOUD COVER", "12.4 km", 192, 108, 118, 47, 177);
   CHECK(target.fillRoundRectCount == 2);
   CHECK(target.printCount == 4);
   CHECK(target.printedText[2] == String("CLOUD COVER"));
   CHECK(target.printedText[3] == String("12.4 km"));
-  CHECK(target.printedX[3] == 230);
-  CHECK(target.printedY[3] == 136);
-  CHECK(target.printedSize[3] == 1);
+  CHECK(target.printedX[3] == 209);
+  CHECK(target.printedY[3] == 131);
+  CHECK(target.printedSize[3] == 2);
   CHECK(target.printedColour[3] == INK);
 
   // A card clipped at the top draws its panel slice and only the value,
@@ -92,7 +92,9 @@ int main() {
   CHECK(target.lastFillRectColour == PAPER);
   CHECK(target.printCount == printsBeforeTopClip + 1);
   CHECK(target.printedText[printsBeforeTopClip] == String("1013 hPa"));
-  CHECK(target.printedY[printsBeforeTopClip] == 63);
+  CHECK(target.printedX[printsBeforeTopClip] == 203);
+  CHECK(target.printedY[printsBeforeTopClip] == 58);
+  CHECK(target.printedSize[printsBeforeTopClip] == 2);
 
   // A card clipped at the bottom draws the label but omits a value whose
   // full glyph height would extend below the viewport.
