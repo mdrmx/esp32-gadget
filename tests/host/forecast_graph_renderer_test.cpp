@@ -134,12 +134,15 @@ int main() {
   CHECK(target->printCount == printsBeforeScroll + 21);
   CHECK(target->fillCircleCount == circlesBeforeScroll + 28);
 
-  // Negative elastic scroll remains a caller concern, but the renderer keeps
-  // the existing chart offset and uses zero for the visible-range calculation.
+  // Negative elastic scroll shifts the graph right by 20 px while its
+  // visible-range calculation remains anchored at zero. The seventh point
+  // moves beyond the right plot edge, so only six points' three labels remain.
   const int printsBeforeElastic = target->printCount;
+  const int circlesBeforeElastic = target->fillCircleCount;
   graphRenderer.draw(
     target, 320, 64, data.count, -20, &data, readTestPoint);
-  CHECK(target->printCount == printsBeforeElastic + 21);
+  CHECK(target->printCount == printsBeforeElastic + 18);
+  CHECK(target->fillCircleCount == circlesBeforeElastic + 24);
 
   // Out-of-range readers produce no partial graph.
   const int linesBeforeInvalid = target->horizontalLineCount;
