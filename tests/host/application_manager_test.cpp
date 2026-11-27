@@ -377,13 +377,16 @@ static bool testReadyWeatherRestoresCacheWhenOffline() {
   CHECK(weather.state() == WeatherApp::State::Ready);
   CHECK(weatherDrawWeatherCalls == 1);
   const uint32_t lastRefresh = weather.lastRefreshMs();
+  const int loadingCallsBeforeResume = weatherDrawLoadingCalls;
 
   CHECK(manager.stopActive());
   weatherConnected = false;
   CHECK(manager.start("weather"));
   CHECK(weather.state() == WeatherApp::State::Ready);
   CHECK(weatherDrawWeatherCalls == 2);
-  CHECK(weatherDrawLoadingCalls == 0);
+  // The initial cold start legitimately showed a loading message. Resuming
+  // with cached data must not add another loading message while offline.
+  CHECK(weatherDrawLoadingCalls == loadingCallsBeforeResume);
   CHECK(weather.lastRefreshMs() == lastRefresh);
   CHECK(manager.stopActive());
   return true;
