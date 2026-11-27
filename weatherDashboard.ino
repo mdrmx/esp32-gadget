@@ -594,7 +594,7 @@ void drawError(const String& message) {
 
 // =====================================================
 // OPENWEATHER ICON PNG DOWNLOAD + DECODING
-// Uses official PNG assets: https://openweathermap.org/img/wn/<code>.png
+// Uses official 2x OpenWeather PNG assets, downsampled for the compact view:
 // Install the "PNGdec" library by Larry Bank from Arduino Library Manager.
 // =====================================================
 
