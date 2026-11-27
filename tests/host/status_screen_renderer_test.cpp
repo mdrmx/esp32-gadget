@@ -38,10 +38,12 @@ int main() {
   CHECK(physicalTarget->fillScreenCount == 1);
   CHECK(physicalTarget->lastFillScreenColour == BG);
   CHECK(physicalTarget->fillRectCount == 2);
-  CHECK(physicalTarget->lastFillRectX == 0);
-  CHECK(physicalTarget->lastFillRectY == 0);
-  CHECK(physicalTarget->lastFillRectWidth == 320);
-  CHECK(physicalTarget->lastFillRectHeight == 36);
+  CHECK(physicalTarget->lastFillRectX == HeaderRenderer::WiFiIndicatorLeft);
+  CHECK(physicalTarget->lastFillRectY == HeaderRenderer::WiFiIndicatorTop);
+  CHECK(physicalTarget->lastFillRectWidth ==
+        HeaderRenderer::WiFiIndicatorRight - HeaderRenderer::WiFiIndicatorLeft);
+  CHECK(physicalTarget->lastFillRectHeight ==
+        HeaderRenderer::WiFiIndicatorBottom - HeaderRenderer::WiFiIndicatorTop);
   CHECK(physicalTarget->lastFillRectColour == BG);
   CHECK(physicalTarget->horizontalLineCount == 2);
   CHECK(physicalTarget->lastLineY == 36);
