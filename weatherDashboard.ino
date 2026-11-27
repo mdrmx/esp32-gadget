@@ -3948,6 +3948,10 @@ void loop() {
       nowMs,
       wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning);
 
+  updateWiFiSignalIndicator();
+  updateWiFiSettings();
+  pollTouch();
+
   // Time synchronisation and the shared header clock belong to the platform,
   // not the currently selected application. This must run while the boot
   // launcher is open (when no application is active) as well as in every app.
@@ -3957,9 +3961,6 @@ void loop() {
     refreshHeaderClock();
   }
 
-  updateWiFiSignalIndicator();
-  updateWiFiSettings();
-  pollTouch();
   applicationManager.update();
   delay(30);
 }
