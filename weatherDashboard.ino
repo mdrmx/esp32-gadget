@@ -44,6 +44,7 @@
 #include "src/apps/ApplicationManager.h"
 #include "src/apps/ApplicationLauncherController.h"
 #include "src/apps/weather/WeatherApp.h"
+#include "src/apps/weather/WeatherMetricCatalog.h"
 #include "src/apps/weather/WeatherViewState.h"
 #include "src/apps/weather/WeatherAssetCache.h"
 
@@ -388,7 +389,7 @@ bool loadDemoWeatherData();
 
 const int ITEMS_PER_PAGE = 3;
 
-const int WEATHER_METRIC_COUNT = 8;
+const int WEATHER_METRIC_COUNT = WeatherMetricCatalog::Count;
 const int WEATHER_METRICS_VISIBLE = 3;
 const int WEATHER_METRIC_PANEL_TOP = 39;
 const int WEATHER_METRIC_PANEL_HEIGHT = 177;
@@ -1052,38 +1053,36 @@ int weatherMetricsPanelWidth() {
   return displayManager.width() - weatherMetricsPanelX() - 10;
 }
 
-const char* weatherMetricLabel(int index) {
-  switch (index) {
-    case 0: return "HUMIDITY";
-    case 1: return "PRESSURE";
-    case 2: return "UV INDEX";
-    case 3: return "RAIN CHANCE";
-    case 4: return "WIND";
-    case 5: return "CLOUD COVER";
-    case 6: return "VISIBILITY";
-    case 7: return "RAIN (1H)";
-    default: return "";
-  }
-}
-
-String weatherMetricValue(int index) {
-  switch (index) {
-    case 0: return String(humidity) + "%";
-    case 1: return String(pressure) + " hPa";
-    case 2:
-      return uvIndexAvailable ? String(currentUvIndex, 1) : "--";
-    case 3:
+String weatherMetricValue(WeatherMetricCatalog::MetricId metric) {
+  switch (metric) {
+    case WeatherMetricCatalog::RainChance:
       return rainProbabilityAvailable
         ? String((int)(currentRainProbability * 100.0f + 0.5f)) + "%"
         : "--";
-    case 4: return String(windSpeedKmh, 1) + " km/h";
-    case 5: return String(cloudCover) + "%";
-    case 6:
+    case WeatherMetricCatalog::Wind:
+      // Keep the shared size-2 card value within its 114 px inner width.
+      // Decimal precision is retained for normal speeds and dropped above
+      // 99.9 km/h so a three-digit value still fits without shrinking type.
+      return windSpeedKmh >= 100.0f
+        ? String(windSpeedKmh, 0) + " km/h"
+        : String(windSpeedKmh, 1) + " km/h";
+    case WeatherMetricCatalog::UvIndex:
+      return uvIndexAvailable ? String(currentUvIndex, 1) : "--";
+    case WeatherMetricCatalog::Humidity:
+      return String(humidity) + "%";
+    case WeatherMetricCatalog::Pressure:
+      return String(pressure) + " hPa";
+    case WeatherMetricCatalog::CloudCover:
+      return String(cloudCover) + "%";
+    case WeatherMetricCatalog::Visibility:
       return visibilityAvailable
         ? String(visibilityMeters / 1000.0f, 1) + " km"
         : "--";
-    case 7: return String(rainLastHourMm, 1) + " mm";
-    default: return "--";
+    case WeatherMetricCatalog::RainLastHour:
+      return String(rainLastHourMm, 1) + " mm";
+    case WeatherMetricCatalog::Invalid:
+    default:
+      return "--";
   }
 }
 
@@ -1095,10 +1094,12 @@ bool readWeatherMetricItem(
   WeatherMetricsViewportRenderer::Item& item
 ) {
   (void)context;
-  if (index < 0 || index >= WEATHER_METRIC_COUNT) return false;
+  const WeatherMetricCatalog::MetricId metric =
+    WeatherMetricCatalog::metricForCard(index);
+  if (metric == WeatherMetricCatalog::Invalid) return false;
 
-  item.label = weatherMetricLabel(index);
-  item.value = weatherMetricValue(index);
+  item.label = WeatherMetricCatalog::label(metric);
+  item.value = weatherMetricValue(metric);
   return true;
 }
 
