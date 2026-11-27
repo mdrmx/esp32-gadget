@@ -59,15 +59,15 @@ static bool testIconGridLayoutAndHitTargets() {
   // Four square icon tiles are drawn with no BACK button or footer prompt.
   CHECK(target->fillRoundRectCount == 4);
   CHECK(target->fillRoundRectX[0] == 56);
-  CHECK(target->fillRoundRectY[0] == 50);
+  CHECK(target->fillRoundRectY[0] == 64);
   CHECK(target->fillRoundRectWidth[0] == 68);
   CHECK(target->fillRoundRectHeight[0] == 68);
   CHECK(target->fillRoundRectX[1] == 196);
-  CHECK(target->fillRoundRectY[1] == 50);
+  CHECK(target->fillRoundRectY[1] == 64);
   CHECK(target->fillRoundRectX[2] == 56);
-  CHECK(target->fillRoundRectY[2] == 130);
+  CHECK(target->fillRoundRectY[2] == 144);
   CHECK(target->fillRoundRectX[3] == 196);
-  CHECK(target->fillRoundRectY[3] == 130);
+  CHECK(target->fillRoundRectY[3] == 144);
   CHECK(target->drawRoundRectCount == 4);
   CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
   CHECK(target->drawRoundRectColour[1] == LauncherColours.text);
@@ -87,18 +87,18 @@ static bool testIconGridLayoutAndHitTargets() {
   CHECK(target->printedText[0] == String("APPLICATIONS"));
 
   uint8_t applicationIndex = 99;
-  CHECK(renderer.applicationAt(60, 54, applicationIndex, manager));
+  CHECK(renderer.applicationAt(60, 65, applicationIndex, manager));
   CHECK(applicationIndex == 0);
-  CHECK(renderer.applicationAt(200, 54, applicationIndex, manager));
+  CHECK(renderer.applicationAt(200, 65, applicationIndex, manager));
   CHECK(applicationIndex == 1);
-  CHECK(renderer.applicationAt(60, 140, applicationIndex, manager));
+  CHECK(renderer.applicationAt(60, 145, applicationIndex, manager));
   CHECK(applicationIndex == 2);
-  CHECK(renderer.applicationAt(200, 140, applicationIndex, manager));
+  CHECK(renderer.applicationAt(200, 145, applicationIndex, manager));
   CHECK(applicationIndex == 3);
-  CHECK(!renderer.applicationAt(160, 60, applicationIndex, manager));
-  CHECK(!renderer.applicationAt(60, 120, applicationIndex, manager));
-  CHECK(!renderer.applicationAt(20, 60, applicationIndex, manager));
-  CHECK(!renderer.applicationAt(60, 205, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(160, 65, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(60, 136, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(20, 65, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(60, 213, applicationIndex, manager));
 
   return true;
 }
