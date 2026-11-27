@@ -9,7 +9,7 @@
 - `Application` (`src/apps/Application.h`) is the small lifecycle contract: stable id, `begin()`, `update()` and `end()`.
 - `ApplicationManager` (`src/apps/ApplicationManager.h`) stores non-owning application pointers in a fixed-capacity array of four entries. It performs no heap allocation and does not own or initialise display, touch, connectivity, location, time or storage services.
 - The sketch remains the composition root. It constructs platform services and application instances, configures each application's borrowed callbacks, registers applications and starts the initial app.
-- `ApplicationLauncherController` coordinates launcher open/select/back operations through the manager; it owns no application instances or platform services. `ApplicationLauncherRenderer` owns only the bounded launcher presentation.
+- `ApplicationLauncherController` coordinates launcher open/select/return lifecycle through the manager; it owns no application instances or platform services. The visible launcher has no BACK control; the previously active app is resumed by selecting its icon again. `ApplicationLauncherRenderer` owns only the bounded launcher presentation.
 - `WeatherApp` implements `Application`. Its state machine still owns Weather startup/refresh sequencing; Weather-specific data, view state and rendering stay in their existing modules.
 
 ## Lifecycle semantics
