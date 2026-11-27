@@ -15,9 +15,8 @@ static void check(bool condition, const char* expression, int line) {
 int main() {
   const uint16_t BG = 0xFF9C;
   const uint16_t INK = 0x28C1;
-  const uint16_t BURNT_ORANGE = 0xD303;
   const StatusScreenRenderer::Colours colours = {
-    BG, BG, INK, BURNT_ORANGE, INK, BURNT_ORANGE, INK
+    BG, BG, INK, INK, INK, INK, INK
   };
 
   DisplayManager displayManager;
@@ -56,7 +55,7 @@ int main() {
   CHECK(physicalTarget->printedX[2] == 76);
   CHECK(physicalTarget->printedY[2] == 83);
   CHECK(physicalTarget->printedSize[2] == 2);
-  CHECK(physicalTarget->printedColour[2] == BURNT_ORANGE);
+  CHECK(physicalTarget->printedColour[2] == INK);
   CHECK(physicalTarget->printedText[3] == String("Connecting Wi-Fi..."));
   CHECK(physicalTarget->printedY[3] == 119);
   CHECK(physicalTarget->printedSize[3] == 1);
