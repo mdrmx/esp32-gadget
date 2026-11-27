@@ -66,13 +66,13 @@ int main() {
     "16.4 C",
     "Feels: 15.8C",
     colours);
-  CHECK(physicalTarget->printCount == 10);
+  CHECK(physicalTarget->printCount == 9);
   CHECK(physicalTarget->printedText[4].length() <= 14);
   CHECK(physicalTarget->printedX[4] == 8);
   CHECK(physicalTarget->printedY[4] == 47);
-  CHECK(physicalTarget->printedText[7] == String("Partly cloudy"));
+  CHECK(physicalTarget->printedText[7] == String("Partly cloudy with"));
   CHECK(physicalTarget->printedY[7] == 169);
-  CHECK(physicalTarget->printedText[8] == String("with showers"));
+  CHECK(physicalTarget->printedText[8] == String("showers"));
   CHECK(physicalTarget->printedY[8] == 177);
 
   // An absent render target is a safe no-op through TextRenderer.
