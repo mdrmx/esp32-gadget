@@ -130,12 +130,12 @@ static bool testSingleWeatherIconIsCentred() {
   CHECK(target->printedText[0] == String("APPLICATIONS"));
 
   uint8_t applicationIndex = 99;
-  CHECK(renderer.applicationAt(126, 89, applicationIndex, manager));
+  CHECK(renderer.applicationAt(126, 104, applicationIndex, manager));
   CHECK(applicationIndex == 0);
-  CHECK(renderer.applicationAt(193, 156, applicationIndex, manager));
+  CHECK(renderer.applicationAt(193, 171, applicationIndex, manager));
   CHECK(applicationIndex == 0);
-  CHECK(!renderer.applicationAt(125, 89, applicationIndex, manager));
-  CHECK(!renderer.applicationAt(194, 156, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(125, 104, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(194, 171, applicationIndex, manager));
   return true;
 }
 
@@ -158,7 +158,7 @@ static bool testTwoAppRowIsVerticallyCentred() {
   CHECK(target->fillRoundRectCount == 2);
   CHECK(target->fillRoundRectX[0] == 56);
   CHECK(target->fillRoundRectX[1] == 196);
-  CHECK(target->fillRoundRectY[0] == 89);
+  CHECK(target->fillRoundRectY[0] == 104);
   CHECK(target->fillRoundRectY[1] == 104);
   CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
   CHECK(target->drawBitmapCount == 1);
@@ -166,9 +166,9 @@ static bool testTwoAppRowIsVerticallyCentred() {
   CHECK(target->printedText[0] == String("APPLICATIONS"));
 
   uint8_t applicationIndex = 99;
-  CHECK(renderer.applicationAt(60, 90, applicationIndex, manager));
+  CHECK(renderer.applicationAt(60, 105, applicationIndex, manager));
   CHECK(applicationIndex == 0);
-  CHECK(renderer.applicationAt(200, 90, applicationIndex, manager));
+  CHECK(renderer.applicationAt(200, 105, applicationIndex, manager));
   CHECK(applicationIndex == 1);
   return true;
 }
