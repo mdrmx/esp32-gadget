@@ -240,18 +240,18 @@ const StatusScreenRenderer::Colours STATUS_SCREEN_COLOURS = {
 };
 
 const ApplicationLauncherRenderer::Colours APPLICATION_LAUNCHER_COLOURS = {
-  BG, BG, UI_INK, MUTED, ACCENT, UI_INK
+  BG, BG, UI_INK, UI_INK, ACCENT, UI_INK
 };
 
 ApplicationLauncherRenderer applicationLauncherRenderer(
   displayManager, textRenderer, APPLICATION_LAUNCHER_COLOURS);
 
 const WiFiSettingsRenderer::Colours WIFI_SETTINGS_COLOURS = {
-  BG, PANEL, UI_INK, MUTED, ACCENT, UI_ORANGE, ERROR_COLOUR
+  BG, BG, UI_INK, UI_INK, ACCENT, PANEL, ACCENT
 };
 
 const ForecastModeSelectorRenderer::Colours FORECAST_MODE_SELECTOR_COLOURS = {
-  PANEL, UI_INK, BG, MUTED
+  BG, PANEL, UI_INK, UI_INK
 };
 
 enum class WiFiSettingsScreen : uint8_t {
@@ -327,7 +327,7 @@ ForecastModeSelectorRenderer forecastModeSelectorRenderer(
     displayManager, textRenderer, FORECAST_MODE_SELECTOR_COLOURS);
 
 const ForecastListItemRenderer::Colours FORECAST_LIST_ITEM_COLOURS = {
-  PANEL, UI_INK, UI_ORANGE, MUTED, ACCENT
+  BG, UI_INK, UI_INK, UI_INK, UI_INK, UI_INK
 };
 ForecastListItemRenderer forecastListItemRenderer(
   displayManager, FORECAST_LIST_ITEM_COLOURS);
@@ -335,13 +335,13 @@ ForecastListViewportRenderer forecastListViewportRenderer(
   forecastListItemRenderer);
 
 const ForecastGraphRenderer::Colours FORECAST_GRAPH_COLOURS = {
-  PANEL, UI_ORANGE, UI_INK, UI_INK, MUTED, ACCENT
+  UI_INK, ACCENT, ACCENT, UI_INK, UI_INK, ACCENT
 };
 ForecastGraphRenderer forecastGraphRenderer(
   forecastListItemRenderer, FORECAST_GRAPH_COLOURS);
 
 const WeatherMetricCardRenderer::Colours WEATHER_METRIC_CARD_COLOURS = {
-  PANEL, MUTED, ACCENT
+  BG, UI_INK, UI_INK, UI_INK
 };
 WeatherMetricCardRenderer weatherMetricCardRenderer(
   WEATHER_METRIC_CARD_COLOURS);
@@ -349,7 +349,7 @@ WeatherMetricsViewportRenderer weatherMetricsViewportRenderer(
   weatherMetricCardRenderer);
 
 const WeatherConditionsRenderer::Colours WEATHER_CONDITIONS_COLOURS = {
-  MUTED, UI_ORANGE, MUTED
+  UI_INK, UI_INK, UI_INK
 };
 
 // =====================================================
@@ -498,7 +498,7 @@ String getHeaderLocationText() {
 }
 
 void drawHeaderClockOnly(const String& clockText) {
-  headerRenderer.drawClockOnly(clockText, PANEL, UI_INK, ACCENT);
+  headerRenderer.drawClockOnly(clockText, BG, UI_INK, UI_INK);
   lastHeaderClock = clockText;
 }
 
@@ -518,7 +518,7 @@ void updateWiFiSignalIndicator() {
   const uint8_t strengthLevel =
       connected ? wifiSignalMeter.level() : 0;
   if (headerRenderer.setWiFiStatus(connected, strengthLevel)) {
-    headerRenderer.drawWiFiIndicator(PANEL, UI_INK, ACCENT);
+    headerRenderer.drawWiFiIndicator(BG, UI_INK, UI_INK);
   }
 }
 
@@ -553,7 +553,7 @@ void maybeSyncTimeFromAPI() {
 void drawHeader() {
   const String clockText = timeService.headerClockText();
   headerRenderer.draw(
-    getHeaderLocationText(), clockText, PANEL, UI_INK, ACCENT);
+    getHeaderLocationText(), clockText, BG, UI_INK, UI_INK);
   lastHeaderClock = clockText;
 }
 
