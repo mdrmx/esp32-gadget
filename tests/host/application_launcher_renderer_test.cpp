@@ -4,6 +4,7 @@
 
 #include "../../src/apps/ApplicationManager.h"
 #include "../../src/ui/ApplicationLauncherRenderer.h"
+#include "../../src/ui/icons/LauncherPngAssets.h"
 
 static void check(bool condition, const char* expression, int line) {
   if (!condition) {
@@ -52,6 +53,46 @@ static void capturePlaceholderIcon(
   capture->icons[slot] = icon;
   capture->x[slot] = x;
   capture->y[slot] = y;
+}
+
+static bool testFlashResidentPngAssets() {
+  const uint8_t expectedSizes[5] = {2268, 1898, 2499, 1499, 3032};
+  for (uint8_t icon = 1; icon <= 5; ++icon) {
+    const uint8_t* data = nullptr;
+    size_t length = 0;
+    CHECK(LauncherPngAssets::get(icon, &data, &length));
+    CHECK(data != nullptr);
+    CHECK(length == expectedSizes[icon - 1]);
+
+    // PNG signature and the big-endian IHDR dimensions are checked against
+    // the exact embedded flash data, not only the source PNG filenames.
+    CHECK(data[0] == 0x89);
+    CHECK(data[1] == 0x50);
+    CHECK(data[2] == 0x4e);
+    CHECK(data[3] == 0x47);
+    CHECK(data[4] == 0x0d);
+    CHECK(data[5] == 0x0a);
+    CHECK(data[6] == 0x1a);
+    CHECK(data[7] == 0x0a);
+    CHECK(data[16] == 0);
+    CHECK(data[17] == 0);
+    CHECK(data[18] == 0);
+    CHECK(data[19] == 64);
+    CHECK(data[20] == 0);
+    CHECK(data[21] == 0);
+    CHECK(data[22] == 0);
+    CHECK(data[23] == 64);
+    CHECK(data[24] == 8);
+    CHECK(data[25] == 6);  // 8-bit RGBA
+  }
+
+  const uint8_t* data = nullptr;
+  size_t length = 0;
+  CHECK(!LauncherPngAssets::get(0, &data, &length));
+  CHECK(!LauncherPngAssets::get(6, &data, &length));
+  CHECK(!LauncherPngAssets::get(1, nullptr, &length));
+  CHECK(!LauncherPngAssets::get(1, &data, nullptr));
+  return true;
 }
 
 static bool testWeatherIconRetainsOriginalBitmap() {
@@ -196,6 +237,7 @@ static bool testEmptyLauncherStillShowsReferenceCatalogue() {
 }
 
 int main() {
+  if (!testFlashResidentPngAssets()) return EXIT_FAILURE;
   if (!testWeatherIconRetainsOriginalBitmap()) return EXIT_FAILURE;
   if (!testSixTileCatalogAndRegisteredHitTargets()) return EXIT_FAILURE;
   if (!testRegisteredPlaceholderUsesManagerIndex()) return EXIT_FAILURE;
