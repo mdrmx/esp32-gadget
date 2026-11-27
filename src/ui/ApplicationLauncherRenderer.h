@@ -46,7 +46,7 @@ class ApplicationLauncherRenderer {
 
   void draw(
       const ApplicationManager& manager,
-      const char* returnApplicationId,
+      const char* /*returnApplicationId*/,
       const String& message = String()) const {
     Arduino_GFX* target = displayManager_.target();
     if (target == nullptr) {
@@ -74,18 +74,12 @@ class ApplicationLauncherRenderer {
 
       const int x = tileLeft(i, count, width);
       const int y = tileTop(i, count);
-      const bool isReturnApplication =
-          returnApplicationId != nullptr &&
-          strcmp(returnApplicationId, application->id()) == 0;
-
       target->fillRoundRect(
-          x, y, IconTileSize, IconTileSize, IconTileRadius, colours_.panel);
-      const bool isSelected =
-          isReturnApplication ||
-          (returnApplicationId == nullptr && count == 1 && i == 0);
+          x, y, IconTileSize, IconTileSize, IconTileRadius,
+          colours_.background);
       target->drawRoundRect(
           x, y, IconTileSize, IconTileSize, IconTileRadius,
-          isSelected ? colours_.selected : colours_.muted);
+          colours_.text);
       drawApplicationIcon(target, application->id(), x, y);
     }
 
