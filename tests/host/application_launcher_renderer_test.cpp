@@ -96,6 +96,8 @@ static bool testFlashResidentPngAssets() {
 }
 
 static bool testWeatherIconRetainsOriginalBitmap() {
+  CHECK(ApplicationLauncherRenderer::IconArtworkSize == 32);
+  CHECK(ApplicationLauncherRenderer::IconArtworkInset == 18);
   CHECK(WeatherLauncherIcon::Width == 32);
   CHECK(WeatherLauncherIcon::Height == 32);
   CHECK(WeatherLauncherIcon::BytesPerRow == 4);
@@ -156,21 +158,21 @@ static bool testSixTileCatalogAndRegisteredHitTargets() {
   CHECK(target->lastBitmapColour == LauncherColours.text);
   CHECK(target->lastBitmap != nullptr);
 
-  // Five non-Weather assets are delegated to the PNG drawer, inset by 2 px.
+  // Five non-Weather PNGs are downsampled into a centred 32x32 footprint.
   CHECK(capture.count == 5);
   for (uint8_t i = 0; i < capture.count; ++i) {
     CHECK(capture.icons[i] == (uint8_t)(i + 1));
   }
-  CHECK(capture.x[0] == 128);
-  CHECK(capture.y[0] == 62);
-  CHECK(capture.x[1] == 216);
-  CHECK(capture.y[1] == 62);
-  CHECK(capture.x[2] == 40);
-  CHECK(capture.y[2] == 150);
-  CHECK(capture.x[3] == 128);
-  CHECK(capture.y[3] == 150);
-  CHECK(capture.x[4] == 216);
-  CHECK(capture.y[4] == 150);
+  CHECK(capture.x[0] == 144);
+  CHECK(capture.y[0] == 78);
+  CHECK(capture.x[1] == 232);
+  CHECK(capture.y[1] == 78);
+  CHECK(capture.x[2] == 56);
+  CHECK(capture.y[2] == 166);
+  CHECK(capture.x[3] == 144);
+  CHECK(capture.y[3] == 166);
+  CHECK(capture.x[4] == 232);
+  CHECK(capture.y[4] == 166);
 
   // Only the launcher title is printed: no app names or instructions.
   CHECK(target->printCount == 1);
