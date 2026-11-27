@@ -399,6 +399,7 @@ static bool testRefreshConnectingResumeKeepsCachedWeatherVisible() {
 
   fakeMillis = 2000;
   weatherConnected = true;
+  weatherDataAvailable = true;
   weatherDrawLoadingCalls = 0;
   weatherDrawWeatherCalls = 0;
   weatherDrawForecastCalls = 0;
@@ -415,7 +416,9 @@ static bool testRefreshConnectingResumeKeepsCachedWeatherVisible() {
   weatherConnected = false;
   CHECK(manager.start("weather"));
   CHECK(weather.state() == WeatherApp::State::RefreshConnecting);
-  CHECK(weatherDrawWeatherCalls == 2);
+  // Cached weather is drawn on initial entry, after startup preparation, and
+  // again when the suspended refresh workflow resumes.
+  CHECK(weatherDrawWeatherCalls == 3);
   CHECK(weatherDrawLoadingCalls == 0);
   CHECK(manager.stopActive());
   return true;
@@ -428,6 +431,7 @@ static bool testLostLinkDuringRefreshRestoresCachedWeather() {
 
   fakeMillis = 3000;
   weatherConnected = true;
+  weatherDataAvailable = true;
   weatherDrawLoadingCalls = 0;
   weatherDrawWeatherCalls = 0;
   weatherDrawForecastCalls = 0;
@@ -445,7 +449,8 @@ static bool testLostLinkDuringRefreshRestoresCachedWeather() {
   weatherConnected = false;
   CHECK(manager.start("weather"));
   CHECK(weather.state() == WeatherApp::State::RefreshConnecting);
-  CHECK(weatherDrawWeatherCalls == 2);
+  // The cache is redrawn when Weather resumes after the link drops.
+  CHECK(weatherDrawWeatherCalls == 3);
   CHECK(weatherDrawLoadingCalls == 0);
   CHECK(manager.stopActive());
   return true;
