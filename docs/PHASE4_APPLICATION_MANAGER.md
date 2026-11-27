@@ -1,6 +1,6 @@
 # Phase 4 — Application Manager and lifecycle
 
-**Status:** Lifecycle manager merged in PR #62; launcher-first boot and interaction are implemented on `phase4/02-application-launcher`. Core launcher navigation, Wi-Fi and boot behaviour passed Arduino IDE Verify/upload and user-confirmed physical regression on 2026-11-26. The newer icon-grid and e-ink palette visual update is not yet recompiled or hardware-checked. Weather remains the only registered application; second-app integration and expanded host-suite validation remain pending.  
+**Status:** Lifecycle manager merged in PR #62; launcher-first boot and interaction are implemented on `phase4/02-application-launcher`. Core launcher navigation, Wi-Fi and boot behaviour passed Arduino IDE Verify/upload and user-confirmed physical regression on 2026-11-26. The current icon-grid, paper-and-ink card treatment and shared-header visual refinement is not yet recompiled or hardware-checked. Weather remains the only registered application; second-app integration and expanded host-suite validation remain pending.  
 **Base:** PR #62 merge `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`.  
 **Goal:** Give the platform one bounded, transport- and hardware-neutral way to register, start, update, switch and stop applications.
 
@@ -34,11 +34,11 @@ An application implementation must leave itself inactive when `begin()` returns 
 ## Application launcher slice
 
 - A quick upward swipe that starts within the centred 64 px-wide band of the bottom 24 px opens the platform launcher. On the 320 px-wide panel the activation band is x=128–191. The swipe must travel at least 52 px upward, stay within 40 px horizontal drift and complete within 650 ms. Touches starting elsewhere along the bottom edge are not claimed by this gesture, so metric-card/list interactions remain available. There is no launcher button in the header.
-- The launcher renders up to four apps as a two-column, two-row icon grid. One or two registered apps are centred in the available area as a centred single row; three or four apps use two rows. Tiles are 68 px rounded squares with no app-id, OPEN or LAST USED labels; the currently suspended app gets an orange outline. Weather uses the supplied cloudy glyph, converted to a 32×32 one-bit monochrome bitmap stored in PROGMEM and drawn in the current ink colour. Apps without artwork use a simple plus glyph until dedicated icon metadata is introduced. The shared clock and live Wi-Fi signal indicator remain visible and continue updating while the launcher is open.
+- The launcher renders up to four apps as a two-column, two-row icon grid. One or two registered apps are centred in the available area as a single row; three or four apps use two rows. Tiles are 68 px rounded squares with paper-coloured fill and a dark-ink outline. There are no app-id, OPEN, LAST USED or SELECT AN APP labels, and no BACK button. Weather uses the supplied cloudy glyph, converted to a 32×32 one-bit monochrome bitmap stored in PROGMEM and drawn in the current ink colour. Apps without artwork use a simple plus glyph until dedicated icon metadata is introduced. The shared clock and live Wi-Fi signal indicator remain visible and continue updating while the launcher is open.
 - Opening the launcher records the previous app id and calls `stopActive()`; platform display, touch, connectivity, location, time and storage services remain alive.
-- Selecting a tile starts that registered app through `switchTo()`. BACK re-enters the app that was active before the launcher opened. A failed app start leaves the launcher visible so the user can retry or return.
+- Selecting a tile starts that registered app through `switchTo()`. To resume the previously active app, select its icon again; the launcher has no separate BACK control. A failed app start leaves the launcher visible with a brief diagnostic message.
 - The same central-band bottom-edge gesture is handled at platform level before app/modal touch processing, so the launcher can be opened from any app or platform screen, including Wi-Fi settings. It only claims contacts that begin inside the central band; ordinary metric-card/list gestures outside that band continue to their app.
-- At boot, the launcher is opened with no active application, then the platform starts the saved preferred Wi-Fi profile without waiting. The launcher stays drawn while association/retry proceeds; the header signal icon changes from disconnected to connected/strength as the manager reports the link. With no previous app at boot, BACK is omitted.
+- At boot, the launcher is opened with no active application, then the platform starts the saved preferred Wi-Fi profile without waiting. The launcher stays drawn while association/retry proceeds; the header signal icon changes from disconnected to connected/strength as the manager reports the link. The launcher presents only app icons and optional failure feedback; it does not show a BACK button or selection prompt.
 - The Wi-Fi header target is dispatched before the launcher's catch-all touch handler, including while the launcher itself is open. This keeps network settings reachable from the boot launcher; once open, the modal owns touch interaction and the central-band swipe returns to the launcher.
 
 ## Scope deliberately deferred
@@ -82,10 +82,18 @@ For merged PR #62, the user confirmed the strict C++11 runner passes (`Applicati
 - Arduino IDE Verify/compile and upload passed with the same Waveshare ESP32-S3 FQBN, ESP32 core 3.3.12 and esptool 5.3.1.
 - Build footprint: 1,209,815 bytes program storage (38% of the 3,145,728-byte app partition) and 100,868 bytes global dynamic memory (30% of 327,680 bytes), leaving 226,812 bytes.
 - The log reports 1,044,480 bytes written (730,023 compressed), successful flash-data hash verification and hard reset via RTS.
-- The user confirmed the launcher-first boot, background Wi-Fi, central-band swipe, launcher redraw/touch behaviour and Wi-Fi settings access before the icon-grid/palette visual follow-up. This is physical regression evidence for the prior launcher revision only. The current icon-grid/e-ink palette revision still needs Arduino Verify/upload and a visual hardware check; focused host suites also remain to be run.
+- The user confirmed the launcher-first boot, background Wi-Fi, central-band swipe, launcher redraw/touch behaviour and Wi-Fi settings access before the icon-grid/palette visual follow-up. This is physical regression evidence for the prior launcher revision only. The current icon-grid, header and card-style visual revision still needs Arduino Verify/upload and a visual hardware check; focused host suites also remain to be run.
 
 Independent multi-app switching remains deferred because only Weather is registered. Runtime heap/largest-block/PSRAM profiling remains outstanding.
 
+
+## Shared visual treatment (2026-11-27)
+
+- Every shared header uses the same paper background as the screen. Clock text and the Wi-Fi glyph are dark ink, with no coloured rectangle behind either indicator. The horizontal header divider is a two-pixel ink rule and is restored by clock/Wi-Fi partial redraws.
+- Weather metric cards, hourly list cards, Wi-Fi network rows/fields/buttons and launcher icon tiles use the paper background with a dark-ink outline. Partially clipped Weather/Forecast cards draw the visible outline edges during scrolling.
+- Weather descriptions, metric labels/values and Forecast list/graph labels use the dark ink colour.
+- The List/Graph selector track uses the paper background and ink outline. The selected segment uses the lighter burnt-orange tone; both labels remain ink.
+- Graph grid/divider lines and all graph text use ink. The plotted temperature/rain series retain burnt-orange emphasis.
 
 ## E-ink-inspired OS palette (2026-11-26)
 
@@ -94,8 +102,8 @@ The shared UI palette is based on the four supplied colours and is applied acros
 | Role | Hex | RGB565 | Use |
 |---|---|---:|---|
 | Paper | `#FEF3E2` | `0xFF9C` | Main screen background |
-| Amber | `#F4AE52` | `0xF56A` | Panels and raised surfaces |
-| Burnt orange | `#D4621A` | `0xD303` | Accent, selection, secondary emphasis, connected Wi-Fi and error state |
-| Dark brown | `#2A1A0E` | `0x28C1` | Primary text and monochrome icons |
+| Light burnt orange | `#F4AE52` | `0xF56A` | Selected List/Graph segment |
+| Burnt orange | `#D4621A` | `0xD303` | Plot emphasis and stronger accents |
+| Dark brown | `#2A1A0E` | `0x28C1` | Text, icons, card outlines and dividers |
 
-All UI roles use those four supplied colours; there is no separate grey or green status colour. PNG weather-icon transparency blends against the exact paper colour (`00BBGGRR = 0x00E2F3FE`). The Weather launcher bitmap is monochrome and flash-resident: it requires no runtime PNG decoding, network request or heap allocation.
+All UI roles use those four supplied colours; generic cards and panels use the paper colour, with no grey card fills or green text/status palette. PNG weather-icon transparency blends against the exact paper colour (`00BBGGRR = 0x00E2F3FE`). The Weather launcher bitmap is monochrome and flash-resident: it requires no runtime PNG decoding, network request or heap allocation.
