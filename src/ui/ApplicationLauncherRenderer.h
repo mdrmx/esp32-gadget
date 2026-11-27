@@ -31,7 +31,7 @@ class ApplicationLauncherRenderer {
     IconTileSize = 68,
     IconTileRadius = 14,
     GridColumnGap = 72,
-    GridTop = 50,
+    GridTop = 64,
     GridRowStep = 80,
     MessageTop = 218,
     MaximumVisibleApplications = 4
