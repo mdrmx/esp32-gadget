@@ -351,7 +351,7 @@ WeatherMetricsViewportRenderer weatherMetricsViewportRenderer(
   weatherMetricCardRenderer);
 
 const WeatherConditionsRenderer::Colours WEATHER_CONDITIONS_COLOURS = {
-  UI_INK, UI_INK, UI_INK
+  UI_INK, UI_INK, UI_INK, UI_INK
 };
 
 // =====================================================
@@ -390,7 +390,7 @@ const int ITEMS_PER_PAGE = 3;
 
 const int WEATHER_METRIC_COUNT = 8;
 const int WEATHER_METRICS_VISIBLE = 3;
-const int WEATHER_METRIC_PANEL_TOP = 47;
+const int WEATHER_METRIC_PANEL_TOP = 39;
 const int WEATHER_METRIC_PANEL_HEIGHT = 177;
 const int WEATHER_METRIC_PANEL_BOTTOM =
   WEATHER_METRIC_PANEL_TOP + WEATHER_METRIC_PANEL_HEIGHT;
@@ -401,6 +401,12 @@ const int WEATHER_METRIC_ROW_STEP = 59;
 const int SCROLL_OVERSCROLL_MAX_PX = 20;
 const int SCROLL_OVERSCROLL_RESISTANCE_DIVISOR = 3;
 const int WEATHER_METRIC_ROW_TOP = 2;
+
+// The 64 px provider icon sits left of the current temperature. PNGdec reads
+// the cached 2x source and the line callback downsamples it without allocating.
+const int WEATHER_CONDITION_ICON_X = 22;
+const int WEATHER_CONDITION_ICON_Y = 74;
+const int WEATHER_CONDITION_ICON_SIZE = 64;
 
 // Keep three 44 px list cards with 4 px gaps visible through y=212.
 // Controls are 32 px tall, with a 2 px gap below the header and above the List
@@ -478,24 +484,27 @@ void reportHeapSummary() {
     (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 }
 
-String getHeaderLocationText() {
-  // Prefer the resolved IP location in the UI. The weather provider's "name"
-  // may instead identify a nearby reporting station or larger city.
-  String label = locationDisplayName.length() > 0 ? locationDisplayName : weatherCity;
+String getHeaderTitleText() {
+  // The shared header identifies the active app, not the current location.
+  return "Weather";
+}
+
+String getWeatherLocationText() {
+  // Prefer the resolved IP location in the content area. The weather provider's
+  // name may identify a nearby reporting station or a larger city.
+  String label =
+    locationDisplayName.length() > 0 ? locationDisplayName : weatherCity;
 
   // Before either response arrives, use the configured city.
   if (label.length() == 0) {
     label = String(CITY);
-    int comma = label.indexOf(',');
+    const int comma = label.indexOf(',');
     if (comma > 0) {
       label = label.substring(0, comma);
     }
   }
 
   label.trim();
-  if (label.length() > 17) {
-    label = label.substring(0, 16) + ".";
-  }
   return label;
 }
 
@@ -555,7 +564,7 @@ void maybeSyncTimeFromAPI() {
 void drawHeader() {
   const String clockText = timeService.headerClockText();
   headerRenderer.draw(
-    getHeaderLocationText(), clockText, BG, UI_INK, UI_INK);
+    getHeaderTitleText(), clockText, BG, UI_INK, UI_INK);
   lastHeaderClock = clockText;
 }
 
@@ -572,14 +581,14 @@ void drawTabIndicator() {
 void drawLoading(const String& message) {
   const String clockText = timeService.headerClockText();
   statusScreenRenderer.drawLoading(
-    getHeaderLocationText(), clockText, message, STATUS_SCREEN_COLOURS);
+    getHeaderTitleText(), clockText, message, STATUS_SCREEN_COLOURS);
   lastHeaderClock = clockText;
 }
 
 void drawError(const String& message) {
   const String clockText = timeService.headerClockText();
   statusScreenRenderer.drawError(
-    getHeaderLocationText(), clockText, message, STATUS_SCREEN_COLOURS);
+    getHeaderTitleText(), clockText, message, STATUS_SCREEN_COLOURS);
   lastHeaderClock = clockText;
 }
 
@@ -594,28 +603,52 @@ PNG weatherPngDecoder;
 struct WeatherPngDrawContext {
   int x;
   int y;
+  int sourceWidth;
+  int sourceHeight;
+  int outputWidth;
+  int outputHeight;
   uint32_t backgroundBGR;
 };
 
 int drawWeatherPngLine(PNGDRAW* pDraw) {
-  WeatherPngDrawContext* context = (WeatherPngDrawContext*)pDraw->pUser;
-  if (context == nullptr || pDraw->iWidth > 100) {
+  WeatherPngDrawContext* context =
+    (WeatherPngDrawContext*)pDraw->pUser;
+  Arduino_GFX* target = displayManager.target();
+  if (context == nullptr || target == nullptr ||
+      pDraw->iWidth > 100 ||
+      context->outputWidth <= 0 || context->outputWidth > 64 ||
+      context->outputHeight <= 0) {
     return 0;
   }
 
-  uint16_t linePixels[100];
+  uint16_t sourceLine[100];
+  uint16_t scaledLine[64];
   weatherPngDecoder.getLineAsRGB565(
     pDraw,
-    linePixels,
+    sourceLine,
     PNG_RGB565_LITTLE_ENDIAN,
     context->backgroundBGR);
 
-  displayManager.target()->draw16bitRGBBitmap(
-    context->x,
-    context->y + pDraw->y,
-    linePixels,
-    pDraw->iWidth,
-    1);
+  // Select the nearest source row for each output row. This also works when
+  // an input image is smaller than the requested display size.
+  for (int outputY = 0; outputY < context->outputHeight; ++outputY) {
+    const int sourceY =
+      outputY * context->sourceHeight / context->outputHeight;
+    if (sourceY != pDraw->y) continue;
+
+    for (int outputX = 0; outputX < context->outputWidth; ++outputX) {
+      const int sourceX =
+        outputX * context->sourceWidth / context->outputWidth;
+      scaledLine[outputX] = sourceLine[sourceX];
+    }
+
+    target->draw16bitRGBBitmap(
+      context->x,
+      context->y + outputY,
+      scaledLine,
+      context->outputWidth,
+      1);
+  }
 
   return 1;
 }
@@ -767,7 +800,7 @@ bool prepareWeatherIconAsset() {
 
 // Drawing reads only an already-prepared cache entry. It never starts HTTP,
 // allocates a download buffer or changes cache ownership.
-int drawOpenWeatherIcon(int x, int y) {
+int drawOpenWeatherIcon(int x, int y, int displaySize) {
   size_t iconLength = 0;
   uint8_t* iconData = weatherAssetCache.get(
     weatherIcon.c_str(), &iconLength);
@@ -794,9 +827,30 @@ int drawOpenWeatherIcon(int x, int y) {
     return 0;
   }
 
+  if (displaySize <= 0) {
+    weatherPngDecoder.close();
+    return 0;
+  }
+
+  const int longestSourceSide =
+    iconWidth > iconHeight ? iconWidth : iconHeight;
+  const int outputWidth =
+    (iconWidth * displaySize) / longestSourceSide;
+  const int outputHeight =
+    (iconHeight * displaySize) / longestSourceSide;
+  if (outputWidth <= 0 || outputHeight <= 0 ||
+      outputWidth > 64 || outputHeight > 64) {
+    weatherPngDecoder.close();
+    return 0;
+  }
+
   WeatherPngDrawContext context;
   context.x = x;
   context.y = y;
+  context.sourceWidth = iconWidth;
+  context.sourceHeight = iconHeight;
+  context.outputWidth = outputWidth;
+  context.outputHeight = outputHeight;
   // Blend transparent PNG pixels against the supplied paper colour.
   // PNGdec expects 00BBGGRR, so #FEF3E2 becomes 0x00E2F3FE.
   context.backgroundBGR = 0x00E2F3FEUL;
@@ -1012,14 +1066,18 @@ void drawWeather() {
   displayManager.target()->fillScreen(BG);
   drawHeader();
 
-  // Keep provider icon loading and decoding in the Weather sketch. The
-  // conditions renderer receives its measured height and composes only text.
-  const int iconHeight = drawOpenWeatherIcon(46, 37);
+  // The resolved location moves into the Current Conditions body. The shared
+  // header now identifies the Weather app, and the 2x provider icon is drawn
+  // at a compact 64 px size beside the temperature/feels-like summary.
+  drawOpenWeatherIcon(
+    WEATHER_CONDITION_ICON_X,
+    WEATHER_CONDITION_ICON_Y,
+    WEATHER_CONDITION_ICON_SIZE);
   weatherConditionsRenderer.draw(
+    getWeatherLocationText(),
     weatherDescription,
     String(temperature, 1) + " C",
-    "Feels " + String(feelsLike, 1) + " C",
-    iconHeight,
+    "Feels: " + String(feelsLike, 1) + "C",
     WEATHER_CONDITIONS_COLOURS);
 
   drawWeatherMetricsPanel(weatherMetricOffset, 0);
@@ -2092,7 +2150,7 @@ void drawWiFiProfilesScreen() {
       SCROLL_OVERSCROLL_MAX_PX);
 
   wifiSettingsRenderer.drawProfiles(
-      getHeaderLocationText(), timeService.headerClockText(),
+      getHeaderTitleText(), timeService.headerClockText(),
       wifiProfileRows, count, wifiListScrollPositionPx,
       wifiConnectionStatusText(), message);
 }
@@ -2110,7 +2168,7 @@ void drawWiFiScanScreen() {
       SCROLL_OVERSCROLL_MAX_PX);
 
   wifiSettingsRenderer.drawScan(
-      getHeaderLocationText(), timeService.headerClockText(),
+      getHeaderTitleText(), timeService.headerClockText(),
       results, count, wifiListScrollPositionPx,
       wifiNetworkScanner.state() == WiFiNetworkScanner::State::Scanning,
       wifiNetworkScanner.state() == WiFiNetworkScanner::State::Failed,
@@ -2130,14 +2188,14 @@ void drawWiFiProfileDetailScreen() {
       isActive;
 
   wifiSettingsRenderer.drawProfileDetail(
-      getHeaderLocationText(), timeService.headerClockText(),
+      getHeaderTitleText(), timeService.headerClockText(),
       wifiSelectedProfile.ssid, isPreferred, isActive, connected,
       wifiForgetConfirmation, wifiUiMessage);
 }
 
 void drawWiFiPasswordScreen() {
   wifiSettingsRenderer.drawPassword(
-      getHeaderLocationText(), timeService.headerClockText(),
+      getHeaderTitleText(), timeService.headerClockText(),
       wifiSelectedSsid, wifiPasswordInput,
       wifiKeyboardShifted, wifiKeyboardSymbols,
       wifiPasswordVisible,
@@ -2148,7 +2206,7 @@ void drawWiFiPasswordScreen() {
 
 void drawWiFiConnectingScreen() {
   wifiSettingsRenderer.drawConnecting(
-      getHeaderLocationText(), timeService.headerClockText(),
+      getHeaderTitleText(), timeService.headerClockText(),
       wifiPendingProfile.ssid,
       wifiConnectPhase == WiFiConnectPhase::Restore);
 }
