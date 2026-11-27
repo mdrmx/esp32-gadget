@@ -4,13 +4,13 @@
 #include "../hardware/DisplayManager.h"
 #include "TextRenderer.h"
 
-// Draws the fixed Weather header and its live Wi-Fi signal indicator. The
-// sketch supplies connection state and a smoothed RSSI level; this class owns
-// only the indicator's presentation and the Wi-Fi settings hit area.
+// Draws an application-title header and its live Wi-Fi signal indicator.
+// The platform supplies the active app title, clock and connection state; this
+// class owns text fitting, indicator presentation and the Wi-Fi hit area.
 class HeaderRenderer {
 public:
   // Visible Wi-Fi glyph bounds. Keep these tight so redrawing the icon
-  // does not overwrite the adjacent clock or location text.
+  // does not overwrite the adjacent clock or app-title text.
   enum {
     WiFiIndicatorLeft = 198,
     WiFiIndicatorTop = 4,
@@ -19,7 +19,7 @@ public:
   };
 
   // Touch-only target for the Wi-Fi indicator; it remains separate from the
-  // location text and clock.
+  // app title and clock.
   enum {
     WiFiHitAreaLeft = 186,
     WiFiHitAreaTop = 0,
@@ -50,10 +50,10 @@ public:
   }
 
   void draw(
-    const String& locationText,
+    const String& titleText,
     const String& clockText,
     uint16_t panelColour,
-    uint16_t locationColour,
+    uint16_t titleColour,
     uint16_t accentColour
   ) const {
     Arduino_GFX* target = displayManager_.target();
@@ -62,8 +62,8 @@ public:
     target->fillRect(
       0, 0, displayManager_.width(), HEADER_HEIGHT, panelColour);
     textRenderer_.drawText(
-      fitLocationText(locationText), LOCATION_X, TEXT_Y,
-      TEXT_SIZE, locationColour);
+      fitTitleText(titleText), TITLE_X, TEXT_Y,
+      TEXT_SIZE, titleColour);
     // Use the supplied ink/divider colour for the clock, Wi-Fi state and
     // the slightly heavier two-pixel header rule.
     drawClockText(clockText, accentColour);
@@ -72,7 +72,7 @@ public:
       0, HEADER_HEIGHT, displayManager_.width(), accentColour);
     target->drawFastHLine(
       0, HEADER_HEIGHT + 1, displayManager_.width(), accentColour);
-    drawWiFiIndicator(panelColour, locationColour, accentColour);
+    drawWiFiIndicator(panelColour, titleColour, accentColour);
   }
 
   // Redraw only the clock's reserved region and the Wi-Fi indicator.
@@ -144,32 +144,32 @@ public:
 private:
   enum {
     HEADER_HEIGHT = 36,
-    LOCATION_X = 8,
+    TITLE_X = 8,
     TEXT_Y = 10,
     TEXT_SIZE = 2,
-    LOCATION_MAX_WIDTH = WiFiIndicatorLeft - LOCATION_X - 8,
+    TITLE_MAX_WIDTH = WiFiIndicatorLeft - TITLE_X - 8,
     CLOCK_REGION_WIDTH = 78,
     CLOCK_RIGHT_MARGIN = 10,
     CLOCK_MINIMUM_X_MARGIN = 70
   };
 
-  String fitLocationText(const String& locationText) const {
-    String fitted = locationText;
+  String fitTitleText(const String& titleText) const {
+    String fitted = titleText;
     if (textRenderer_.measureTextWidth(fitted, TEXT_SIZE) <=
-        LOCATION_MAX_WIDTH) {
+        TITLE_MAX_WIDTH) {
       return fitted;
     }
 
     while (fitted.length() > 0 &&
            textRenderer_.measureTextWidth(fitted, TEXT_SIZE) >
-               LOCATION_MAX_WIDTH) {
+               TITLE_MAX_WIDTH) {
       fitted.remove(fitted.length() - 1, 1);
     }
 
-    if (fitted.length() < locationText.length() && fitted.length() > 1) {
+    if (fitted.length() < titleText.length() && fitted.length() > 1) {
       while (fitted.length() > 1 &&
              textRenderer_.measureTextWidth(fitted + ".", TEXT_SIZE) >
-                 LOCATION_MAX_WIDTH) {
+                 TITLE_MAX_WIDTH) {
         fitted.remove(fitted.length() - 1, 1);
       }
       fitted += ".";

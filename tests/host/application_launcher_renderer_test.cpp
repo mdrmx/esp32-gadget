@@ -30,6 +30,28 @@ static const ApplicationLauncherRenderer::Colours LauncherColours = {
   0xFF9C, 0xFF9C, 0x28C1, 0x28C1, 0xD303, 0x28C1
 };
 
+static bool iconPixelAt(int x, int y) {
+  const uint8_t byteValue =
+    WeatherLauncherIcon::Bitmap[y * WeatherLauncherIcon::BytesPerRow + x / 8];
+  return (byteValue & (0x80U >> (x % 8))) != 0;
+}
+
+static bool testWeatherIconRetainsOriginalBitmap() {
+  CHECK(WeatherLauncherIcon::Width == 32);
+  CHECK(WeatherLauncherIcon::Height == 32);
+  CHECK(WeatherLauncherIcon::BytesPerRow == 4);
+
+  // Preserve the original two transparent rows above and below the artwork.
+  for (int x = 0; x < WeatherLauncherIcon::Width; ++x) {
+    CHECK(!iconPixelAt(x, 0));
+    CHECK(!iconPixelAt(x, 1));
+    CHECK(!iconPixelAt(x, 30));
+    CHECK(!iconPixelAt(x, 31));
+  }
+  CHECK(iconPixelAt(9, 8));
+  return true;
+}
+
 static bool testIconGridLayoutAndHitTargets() {
   DisplayManager displayManager;
   TextRenderer textRenderer(displayManager);
@@ -72,8 +94,7 @@ static bool testIconGridLayoutAndHitTargets() {
   CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
   CHECK(target->drawRoundRectColour[1] == LauncherColours.text);
 
-  // The user-supplied Weather glyph is drawn as a 32x32 flash bitmap,
-  // centred in the 68px tile and tinted with the OS ink colour.
+  // The original 32x32 Weather glyph is centred in the 68px tile.
   CHECK(target->drawBitmapCount == 1);
   CHECK(target->lastBitmapX == 74);
   CHECK(target->lastBitmapY == 82);
@@ -126,6 +147,8 @@ static bool testSingleWeatherIconIsCentred() {
   CHECK(target->drawBitmapCount == 1);
   CHECK(target->lastBitmapX == 144);
   CHECK(target->lastBitmapY == 122);
+  CHECK(target->lastBitmapWidth == 32);
+  CHECK(target->lastBitmapHeight == 32);
   CHECK(target->printCount == 1);
   CHECK(target->printedText[0] == String("APPLICATIONS"));
 
@@ -193,6 +216,7 @@ static bool testEmptyLauncherState() {
 }
 
 int main() {
+  if (!testWeatherIconRetainsOriginalBitmap()) return EXIT_FAILURE;
   if (!testIconGridLayoutAndHitTargets()) return EXIT_FAILURE;
   if (!testSingleWeatherIconIsCentred()) return EXIT_FAILURE;
   if (!testTwoAppRowIsVerticallyCentred()) return EXIT_FAILURE;

@@ -32,7 +32,7 @@ int main() {
   CHECK(displayManager.width() == 320);
 
   renderer.drawLoading(
-    "Manchester", "15:30", "Connecting Wi-Fi...", colours);
+    "Weather", "15:30", "Connecting Wi-Fi...", colours);
 
   CHECK(physicalTarget->fillScreenCount == 1);
   CHECK(physicalTarget->lastFillScreenColour == BG);
@@ -49,7 +49,7 @@ int main() {
   CHECK(physicalTarget->lastLineColour == INK);
 
   CHECK(physicalTarget->printCount == 4);
-  CHECK(physicalTarget->printedText[0] == String("Manchester"));
+  CHECK(physicalTarget->printedText[0] == String("Weather"));
   CHECK(physicalTarget->printedText[1] == String("15:30"));
   CHECK(physicalTarget->printedText[2] == String("OpenWeatherMap"));
   CHECK(physicalTarget->printedX[2] == 76);
@@ -62,7 +62,7 @@ int main() {
   CHECK(physicalTarget->printedColour[3] == INK);
 
   renderer.drawError(
-    "Manchester", "15:31", "Wi-Fi unavailable", colours);
+    "Weather", "15:31", "Wi-Fi unavailable", colours);
 
   CHECK(physicalTarget->fillScreenCount == 2);
   CHECK(physicalTarget->lastFillScreenColour == BG);
@@ -104,11 +104,11 @@ int main() {
   CHECK(transitionTarget != physicalTarget);
 
   renderer.drawLoading(
-    "Transition", "15:32", "Starting up...", colours);
+    "Weather", "15:32", "Starting up...", colours);
   CHECK(transitionTarget->fillScreenCount == 1);
   CHECK(transitionTarget->lastFillScreenColour == BG);
   CHECK(transitionTarget->printCount == 4);
-  CHECK(transitionTarget->printedText[0] == String("Transition"));
+  CHECK(transitionTarget->printedText[0] == String("Weather"));
   CHECK(transitionTarget->printedText[1] == String("15:32"));
   CHECK(transitionTarget->printedText[2] == String("OpenWeatherMap"));
   CHECK(transitionTarget->printedText[3] == String("Starting up..."));

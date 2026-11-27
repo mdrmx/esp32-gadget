@@ -5,15 +5,15 @@
 #include "HeaderRenderer.h"
 #include "TextRenderer.h"
 
-// Owns the loading/error screen composition only. Weather supplies resolved
-// header strings, status text and colours; the renderer owns no app or service
+// Owns the loading/error screen composition only. The platform supplies the
+// app header title, status text and colours; the renderer owns no app or service
 // state and follows DisplayManager's active physical/transition target.
 class StatusScreenRenderer {
 public:
   struct Colours {
     uint16_t background;
     uint16_t panel;
-    uint16_t locationText;
+    uint16_t headerTitle;
     uint16_t accent;
     uint16_t bodyText;
     uint16_t errorText;
@@ -30,12 +30,12 @@ public:
       textRenderer_(textRenderer) {}
 
   void drawLoading(
-    const String& locationText,
+    const String& headerTitle,
     const String& clockText,
     const String& message,
     const Colours& colours
   ) const {
-    if (!beginScreen(locationText, clockText, colours)) return;
+    if (!beginScreen(headerTitle, clockText, colours)) return;
 
     textRenderer_.drawCenteredText(
       "OpenWeatherMap", 83, 2, colours.accent);
@@ -44,12 +44,12 @@ public:
   }
 
   void drawError(
-    const String& locationText,
+    const String& headerTitle,
     const String& clockText,
     const String& message,
     const Colours& colours
   ) const {
-    if (!beginScreen(locationText, clockText, colours)) return;
+    if (!beginScreen(headerTitle, clockText, colours)) return;
 
     textRenderer_.drawCenteredText(
       "WEATHER ERROR", 82, 2, colours.errorText);
@@ -61,7 +61,7 @@ public:
 
 private:
   bool beginScreen(
-    const String& locationText,
+    const String& headerTitle,
     const String& clockText,
     const Colours& colours
   ) const {
@@ -72,11 +72,11 @@ private:
     // Keep the shared header on the same paper background as the screen.
     // Header text, clock, Wi-Fi glyph and divider all use the ink colour.
     headerRenderer_.draw(
-      locationText,
+      headerTitle,
       clockText,
       colours.background,
-      colours.locationText,
-      colours.locationText);
+      colours.headerTitle,
+      colours.headerTitle);
     return true;
   }
 

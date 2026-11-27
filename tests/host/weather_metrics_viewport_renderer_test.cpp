@@ -69,7 +69,7 @@ int main() {
   // The viewport selects only rows that intersect the visible area. At
   // offset 1, row 0 is fully above and row 4 is fully below the viewport.
   const WeatherMetricsViewportRenderer::Layout canvasLayout = {
-    8, 3, 2, 59, 0, 118, 0, 177, BG
+    8, 3, 2, 59, 0, 118, 0, 177, PAPER
   };
   TestGfx canvasTarget;
   renderer.draw(
@@ -80,7 +80,7 @@ int main() {
   CHECK(canvasTarget.lastFillRectY == 0);
   CHECK(canvasTarget.lastFillRectWidth == 118);
   CHECK(canvasTarget.lastFillRectHeight == 177);
-  CHECK(canvasTarget.lastFillRectColour == BG);
+  CHECK(canvasTarget.lastFillRectColour == PAPER);
   CHECK(canvasTarget.fillRoundRectCount == 3);
   CHECK(canvasTarget.drawRoundRectCount == 3);
   CHECK(canvasTarget.drawRoundRectColour[0] == INK);
@@ -97,7 +97,7 @@ int main() {
   // is added only by the supplied viewport origin, not by the renderer.
   Source directSource = {8, -1, 0, {}};
   const WeatherMetricsViewportRenderer::Layout directLayout = {
-    8, 3, 2, 59, 192, 118, 47, 177, BG
+    8, 3, 2, 59, 192, 118, 47, 177, PAPER
   };
   TestGfx directTarget;
   renderer.draw(
@@ -119,7 +119,7 @@ int main() {
   // visible, while text outside the viewport is omitted.
   Source clippedSource = {1, -1, 0, {}};
   const WeatherMetricsViewportRenderer::Layout topClipLayout = {
-    1, 1, 2, 59, 192, 118, 47, 177, BG
+    1, 1, 2, 59, 192, 118, 47, 177, PAPER
   };
   TestGfx clippedTarget;
   renderer.draw(
@@ -132,12 +132,13 @@ int main() {
   CHECK(clippedTarget.lastFillRectHeight == 46);
   CHECK(clippedTarget.printCount == 1); // clipped card's value only
   CHECK(clippedTarget.printedText[0] == String("VALUE 0"));
-  CHECK(clippedTarget.printedY[0] == 67);
+  CHECK(clippedTarget.printedY[0] == 62);
+  CHECK(clippedTarget.printedSize[0] == 2);
 
   // A high requested offset is bounded to the final legal page.
   Source boundedSource = {5, -1, 0, {}};
   const WeatherMetricsViewportRenderer::Layout boundedLayout = {
-    5, 3, 2, 59, 0, 118, 0, 177, BG
+    5, 3, 2, 59, 0, 118, 0, 177, PAPER
   };
   TestGfx boundedTarget;
   renderer.draw(
@@ -152,7 +153,7 @@ int main() {
   // Failed data reads leave the background intact and skip only that card.
   Source missingSource = {1, 0, 0, {}};
   const WeatherMetricsViewportRenderer::Layout oneItemLayout = {
-    1, 1, 2, 59, 0, 118, 0, 177, BG
+    1, 1, 2, 59, 0, 118, 0, 177, PAPER
   };
   TestGfx missingTarget;
   renderer.draw(

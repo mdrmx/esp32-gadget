@@ -44,6 +44,7 @@
 #include "src/apps/ApplicationManager.h"
 #include "src/apps/ApplicationLauncherController.h"
 #include "src/apps/weather/WeatherApp.h"
+#include "src/apps/weather/WeatherMetricCatalog.h"
 #include "src/apps/weather/WeatherViewState.h"
 #include "src/apps/weather/WeatherAssetCache.h"
 
@@ -351,7 +352,7 @@ WeatherMetricsViewportRenderer weatherMetricsViewportRenderer(
   weatherMetricCardRenderer);
 
 const WeatherConditionsRenderer::Colours WEATHER_CONDITIONS_COLOURS = {
-  UI_INK, UI_INK, UI_INK
+  UI_INK, UI_INK, UI_INK, UI_INK
 };
 
 // =====================================================
@@ -388,9 +389,9 @@ bool loadDemoWeatherData();
 
 const int ITEMS_PER_PAGE = 3;
 
-const int WEATHER_METRIC_COUNT = 8;
+const int WEATHER_METRIC_COUNT = WeatherMetricCatalog::Count;
 const int WEATHER_METRICS_VISIBLE = 3;
-const int WEATHER_METRIC_PANEL_TOP = 47;
+const int WEATHER_METRIC_PANEL_TOP = 39;
 const int WEATHER_METRIC_PANEL_HEIGHT = 177;
 const int WEATHER_METRIC_PANEL_BOTTOM =
   WEATHER_METRIC_PANEL_TOP + WEATHER_METRIC_PANEL_HEIGHT;
@@ -402,11 +403,17 @@ const int SCROLL_OVERSCROLL_MAX_PX = 20;
 const int SCROLL_OVERSCROLL_RESISTANCE_DIVISOR = 3;
 const int WEATHER_METRIC_ROW_TOP = 2;
 
+// The 64 px provider icon sits left of the current temperature. PNGdec reads
+// the cached 2x source and the line callback downsamples it without allocating.
+const int WEATHER_CONDITION_ICON_X = 61;
+const int WEATHER_CONDITION_ICON_Y = 66;
+const int WEATHER_CONDITION_ICON_SIZE = 70;
+
 // Keep three 44 px list cards with 4 px gaps visible through y=212.
-// Controls are 32 px tall, with a 2 px gap below the header and above the List
-// rows. In Graph mode the same controls overlay the chart's blank upper strip.
-const int FORECAST_VIEWPORT_TOP = 64;
-const int FORECAST_VIEWPORT_HEIGHT = 152;
+// The List/Graph selector occupies the area above y=70; the scrolling
+// viewport starts at y=72 so rows can never overwrite the fixed controls.
+const int FORECAST_VIEWPORT_TOP = 72;
+const int FORECAST_VIEWPORT_HEIGHT = 144;
 const int FORECAST_VIEWPORT_BOTTOM =
   FORECAST_VIEWPORT_TOP + FORECAST_VIEWPORT_HEIGHT;
 
@@ -414,10 +421,17 @@ const int FORECAST_VIEWPORT_BOTTOM =
 const int TAB_TRANSITION_CONTENT_TOP = 37;
 const int TAB_TRANSITION_FOOTER_HEIGHT = 12;
 
-const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 8;
+// The first row begins directly below the 2 px gap under the selector.
+const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP;
+
+// The forecast canvas now begins 8 px lower. Preserve the chart's established
+// physical graph position by applying the inverse offset within that canvas.
+const int FORECAST_GRAPH_CANVAS_ORIGIN_Y = -8;
+const int FORECAST_GRAPH_DISPLAY_ORIGIN_Y =
+  FORECAST_VIEWPORT_TOP + FORECAST_GRAPH_CANVAS_ORIGIN_Y;
 const int FORECAST_ROW_STEP = 48;
-const int FORECAST_GRAPH_POINTS = 6;
-const int FORECAST_GRAPH_POINT_SPACING = 56;
+const int FORECAST_GRAPH_POINTS = 7;
+const int FORECAST_GRAPH_POINT_SPACING = 46;
 const unsigned long FORECAST_GRAPH_HOLD_MS = 220UL;
 const int FORECAST_GRAPH_TOUCH_INTENT_PX = 8;
 const int FORECAST_GRAPH_DRAG_START_PX = 4;
@@ -478,24 +492,27 @@ void reportHeapSummary() {
     (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 }
 
-String getHeaderLocationText() {
-  // Prefer the resolved IP location in the UI. The weather provider's "name"
-  // may instead identify a nearby reporting station or larger city.
-  String label = locationDisplayName.length() > 0 ? locationDisplayName : weatherCity;
+String getHeaderTitleText() {
+  // The shared header identifies the active app, not the current location.
+  return "Weather";
+}
+
+String getWeatherLocationText() {
+  // Prefer the resolved IP location in the content area. The weather provider's
+  // name may identify a nearby reporting station or a larger city.
+  String label =
+    locationDisplayName.length() > 0 ? locationDisplayName : weatherCity;
 
   // Before either response arrives, use the configured city.
   if (label.length() == 0) {
     label = String(CITY);
-    int comma = label.indexOf(',');
+    const int comma = label.indexOf(',');
     if (comma > 0) {
       label = label.substring(0, comma);
     }
   }
 
   label.trim();
-  if (label.length() > 17) {
-    label = label.substring(0, 16) + ".";
-  }
   return label;
 }
 
@@ -555,7 +572,7 @@ void maybeSyncTimeFromAPI() {
 void drawHeader() {
   const String clockText = timeService.headerClockText();
   headerRenderer.draw(
-    getHeaderLocationText(), clockText, BG, UI_INK, UI_INK);
+    getHeaderTitleText(), clockText, BG, UI_INK, UI_INK);
   lastHeaderClock = clockText;
 }
 
@@ -572,50 +589,214 @@ void drawTabIndicator() {
 void drawLoading(const String& message) {
   const String clockText = timeService.headerClockText();
   statusScreenRenderer.drawLoading(
-    getHeaderLocationText(), clockText, message, STATUS_SCREEN_COLOURS);
+    getHeaderTitleText(), clockText, message, STATUS_SCREEN_COLOURS);
   lastHeaderClock = clockText;
 }
 
 void drawError(const String& message) {
   const String clockText = timeService.headerClockText();
   statusScreenRenderer.drawError(
-    getHeaderLocationText(), clockText, message, STATUS_SCREEN_COLOURS);
+    getHeaderTitleText(), clockText, message, STATUS_SCREEN_COLOURS);
   lastHeaderClock = clockText;
 }
 
 // =====================================================
 // OPENWEATHER ICON PNG DOWNLOAD + DECODING
-// Uses official PNG assets: https://openweathermap.org/img/wn/<code>.png
+// Uses official 2x OpenWeather PNG assets, downsampled for the compact view:
 // Install the "PNGdec" library by Larry Bank from Arduino Library Manager.
 // =====================================================
 
 PNG weatherPngDecoder;
 
+enum class WeatherPngDrawMode : uint8_t {
+  FindVisibleBounds,
+  DrawCropped
+};
+
 struct WeatherPngDrawContext {
+  WeatherPngDrawMode mode;
   int x;
   int y;
+  int cropLeft;
+  int cropTop;
+  int cropWidth;
+  int cropHeight;
+  int outputWidth;
+  int outputHeight;
+  int visibleLeft;
+  int visibleTop;
+  int visibleRight;
+  int visibleBottom;
+  bool hasVisiblePixels;
   uint32_t backgroundBGR;
 };
 
+uint8_t weatherPngGrayscaleSample(const PNGDRAW* pDraw, int x) {
+  switch (pDraw->iBpp) {
+    case 8:
+      return pDraw->pPixels[x];
+    case 4: {
+      const uint8_t packed = pDraw->pPixels[x >> 1];
+      return (x & 1) == 0 ? (uint8_t)(packed >> 4)
+                          : (uint8_t)(packed & 0x0f);
+    }
+    case 2: {
+      const uint8_t packed = pDraw->pPixels[x >> 2];
+      const int shift = 6 - ((x & 3) * 2);
+      return (uint8_t)((packed >> shift) & 0x03);
+    }
+    case 1: {
+      const uint8_t packed = pDraw->pPixels[x >> 3];
+      const int shift = 7 - (x & 7);
+      return (uint8_t)((packed >> shift) & 0x01);
+    }
+    default:
+      return 0;
+  }
+}
+
+bool weatherPngPixelIsVisible(
+  const PNGDRAW* pDraw,
+  int x,
+  const uint8_t* alphaMask
+) {
+  // PNGdec's alpha-mask helper handles per-pixel alpha and indexed palette
+  // transparency. Its colour-key transparency is stored separately, so test
+  // those two pixel formats against that key explicitly.
+  if (weatherPngDecoder.hasAlpha() &&
+      pDraw->iPixelType == PNG_PIXEL_TRUECOLOR) {
+    const uint8_t* pixel = pDraw->pPixels + x * 3;
+    const uint32_t colour =
+      ((uint32_t)pixel[0] << 16) |
+      ((uint32_t)pixel[1] << 8) |
+      (uint32_t)pixel[2];
+    return colour != (weatherPngDecoder.getTransparentColor() & 0xFFFFFFUL);
+  }
+
+  if (weatherPngDecoder.hasAlpha() &&
+      pDraw->iPixelType == PNG_PIXEL_GRAYSCALE) {
+    return weatherPngGrayscaleSample(pDraw, x) !=
+      (uint8_t)weatherPngDecoder.getTransparentColor();
+  }
+
+  return (alphaMask[x >> 3] &
+          (uint8_t)(0x80U >> (x & 7))) != 0;
+}
+
 int drawWeatherPngLine(PNGDRAW* pDraw) {
-  WeatherPngDrawContext* context = (WeatherPngDrawContext*)pDraw->pUser;
-  if (context == nullptr || pDraw->iWidth > 100) {
+  if (pDraw == nullptr) return 0;
+  WeatherPngDrawContext* context =
+    (WeatherPngDrawContext*)pDraw->pUser;
+  if (context == nullptr ||
+      pDraw->iWidth <= 0 || pDraw->iWidth > 100) {
     return 0;
   }
 
-  uint16_t linePixels[100];
+  if (context->mode == WeatherPngDrawMode::FindVisibleBounds) {
+    // PNGdec returns one bit per pixel: set bits are opaque enough to retain.
+    // A low threshold keeps anti-aliased icon edges while dropping transparent
+    // canvas padding. The fixed mask covers the maximum supported 100 px row.
+    uint8_t alphaMask[13] = {};
+    weatherPngDecoder.getAlphaMask(pDraw, alphaMask, 24);
+
+    for (int x = 0; x < pDraw->iWidth; ++x) {
+      const bool visible =
+        weatherPngPixelIsVisible(pDraw, x, alphaMask);
+      if (!visible) continue;
+
+      if (!context->hasVisiblePixels) {
+        context->visibleLeft = x;
+        context->visibleRight = x;
+        context->visibleTop = pDraw->y;
+        context->visibleBottom = pDraw->y;
+        context->hasVisiblePixels = true;
+      } else {
+        if (x < context->visibleLeft) context->visibleLeft = x;
+        if (x > context->visibleRight) context->visibleRight = x;
+        if (pDraw->y < context->visibleTop) {
+          context->visibleTop = pDraw->y;
+        }
+        if (pDraw->y > context->visibleBottom) {
+          context->visibleBottom = pDraw->y;
+        }
+      }
+    }
+    return 1;
+  }
+
+  Arduino_GFX* target = displayManager.target();
+  if (target == nullptr ||
+      context->cropWidth <= 0 || context->cropHeight <= 0 ||
+      context->outputWidth <= 0 || context->outputWidth > 70 ||
+      context->outputHeight <= 0 || context->outputHeight > 70) {
+    return 0;
+  }
+
+  uint16_t sourceLine[100];
+  uint16_t scaledLine[70];
   weatherPngDecoder.getLineAsRGB565(
     pDraw,
-    linePixels,
+    sourceLine,
     PNG_RGB565_LITTLE_ENDIAN,
     context->backgroundBGR);
 
-  displayManager.target()->draw16bitRGBBitmap(
-    context->x,
-    context->y + pDraw->y,
-    linePixels,
-    pDraw->iWidth,
-    1);
+  // PNGdec's RGB565 conversion blends per-pixel alpha and indexed palette
+  // transparency. Its truecolour/grayscale colour-key variants need this
+  // explicit replacement so transparent pixels inside the crop stay paper.
+  if (weatherPngDecoder.hasAlpha() &&
+      (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR ||
+       pDraw->iPixelType == PNG_PIXEL_GRAYSCALE)) {
+    const uint8_t backgroundRed =
+      (uint8_t)(context->backgroundBGR & 0xff);
+    const uint8_t backgroundGreen =
+      (uint8_t)((context->backgroundBGR >> 8) & 0xff);
+    const uint8_t backgroundBlue =
+      (uint8_t)((context->backgroundBGR >> 16) & 0xff);
+    const uint16_t background565 =
+      ((uint16_t)(backgroundRed & 0xf8) << 8) |
+      ((uint16_t)(backgroundGreen & 0xfc) << 3) |
+      ((uint16_t)backgroundBlue >> 3);
+    const uint32_t transparentColour =
+      weatherPngDecoder.getTransparentColor() & 0xFFFFFFUL;
+
+    for (int sourceX = 0; sourceX < pDraw->iWidth; ++sourceX) {
+      bool isTransparent = false;
+      if (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR) {
+        const uint8_t* pixel = pDraw->pPixels + sourceX * 3;
+        const uint32_t colour =
+          ((uint32_t)pixel[0] << 16) |
+          ((uint32_t)pixel[1] << 8) |
+          (uint32_t)pixel[2];
+        isTransparent = colour == transparentColour;
+      } else {
+        isTransparent =
+          weatherPngGrayscaleSample(pDraw, sourceX) ==
+          (uint8_t)transparentColour;
+      }
+      if (isTransparent) sourceLine[sourceX] = background565;
+    }
+  }
+
+  // Sample only within the alpha-derived bounding box. The cropped bounds are
+  // scaled proportionally, so the original icon aspect ratio is preserved.
+  for (int outputY = 0; outputY < context->outputHeight; ++outputY) {
+    const int sourceY = context->cropTop +
+      outputY * context->cropHeight / context->outputHeight;
+    if (sourceY != pDraw->y) continue;
+
+    for (int outputX = 0; outputX < context->outputWidth; ++outputX) {
+      const int sourceX = context->cropLeft +
+        outputX * context->cropWidth / context->outputWidth;
+      scaledLine[outputX] = sourceLine[sourceX];
+    }
+
+    target->draw16bitRGBBitmap(
+      context->x,
+      context->y + outputY,
+      scaledLine,
+      context->outputWidth,
+      1);
+  }
 
   return 1;
 }
@@ -767,7 +948,7 @@ bool prepareWeatherIconAsset() {
 
 // Drawing reads only an already-prepared cache entry. It never starts HTTP,
 // allocates a download buffer or changes cache ownership.
-int drawOpenWeatherIcon(int x, int y) {
+int drawOpenWeatherIcon(int x, int y, int displaySize) {
   size_t iconLength = 0;
   uint8_t* iconData = weatherAssetCache.get(
     weatherIcon.c_str(), &iconLength);
@@ -788,26 +969,83 @@ int drawOpenWeatherIcon(int x, int y) {
   int iconWidth = weatherPngDecoder.getWidth();
   int iconHeight = weatherPngDecoder.getHeight();
 
-  if (iconWidth > 100 || iconHeight > 100) {
+  if (iconWidth <= 0 || iconHeight <= 0 ||
+      iconWidth > 100 || iconHeight > 100) {
     DEBUG_PRINTF("OpenWeather PNG dimensions unexpected: %d x %d\n", iconWidth, iconHeight);
     weatherPngDecoder.close();
     return 0;
   }
 
-  WeatherPngDrawContext context;
-  context.x = x;
-  context.y = y;
+  if (displaySize <= 0) {
+    weatherPngDecoder.close();
+    return 0;
+  }
+
+  WeatherPngDrawContext context = {};
+  context.mode = WeatherPngDrawMode::FindVisibleBounds;
+  context.visibleLeft = iconWidth;
+  context.visibleTop = iconHeight;
+  context.visibleRight = -1;
+  context.visibleBottom = -1;
   // Blend transparent PNG pixels against the supplied paper colour.
   // PNGdec expects 00BBGGRR, so #FEF3E2 becomes 0x00E2F3FE.
   context.backgroundBGR = 0x00E2F3FEUL;
 
-  int decodeResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
-  if (decodeResult != PNG_SUCCESS) {
-    DEBUG_PRINTF("OpenWeather PNG decode failed: %d\n", decodeResult);
+  // First pass finds the content bounds from PNG alpha, not colour. This
+  // preserves white/light icon details while removing transparent canvas
+  // padding. PNGdec can decode the same open image again for the render pass.
+  int scanResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
+  if (scanResult != PNG_SUCCESS) {
+    DEBUG_PRINTF("OpenWeather PNG bounds scan failed: %d\n", scanResult);
+    weatherPngDecoder.close();
+    return 0;
+  }
+
+  // If the image has no opaque pixels, retain the full source canvas as a safe
+  // fallback rather than drawing an invalid zero-sized crop.
+  if (context.hasVisiblePixels) {
+    context.cropLeft = context.visibleLeft;
+    context.cropTop = context.visibleTop;
+    context.cropWidth =
+      context.visibleRight - context.visibleLeft + 1;
+    context.cropHeight =
+      context.visibleBottom - context.visibleTop + 1;
+  } else {
+    context.cropLeft = 0;
+    context.cropTop = 0;
+    context.cropWidth = iconWidth;
+    context.cropHeight = iconHeight;
+  }
+
+  const int longestCropSide =
+    context.cropWidth > context.cropHeight
+      ? context.cropWidth
+      : context.cropHeight;
+  context.outputWidth =
+    (context.cropWidth * displaySize + longestCropSide / 2) /
+    longestCropSide;
+  context.outputHeight =
+    (context.cropHeight * displaySize + longestCropSide / 2) /
+    longestCropSide;
+  if (context.outputWidth <= 0 || context.outputHeight <= 0 ||
+      context.outputWidth > 70 || context.outputHeight > 70) {
+    weatherPngDecoder.close();
+    return 0;
+  }
+
+  // Centre the cropped artwork inside the existing square icon area.
+  context.x = x + (displaySize - context.outputWidth) / 2;
+  context.y = y + (displaySize - context.outputHeight) / 2;
+  context.mode = WeatherPngDrawMode::DrawCropped;
+
+  const int drawResult =
+    weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
+  if (drawResult != PNG_SUCCESS) {
+    DEBUG_PRINTF("OpenWeather PNG cropped draw failed: %d\n", drawResult);
   }
 
   weatherPngDecoder.close();
-  return decodeResult == PNG_SUCCESS ? iconHeight : 0;
+  return drawResult == PNG_SUCCESS ? context.outputHeight : 0;
 }
 
 // =====================================================
@@ -822,38 +1060,36 @@ int weatherMetricsPanelWidth() {
   return displayManager.width() - weatherMetricsPanelX() - 10;
 }
 
-const char* weatherMetricLabel(int index) {
-  switch (index) {
-    case 0: return "HUMIDITY";
-    case 1: return "PRESSURE";
-    case 2: return "UV INDEX";
-    case 3: return "RAIN CHANCE";
-    case 4: return "WIND";
-    case 5: return "CLOUD COVER";
-    case 6: return "VISIBILITY";
-    case 7: return "RAIN (1H)";
-    default: return "";
-  }
-}
-
-String weatherMetricValue(int index) {
-  switch (index) {
-    case 0: return String(humidity) + "%";
-    case 1: return String(pressure) + " hPa";
-    case 2:
-      return uvIndexAvailable ? String(currentUvIndex, 1) : "--";
-    case 3:
+String weatherMetricValue(WeatherMetricCatalog::MetricId metric) {
+  switch (metric) {
+    case WeatherMetricCatalog::RainChance:
       return rainProbabilityAvailable
         ? String((int)(currentRainProbability * 100.0f + 0.5f)) + "%"
         : "--";
-    case 4: return String(windSpeedKmh, 1) + " km/h";
-    case 5: return String(cloudCover) + "%";
-    case 6:
+    case WeatherMetricCatalog::Wind:
+      // Keep the shared size-2 card value within its 114 px inner width.
+      // Decimal precision is retained for normal speeds and dropped above
+      // 99.9 km/h so a three-digit value still fits without shrinking type.
+      return windSpeedKmh >= 100.0f
+        ? String(windSpeedKmh, 0) + " km/h"
+        : String(windSpeedKmh, 1) + " km/h";
+    case WeatherMetricCatalog::UvIndex:
+      return uvIndexAvailable ? String(currentUvIndex, 1) : "--";
+    case WeatherMetricCatalog::Humidity:
+      return String(humidity) + "%";
+    case WeatherMetricCatalog::Pressure:
+      return String(pressure) + " hPa";
+    case WeatherMetricCatalog::CloudCover:
+      return String(cloudCover) + "%";
+    case WeatherMetricCatalog::Visibility:
       return visibilityAvailable
         ? String(visibilityMeters / 1000.0f, 1) + " km"
         : "--";
-    case 7: return String(rainLastHourMm, 1) + " mm";
-    default: return "--";
+    case WeatherMetricCatalog::RainLastHour:
+      return String(rainLastHourMm, 1) + " mm";
+    case WeatherMetricCatalog::Invalid:
+    default:
+      return "--";
   }
 }
 
@@ -865,10 +1101,12 @@ bool readWeatherMetricItem(
   WeatherMetricsViewportRenderer::Item& item
 ) {
   (void)context;
-  if (index < 0 || index >= WEATHER_METRIC_COUNT) return false;
+  const WeatherMetricCatalog::MetricId metric =
+    WeatherMetricCatalog::metricForCard(index);
+  if (metric == WeatherMetricCatalog::Invalid) return false;
 
-  item.label = weatherMetricLabel(index);
-  item.value = weatherMetricValue(index);
+  item.label = WeatherMetricCatalog::label(metric);
+  item.value = weatherMetricValue(metric);
   return true;
 }
 
@@ -1012,14 +1250,18 @@ void drawWeather() {
   displayManager.target()->fillScreen(BG);
   drawHeader();
 
-  // Keep provider icon loading and decoding in the Weather sketch. The
-  // conditions renderer receives its measured height and composes only text.
-  const int iconHeight = drawOpenWeatherIcon(46, 37);
+  // The resolved location moves into the Current Conditions body. The shared
+  // header now identifies the Weather app, and the 2x provider icon is drawn
+  // at a compact 64 px size above the vertically stacked condition summary.
+  drawOpenWeatherIcon(
+    WEATHER_CONDITION_ICON_X,
+    WEATHER_CONDITION_ICON_Y,
+    WEATHER_CONDITION_ICON_SIZE);
   weatherConditionsRenderer.draw(
+    getWeatherLocationText(),
     weatherDescription,
     String(temperature, 1) + " C",
-    "Feels " + String(feelsLike, 1) + " C",
-    iconHeight,
+    "Feels: " + String(feelsLike, 1) + " C",
     WEATHER_CONDITIONS_COLOURS);
 
   drawWeatherMetricsPanel(weatherMetricOffset, 0);
@@ -1140,8 +1382,8 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     readForecastGraphItem);
 }
 
-// Copy only the graph body from the existing canvas. The 8-pixel source crop
-// starts at screen y=72, below the selector, so controls never need repainting.
+// Copy only the graph body from the existing canvas. The canvas begins at
+// screen y=72, below the selector, so the full viewport crop is safe.
 bool flushForecastGraphCanvasBody() {
   if (displayManager.forecastCanvas() == nullptr) return false;
   uint16_t* framebuffer = displayManager.forecastCanvas()->getFramebuffer();
@@ -1169,7 +1411,9 @@ void redrawForecastGraphAtCurrentScroll() {
   if (displayManager.forecastCanvas() != nullptr && !displayManager.renderingTabTransition()) {
     displayManager.forecastCanvas()->fillScreen(BG);
     if (forecastAvailable && forecastCount > 0) {
-      drawForecastGraph(displayManager.forecastCanvas(), 0);
+      drawForecastGraph(
+        displayManager.forecastCanvas(),
+        FORECAST_GRAPH_CANVAS_ORIGIN_Y);
     }
     if (flushForecastGraphCanvasBody()) return;
     displayManager.forecastCanvas()->flush();
@@ -1184,7 +1428,9 @@ void redrawForecastGraphAtCurrentScroll() {
     0, graphRedrawTop, displayManager.width(),
     FORECAST_VIEWPORT_BOTTOM - graphRedrawTop, BG);
   if (forecastAvailable && forecastCount > 0) {
-    drawForecastGraph(displayManager.target(), FORECAST_VIEWPORT_TOP);
+    drawForecastGraph(
+      displayManager.target(),
+      FORECAST_GRAPH_DISPLAY_ORIGIN_Y);
   }
 }
 
@@ -1257,7 +1503,9 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
   if (displayManager.forecastCanvas() != nullptr && !displayManager.renderingTabTransition()) {
     displayManager.forecastCanvas()->fillScreen(BG);
     if (forecastGraphView) {
-      drawForecastGraph(displayManager.forecastCanvas(), 0);
+      drawForecastGraph(
+        displayManager.forecastCanvas(),
+        FORECAST_GRAPH_CANVAS_ORIGIN_Y);
       if (flushForecastGraphCanvasBody()) return;
       displayManager.forecastCanvas()->flush();
       forecastModeSelectorRenderer.draw(ForecastModeSelectorRenderer::Mode::Graph);
@@ -1294,7 +1542,9 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
     BG);
 
   if (forecastGraphView) {
-    drawForecastGraph(displayManager.target(), FORECAST_VIEWPORT_TOP);
+    drawForecastGraph(
+      displayManager.target(),
+      FORECAST_GRAPH_DISPLAY_ORIGIN_Y);
     return;
   }
 
@@ -2092,7 +2342,7 @@ void drawWiFiProfilesScreen() {
       SCROLL_OVERSCROLL_MAX_PX);
 
   wifiSettingsRenderer.drawProfiles(
-      getHeaderLocationText(), timeService.headerClockText(),
+      getHeaderTitleText(), timeService.headerClockText(),
       wifiProfileRows, count, wifiListScrollPositionPx,
       wifiConnectionStatusText(), message);
 }
@@ -2110,7 +2360,7 @@ void drawWiFiScanScreen() {
       SCROLL_OVERSCROLL_MAX_PX);
 
   wifiSettingsRenderer.drawScan(
-      getHeaderLocationText(), timeService.headerClockText(),
+      getHeaderTitleText(), timeService.headerClockText(),
       results, count, wifiListScrollPositionPx,
       wifiNetworkScanner.state() == WiFiNetworkScanner::State::Scanning,
       wifiNetworkScanner.state() == WiFiNetworkScanner::State::Failed,
@@ -2130,14 +2380,14 @@ void drawWiFiProfileDetailScreen() {
       isActive;
 
   wifiSettingsRenderer.drawProfileDetail(
-      getHeaderLocationText(), timeService.headerClockText(),
+      getHeaderTitleText(), timeService.headerClockText(),
       wifiSelectedProfile.ssid, isPreferred, isActive, connected,
       wifiForgetConfirmation, wifiUiMessage);
 }
 
 void drawWiFiPasswordScreen() {
   wifiSettingsRenderer.drawPassword(
-      getHeaderLocationText(), timeService.headerClockText(),
+      getHeaderTitleText(), timeService.headerClockText(),
       wifiSelectedSsid, wifiPasswordInput,
       wifiKeyboardShifted, wifiKeyboardSymbols,
       wifiPasswordVisible,
@@ -2148,7 +2398,7 @@ void drawWiFiPasswordScreen() {
 
 void drawWiFiConnectingScreen() {
   wifiSettingsRenderer.drawConnecting(
-      getHeaderLocationText(), timeService.headerClockText(),
+      getHeaderTitleText(), timeService.headerClockText(),
       wifiPendingProfile.ssid,
       wifiConnectPhase == WiFiConnectPhase::Restore);
 }

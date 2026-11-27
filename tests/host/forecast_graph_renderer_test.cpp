@@ -20,7 +20,7 @@ struct TestPoint {
 };
 
 struct TestData {
-  TestPoint points[8];
+  TestPoint points[9];
   int count;
 };
 
@@ -43,16 +43,16 @@ static bool readTestPoint(
 
 static TestData makeTestData() {
   TestData data;
-  data.count = 7;
+  data.count = 9;
   const char* times[] = {
     "Mon 10:00", "11:00", "12:00", "13:00",
-    "14:00", "15:00", "16:00"
+    "14:00", "15:00", "16:00", "17:00", "18:00"
   };
   const float temperatures[] = {
-    10.0f, 12.0f, 14.0f, 16.0f, 18.0f, 20.0f, 22.0f
+    10.0f, 12.0f, 14.0f, 16.0f, 18.0f, 20.0f, 22.0f, 21.0f, 19.0f
   };
   const float rain[] = {
-    0.0f, 0.25f, 0.50f, 0.75f, 1.0f, -0.2f, 1.2f
+    0.0f, 0.25f, 0.50f, 0.75f, 1.0f, -0.2f, 1.2f, 0.5f, 0.4f
   };
 
   for (int i = 0; i < data.count; i++) {
@@ -93,17 +93,19 @@ int main() {
   graphRenderer.draw(
     target, 320, 64, data.count, 0, &data, nullptr);
   CHECK(target->horizontalLineCount == 0);
+  CHECK(target->drawLineCount == 0);
   CHECK(target->printCount == 0);
   CHECK(target->fillCircleCount == 0);
 
-  // At the first page, six points are visible. The seventh is outside the
-  // logical display. Each visible point gets temperature, time and rain text.
+  // Seven hourly points fit across the plot at 46 px spacing. The eighth
+  // record remains available as a neighbouring sample for scale continuity.
   graphRenderer.draw(
     target, 320, 64, data.count, 0, &data, readTestPoint);
-  CHECK(target->horizontalLineCount == 3);
-  CHECK(target->fillCircleCount == 24); // 6 graph points + 6 cloud icons x 3
-  CHECK(target->fillRectCount == 12); // 6 cloud bodies + 6 rain bars
-  CHECK(target->printCount == 18);
+  CHECK(target->horizontalLineCount == 2);
+  CHECK(target->fillCircleCount == 28); // 7 graph points + 7 cloud icons x 3
+  CHECK(target->drawBitmapCount == 0); // graph reuses the vector condition icons
+  CHECK(target->fillRectCount == 14); // 7 cloud bodies + 7 rain bars
+  CHECK(target->printCount == 21);
   CHECK(target->printedText[0] == String("10C"));
   CHECK(target->printedText[1] == String("10:00"));
   CHECK(target->printedText[2] == String("0%"));
@@ -115,26 +117,32 @@ int main() {
   CHECK(target->printedColour[2] == INK);
   CHECK(target->printedY[2] == 64 + 143);
   CHECK(target->lastFillRectColour == BURNT_ORANGE);
-  CHECK(target->drawLineCount >= 5);
+  CHECK(target->drawLineCount == 14); // 7 segments including edge continuity, 2 px each
   CHECK(target->lastLineColour == BURNT_ORANGE);
+  CHECK(target->lastFillCircleX == 304);
+  CHECK(target->lastFillCircleY == 92); // enlarged icon moved 4 px down
+  CHECK(target->lastFillCircleRadius == 4); // cloud icon scaled by 120%
 
-  // At one full point spacing, index zero moves off-screen and the next six
+  // At one full point spacing, index zero moves off-screen and the next seven
   // forecast points become visible. Scroll is supplied by Weather, unchanged.
   const int printsBeforeScroll = target->printCount;
   const int circlesBeforeScroll = target->fillCircleCount;
   const int gridLinesBeforeScroll = target->horizontalLineCount;
   graphRenderer.draw(
-    target, 320, 64, data.count, 56, &data, readTestPoint);
-  CHECK(target->horizontalLineCount == gridLinesBeforeScroll + 3);
-  CHECK(target->printCount == printsBeforeScroll + 18);
-  CHECK(target->fillCircleCount == circlesBeforeScroll + 24);
+    target, 320, 64, data.count, 46, &data, readTestPoint);
+  CHECK(target->horizontalLineCount == gridLinesBeforeScroll + 2);
+  CHECK(target->printCount == printsBeforeScroll + 21);
+  CHECK(target->fillCircleCount == circlesBeforeScroll + 28);
 
-  // Negative elastic scroll remains a caller concern, but the renderer keeps
-  // the existing chart offset and uses zero for the visible-range calculation.
+  // Negative elastic scroll shifts the graph right by 20 px while its
+  // visible-range calculation remains anchored at zero. The seventh point
+  // moves beyond the right plot edge, so only six points' three labels remain.
   const int printsBeforeElastic = target->printCount;
+  const int circlesBeforeElastic = target->fillCircleCount;
   graphRenderer.draw(
     target, 320, 64, data.count, -20, &data, readTestPoint);
-  CHECK(target->printCount == printsBeforeElastic + 15);
+  CHECK(target->printCount == printsBeforeElastic + 18);
+  CHECK(target->fillCircleCount == circlesBeforeElastic + 24);
 
   // Out-of-range readers produce no partial graph.
   const int linesBeforeInvalid = target->horizontalLineCount;

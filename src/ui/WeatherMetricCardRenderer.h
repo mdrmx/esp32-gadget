@@ -5,8 +5,9 @@
 #include <algorithm>
 
 // Draws one Weather metric card and clips its contents to the supplied panel
-// viewport. Weather retains metric selection/formatting, panel layout, scroll
-// state, canvas lifecycle and screen composition.
+// viewport. Labels use size 1 and every metric value uses the same size-2 type.
+// Weather retains metric selection/formatting, panel layout, scroll state,
+// canvas lifecycle and screen composition.
 class WeatherMetricCardRenderer {
 public:
   struct Colours {
@@ -17,7 +18,9 @@ public:
   };
 
   enum {
-    CARD_HEIGHT = 54
+    CARD_HEIGHT = 54,
+    VALUE_TEXT_SIZE = 2,
+    VALUE_TEXT_TOP = 23
   };
 
   explicit WeatherMetricCardRenderer(const Colours& colours)
@@ -41,7 +44,6 @@ public:
     const int clippedBottom = (std::min)(viewportHeight, cardBottom);
     if (clippedTop >= clippedBottom) return;
 
-    const uint8_t valueSize = value.length() <= 6 ? 2 : 1;
     int16_t x1, y1;
     uint16_t width, height;
 
@@ -66,13 +68,13 @@ public:
       target->setCursor(x + 9, viewportTop + localY + 7);
       target->print(label);
 
-      target->setTextSize(valueSize);
+      target->setTextSize(VALUE_TEXT_SIZE);
       target->setTextColor(colours_.value);
       target->getTextBounds(
         value.c_str(), 0, 0, &x1, &y1, &width, &height);
       const int valueX = x + (panelWidth - (int)width) / 2;
       const int valueY = viewportTop + localY +
-        (valueSize == 2 ? 23 : 28);
+        (VALUE_TEXT_TOP);
       target->setCursor(valueX, valueY);
       target->print(value);
       return;
@@ -113,10 +115,10 @@ public:
       target->print(label);
     }
 
-    target->setTextSize(valueSize);
+    target->setTextSize(VALUE_TEXT_SIZE);
     target->getTextBounds(
       value.c_str(), 0, 0, &x1, &y1, &width, &height);
-    const int valueLocalY = localY + (valueSize == 2 ? 23 : 28);
+    const int valueLocalY = localY + VALUE_TEXT_TOP;
     if (valueLocalY >= 0 &&
         valueLocalY + (int)height <= viewportHeight) {
       const int valueX = x + (panelWidth - (int)width) / 2;

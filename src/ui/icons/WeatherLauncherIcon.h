@@ -4,9 +4,9 @@
 #include <Arduino.h>
 #include <stdint.h>
 
-// Monochrome 32x32 mask converted from the supplied transparent cloudy PNG.
-// The source PNG is 32x32 RGBA; antialias pixels are thresholded for a crisp,
-// e-ink-style glyph. The mask stays in flash and is tinted at draw time.
+// Original monochrome 32x32 mask converted from the supplied transparent
+// cloudy PNG. The artwork keeps its original source-frame proportions and
+// transparent padding. The mask stays in flash and is tinted at draw time.
 namespace WeatherLauncherIcon {
 
 enum { Width = 32, Height = 32, BytesPerRow = 4 };

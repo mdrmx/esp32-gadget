@@ -25,7 +25,7 @@ int main() {
   CHECK(physicalTarget != nullptr);
   CHECK(displayManager.width() == 320);
 
-  renderer.draw("Manchester", "13:58", PAPER, INK, INK);
+  renderer.draw("Weather", "13:58", PAPER, INK, INK);
 
   CHECK(physicalTarget->fillRectCount == 2);
   CHECK(physicalTarget->lastFillRectX == HeaderRenderer::WiFiIndicatorLeft);
@@ -37,8 +37,8 @@ int main() {
   CHECK(physicalTarget->lastFillRectColour == PAPER);
 
   CHECK(physicalTarget->printCount == 2);
-  CHECK(physicalTarget->printedText[0] == String("Manchester"));
-  CHECK(physicalTarget->printedX[0] == 10);
+  CHECK(physicalTarget->printedText[0] == String("Weather"));
+  CHECK(physicalTarget->printedX[0] == 8);
   CHECK(physicalTarget->printedY[0] == 10);
   CHECK(physicalTarget->printedSize[0] == 2);
   CHECK(physicalTarget->printedColour[0] == INK);
@@ -96,10 +96,10 @@ int main() {
   CHECK(transitionTarget != nullptr);
   CHECK(transitionTarget != physicalTarget);
 
-  renderer.draw("Transition", "15:01", PAPER, INK, INK);
+  renderer.draw("Weather", "15:01", PAPER, INK, INK);
   CHECK(transitionTarget->fillRectCount == 2);
   CHECK(transitionTarget->printCount == 2);
-  CHECK(transitionTarget->printedText[0] == String("Transition"));
+  CHECK(transitionTarget->printedText[0] == String("Weather"));
   CHECK(transitionTarget->printedText[1] == String("15:01"));
   CHECK(transitionTarget->horizontalLineCount == 2);
   CHECK(physicalTarget->lastPrinted == String("123456789012"));

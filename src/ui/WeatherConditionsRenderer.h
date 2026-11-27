@@ -3,13 +3,14 @@
 #include <Arduino.h>
 #include "TextRenderer.h"
 
-// Composes the current Weather conditions text below the provider icon.
-// Weather continues to select/format data, draw the icon, render metric cards
-// and manage the screen/canvas lifecycle. This class owns only the vertical
-// layout and drawing of the description, temperature and feels-like lines.
+// Lays out the Weather app's current-conditions column. The sketch remains
+// responsible for selecting/formatting the location and weather data, drawing
+// the provider icon, composing the right-hand metric cards and managing the
+// screen/canvas lifecycle.
 class WeatherConditionsRenderer {
 public:
   struct Colours {
+    uint16_t location;
     uint16_t description;
     uint16_t temperature;
     uint16_t feelsLike;
@@ -19,54 +20,85 @@ public:
     : textRenderer_(textRenderer) {}
 
   void draw(
+    const String& location,
     const String& description,
     const String& temperatureText,
     const String& feelsLikeText,
-    int iconHeight,
     const Colours& colours
   ) const {
-    int contentY = CONTENT_TOP;
-    if (iconHeight > 0) {
-      contentY += iconHeight + ICON_DESCRIPTION_GAP;
+    const String fittedLocation = fitLocationText(location);
+    if (fittedLocation.length() > 0) {
+      textRenderer_.drawText(
+        fittedLocation,
+        LOCATION_X,
+        LOCATION_Y,
+        LOCATION_TEXT_SIZE,
+        colours.location);
     }
 
+    // Keep a compact, consistent gap between the icon and description.
+    // Following values are placed from the rendered text heights so the gap
+    // remains the same whether the description wraps onto one or two lines.
     const int descriptionHeight = textRenderer_.drawWrappedCenteredText(
       description,
       CONTENT_CENTRE_X,
       DESCRIPTION_MAX_WIDTH,
-      contentY,
+      DESCRIPTION_TOP,
       DESCRIPTION_TEXT_SIZE,
       colours.description);
-    contentY += descriptionHeight + DESCRIPTION_TEMPERATURE_GAP;
 
+    const int temperatureY =
+      DESCRIPTION_TOP + descriptionHeight + DESCRIPTION_TEMPERATURE_GAP;
     const int temperatureHeight = textRenderer_.drawCenteredWeatherLine(
       temperatureText,
       CONTENT_CENTRE_X,
-      contentY,
+      temperatureY,
       TEMPERATURE_TEXT_SIZE,
       colours.temperature);
-    contentY += temperatureHeight + TEMPERATURE_FEELS_GAP;
 
+    const int feelsLikeY =
+      temperatureY + temperatureHeight + TEMPERATURE_FEELS_LIKE_GAP;
     textRenderer_.drawCenteredWeatherLine(
       feelsLikeText,
       CONTENT_CENTRE_X,
-      contentY,
+      feelsLikeY,
       FEELS_LIKE_TEXT_SIZE,
       colours.feelsLike);
   }
 
 private:
   enum {
-    CONTENT_TOP = 37,
+    LOCATION_X = 8,
+    LOCATION_Y = 47,
+    LOCATION_MAX_WIDTH = 176,
+    LOCATION_TEXT_SIZE = 2,
     CONTENT_CENTRE_X = 96,
     DESCRIPTION_MAX_WIDTH = 176,
+    DESCRIPTION_TOP = 142,
     DESCRIPTION_TEXT_SIZE = 2,
+    DESCRIPTION_TEMPERATURE_GAP = 4,
     TEMPERATURE_TEXT_SIZE = 2,
-    FEELS_LIKE_TEXT_SIZE = 1,
-    ICON_DESCRIPTION_GAP = -7,
-    DESCRIPTION_TEMPERATURE_GAP = 10,
-    TEMPERATURE_FEELS_GAP = 8
+    TEMPERATURE_FEELS_LIKE_GAP = 4,
+    FEELS_LIKE_TEXT_SIZE = 1
   };
+
+  String fitLocationText(const String& location) const {
+    String fitted = location;
+    if (textRenderer_.measureTextWidth(fitted, LOCATION_TEXT_SIZE) <=
+        LOCATION_MAX_WIDTH) {
+      return fitted;
+    }
+
+    while (fitted.length() > 1 &&
+           textRenderer_.measureTextWidth(fitted + "...", LOCATION_TEXT_SIZE) >
+               LOCATION_MAX_WIDTH) {
+      fitted.remove(fitted.length() - 1, 1);
+    }
+    if (fitted.length() < location.length() && fitted.length() > 1) {
+      fitted += "...";
+    }
+    return fitted;
+  }
 
   TextRenderer& textRenderer_;
 };

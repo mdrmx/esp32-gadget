@@ -72,7 +72,7 @@ public:
         colours_(colours) {}
 
   void drawProfiles(
-      const String& location,
+      const String& headerTitle,
       const String& clock,
       const ProfileRow* profiles,
       uint8_t count,
@@ -80,7 +80,7 @@ public:
       const String& connectionStatus,
       const String& message) const {
     if (displayManager_.target() == nullptr) return;
-    beginPage(location, clock);
+    beginPage(headerTitle, clock);
     textRenderer_.drawText("WI-FI NETWORKS", 10, 46, 2, colours_.white);
     drawStatusLine(connectionStatus, message, 63);
 
@@ -134,7 +134,7 @@ public:
 
     // Restore the fixed header after clipping list rows at either edge.
     headerRenderer_.draw(
-        location, clock, colours_.background, colours_.white, colours_.white);
+        headerTitle, clock, colours_.background, colours_.white, colours_.white);
     textRenderer_.drawText("WI-FI NETWORKS", 10, 46, 2, colours_.white);
     drawStatusLine(connectionStatus, message, 63);
 
@@ -150,7 +150,7 @@ public:
   }
 
   void drawScan(
-      const String& location,
+      const String& headerTitle,
       const String& clock,
       const WiFiScanResult* results,
       uint8_t count,
@@ -160,7 +160,7 @@ public:
       const String& connectionStatus,
       const String& message) const {
     if (displayManager_.target() == nullptr) return;
-    beginPage(location, clock);
+    beginPage(headerTitle, clock);
     textRenderer_.drawText("AVAILABLE NETWORKS", 10, 46, 2, colours_.white);
 
     String status;
@@ -227,7 +227,7 @@ public:
     // Restore the complete header after clipping the overflow, so the blue
     // separator and Wi-Fi indicator never retain pixels from a scan row.
     headerRenderer_.draw(
-        location, clock, colours_.background, colours_.white, colours_.white);
+        headerTitle, clock, colours_.background, colours_.white, colours_.white);
     textRenderer_.drawText("AVAILABLE NETWORKS", 10, 46, 2, colours_.white);
     if (showStatus) drawStatusLine(connectionStatus, status, 63);
 
@@ -238,7 +238,7 @@ public:
   }
 
   void drawProfileDetail(
-      const String& location,
+      const String& headerTitle,
       const String& clock,
       const char* ssid,
       bool preferred,
@@ -247,7 +247,7 @@ public:
       bool confirmForget,
       const String& message) const {
     if (displayManager_.target() == nullptr) return;
-    beginPage(location, clock);
+    beginPage(headerTitle, clock);
     textRenderer_.drawText("SAVED NETWORK", 10, 44, 2, colours_.white);
     textRenderer_.drawWrappedCenteredText(
         String(ssid != nullptr ? ssid : ""),
@@ -281,7 +281,7 @@ public:
   }
 
   void drawPassword(
-      const String& location,
+      const String& headerTitle,
       const String& clock,
       const char* ssid,
       const char* password,
@@ -292,7 +292,7 @@ public:
       int highlightedColumn,
       const String& message) const {
     if (displayManager_.target() == nullptr) return;
-    beginPage(location, clock);
+    beginPage(headerTitle, clock);
     textRenderer_.drawText("ENTER PASSWORD", 10, 42, 2, colours_.white);
     textRenderer_.drawText(
         shortenSsid(ssid != nullptr ? ssid : "", 30),
@@ -399,12 +399,12 @@ public:
   }
 
   void drawConnecting(
-      const String& location,
+      const String& headerTitle,
       const String& clock,
       const char* ssid,
       bool restoring) const {
     if (displayManager_.target() == nullptr) return;
-    beginPage(location, clock);
+    beginPage(headerTitle, clock);
     textRenderer_.drawCenteredText(
         restoring ? "RESTORING NETWORK" : "CONNECTING",
         55, 2, colours_.white);
@@ -540,12 +540,12 @@ private:
         value, x + (width - textWidth) / 2, y + 4, 1, colours_.white);
   }
 
-  void beginPage(const String& location, const String& clock) const {
+  void beginPage(const String& headerTitle, const String& clock) const {
     Arduino_GFX* target = displayManager_.target();
     if (target == nullptr) return;
     target->fillScreen(colours_.background);
     headerRenderer_.draw(
-        location, clock, colours_.background, colours_.white, colours_.white);
+        headerTitle, clock, colours_.background, colours_.white, colours_.white);
   }
 
   void drawStatusLine(

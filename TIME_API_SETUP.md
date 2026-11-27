@@ -1,8 +1,9 @@
-# Location header clock using a time API
+# Application header clock using a time API
 
 ## Behaviour
 
-- The shared header displays the weather location on the left and a 24-hour `HH:MM` clock on the right, on both current-weather and hourly-forecast screens.
+- The shared header displays the active app title on the left and a 24-hour `HH:MM` clock on the right. In the Weather app the title is `Weather`, on both Current Conditions and Forecast screens.
+- The resolved place name is shown in the Current Conditions body below the header; it is no longer used as the app header title.
 - After Wi-Fi becomes available, the platform loop requests the current date and time from TimeAPI.io for `Europe/London`. This runs while the boot launcher is visible, even though no application is active.
 - The response's date and local-time fields are converted to a Unix epoch using the configured UK timezone and daylight-saving rules, then written into the ESP32 system clock with `settimeofday()`.
 - After the initial request, the ESP32 system clock advances locally, so the screen does not need to query the time API every second.
@@ -22,7 +23,7 @@ If the request fails, Serial Monitor logs the HTTP status or JSON failure. The d
 
 ## Libraries
 
-- **PNGdec by Larry Bank**: required for the official OpenWeather condition icons.
+- **PNGdec by Larry Bank**: required for the official OpenWeather condition icons (2x source, downsampled for the compact current-conditions view).
 
 No DS1307 wiring or RTClib library is needed for this version.
 
