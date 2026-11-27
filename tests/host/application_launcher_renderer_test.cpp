@@ -162,7 +162,8 @@ static bool testTwoAppRowIsVerticallyCentred() {
   CHECK(target->fillRoundRectY[1] == 89);
   CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
   CHECK(target->drawBitmapCount == 1);
-  CHECK(target->printCount == 2);
+  CHECK(target->printCount == 1);
+  CHECK(target->printedText[0] == String("APPLICATIONS"));
 
   uint8_t applicationIndex = 99;
   CHECK(renderer.applicationAt(60, 90, applicationIndex, manager));
