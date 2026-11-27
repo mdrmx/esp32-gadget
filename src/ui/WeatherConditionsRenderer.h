@@ -80,7 +80,6 @@ private:
 
   String fitLocationText(const String& location) const {
     String fitted = location;
-    fitted.trim();
     if (textRenderer_.measureTextWidth(fitted, LOCATION_TEXT_SIZE) <=
         LOCATION_MAX_WIDTH) {
       return fitted;
