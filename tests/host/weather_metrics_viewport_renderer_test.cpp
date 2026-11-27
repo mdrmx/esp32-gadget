@@ -56,13 +56,10 @@ static bool readItem(
 }
 
 int main() {
-  const uint16_t PANEL = 0x2128;
-  const uint16_t MUTED = 0xBDF7;
-  const uint16_t ACCENT = 0x5DDF;
-  const uint16_t BG = 0x1082;
-
+  const uint16_t PAPER = 0xFF9C;
+  const uint16_t INK = 0x28C1;
   const WeatherMetricCardRenderer::Colours cardColours = {
-    PANEL, MUTED, ACCENT
+    PAPER, INK, INK, INK
   };
   WeatherMetricCardRenderer cardRenderer(cardColours);
   WeatherMetricsViewportRenderer renderer(cardRenderer);
@@ -85,6 +82,8 @@ int main() {
   CHECK(canvasTarget.lastFillRectHeight == 177);
   CHECK(canvasTarget.lastFillRectColour == BG);
   CHECK(canvasTarget.fillRoundRectCount == 3);
+  CHECK(canvasTarget.drawRoundRectCount == 3);
+  CHECK(canvasTarget.drawRoundRectColour[0] == INK);
   CHECK(canvasTarget.printCount == 6);
   CHECK(source.readCount == 3);
   CHECK(source.indices[0] == 1);
@@ -110,6 +109,7 @@ int main() {
   CHECK(directTarget.lastFillRectWidth == 118);
   CHECK(directTarget.lastFillRectHeight == 177);
   CHECK(directTarget.fillRoundRectCount == 3);
+  CHECK(directTarget.drawRoundRectCount == 3);
   CHECK(directTarget.lastFillRoundRectX == 194);
   CHECK(directTarget.lastFillRoundRectY == 167);
   CHECK(directTarget.printCount == 6);
@@ -147,6 +147,7 @@ int main() {
   CHECK(boundedSource.indices[1] == 3);
   CHECK(boundedSource.indices[2] == 4);
   CHECK(boundedTarget.fillRoundRectCount == 3);
+  CHECK(boundedTarget.drawRoundRectCount == 3);
 
   // Failed data reads leave the background intact and skip only that card.
   Source missingSource = {1, 0, 0, {}};
