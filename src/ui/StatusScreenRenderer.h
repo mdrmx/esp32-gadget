@@ -69,12 +69,14 @@ private:
     if (target == nullptr) return false;
 
     target->fillScreen(colours.background);
+    // Keep the shared header on the same paper background as the screen.
+    // Header text, clock, Wi-Fi glyph and divider all use the ink colour.
     headerRenderer_.draw(
       locationText,
       clockText,
-      colours.panel,
+      colours.background,
       colours.locationText,
-      colours.accent);
+      colours.locationText);
     return true;
   }
 
