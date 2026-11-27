@@ -48,7 +48,7 @@ static bool testWeatherIconRetainsOriginalBitmap() {
     CHECK(!iconPixelAt(x, 30));
     CHECK(!iconPixelAt(x, 31));
   }
-  CHECK(iconPixelAt(1, 8));
+  CHECK(iconPixelAt(9, 8));
   return true;
 }
 
