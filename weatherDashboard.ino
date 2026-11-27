@@ -609,8 +609,6 @@ struct WeatherPngDrawContext {
   WeatherPngDrawMode mode;
   int x;
   int y;
-  int sourceWidth;
-  int sourceHeight;
   int cropLeft;
   int cropTop;
   int cropWidth;
@@ -626,9 +624,10 @@ struct WeatherPngDrawContext {
 };
 
 int drawWeatherPngLine(PNGDRAW* pDraw) {
+  if (pDraw == nullptr) return 0;
   WeatherPngDrawContext* context =
     (WeatherPngDrawContext*)pDraw->pUser;
-  if (context == nullptr || pDraw == nullptr ||
+  if (context == nullptr ||
       pDraw->iWidth <= 0 || pDraw->iWidth > 100) {
     return 0;
   }
@@ -887,8 +886,6 @@ int drawOpenWeatherIcon(int x, int y, int displaySize) {
 
   WeatherPngDrawContext context = {};
   context.mode = WeatherPngDrawMode::FindVisibleBounds;
-  context.sourceWidth = iconWidth;
-  context.sourceHeight = iconHeight;
   context.visibleLeft = iconWidth;
   context.visibleTop = iconHeight;
   context.visibleRight = -1;
