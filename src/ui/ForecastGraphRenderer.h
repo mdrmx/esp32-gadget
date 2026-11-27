@@ -206,8 +206,8 @@ public:
 private:
   static constexpr int LEFT_INSET = 23;
   static constexpr int RIGHT_INSET = 17;
-  static constexpr int VISIBLE_POINTS = 8;
-  static constexpr int POINT_SPACING = 40;
+  static constexpr int VISIBLE_POINTS = 7;
+  static constexpr int POINT_SPACING = 46;
   static constexpr int VERTICAL_SHIFT = 12;
   static constexpr int BASE_PLOT_TOP = 37;
   static constexpr int BASE_PLOT_BOTTOM = 89;
