@@ -256,7 +256,6 @@ static bool testLauncherControllerSelectsAndRestoresApplications() {
 
 static uint32_t fakeMillis = 100;
 static int weatherInputCalls = 0;
-static int weatherSyncCalls = 0;
 static int weatherEndToEndFetchCalls = 0;
 static bool weatherConnected = true;
 static int weatherDrawLoadingCalls = 0;
@@ -265,8 +264,6 @@ static int weatherDrawForecastCalls = 0;
 static const char* weatherLastLoadingMessage = nullptr;
 
 static void weatherProcessInput() { ++weatherInputCalls; }
-static void weatherSyncTime() { ++weatherSyncCalls; }
-static void weatherRefreshClock() {}
 static uint32_t weatherMillisNow() { return fakeMillis; }
 static bool weatherConnectionPending() { return false; }
 static bool weatherIsConnected() { return weatherConnected; }
@@ -287,8 +284,6 @@ static void weatherDrawError(const char*) {}
 static WeatherApp::Hooks makeWeatherHooks() {
   WeatherApp::Hooks hooks;
   hooks.processInput = weatherProcessInput;
-  hooks.syncTime = weatherSyncTime;
-  hooks.refreshClock = weatherRefreshClock;
   hooks.millisNow = weatherMillisNow;
   hooks.connectionPending = weatherConnectionPending;
   hooks.isConnected = weatherIsConnected;
@@ -312,7 +307,6 @@ static bool testWeatherAppResumesWithoutReconnectingWhenOnline() {
 
   fakeMillis = 100;
   weatherInputCalls = 0;
-  weatherSyncCalls = 0;
   weatherEndToEndFetchCalls = 0;
   weatherConnected = true;
   weatherDrawLoadingCalls = 0;
@@ -333,7 +327,6 @@ static bool testWeatherAppResumesWithoutReconnectingWhenOnline() {
   // platform connection are retained while the app is inactive.
   manager.update();
   CHECK(weatherInputCalls == 1);
-  CHECK(weatherSyncCalls == 1);
   CHECK(weather.state() == WeatherApp::State::FetchingCurrentWeather);
 
   const uint32_t lastRefreshBeforeStop = weather.lastRefreshMs();
@@ -341,10 +334,8 @@ static bool testWeatherAppResumesWithoutReconnectingWhenOnline() {
   CHECK(!weather.isActive());
   CHECK(weather.state() == WeatherApp::State::FetchingCurrentWeather);
   const int inputCallsAtStop = weatherInputCalls;
-  const int syncCallsAtStop = weatherSyncCalls;
   manager.update();
   CHECK(weatherInputCalls == inputCallsAtStop);
-  CHECK(weatherSyncCalls == syncCallsAtStop);
 
   // Returning from the launcher resumes Weather's existing state and redraws
   // its cached view. It must not start Wi-Fi association or show a connecting
@@ -459,7 +450,6 @@ static bool testWeatherAppWaitsForPlatformConnectionWhenOffline() {
 
   fakeMillis = 500;
   weatherInputCalls = 0;
-  weatherSyncCalls = 0;
   weatherEndToEndFetchCalls = 0;
   weatherConnected = false;
   weatherDrawLoadingCalls = 0;
