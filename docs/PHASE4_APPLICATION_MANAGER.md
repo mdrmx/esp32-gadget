@@ -1,6 +1,6 @@
 # Phase 4 — Application Manager and lifecycle
 
-**Status:** Lifecycle manager PR #62 and launcher PR #63 are merged into `main`. The final icon-grid, paper-and-ink card treatment, shared-header and card-outline revision passed the user's full hardware regression on 2026-11-27. The expanded strict C++11 host-suite results for the final launcher revision have not yet been confirmed. The clock-ownership refinement is in progress; host and device validation for it are pending. Weather remains the only registered application; second-app integration, remaining Weather-boundary cleanup and runtime memory profiling remain outstanding.  
+**Status:** Lifecycle manager PR #62 and launcher PR #63 are merged into `main`. The clock-ownership refinement is implemented on `refinement/phase4-cleanup`; all four focused strict C++11 host suites passed, and the user confirmed the cold-boot, offline-to-online time recovery, launcher/Weather switching and Wi-Fi settings hardware regression passed (2026-11-27). TimeAPI synchronisation and one-second shared-header clock redraw now run independently of the active application. Weather remains the only registered application; second-app integration, remaining Weather-boundary cleanup and runtime memory profiling remain outstanding.  
 **Base:** PR #62 merge `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`; launcher PR #63 merge `0af82bf94d2419f8d59be9aecb1d13f67e5d10c`.  
 **Goal:** Give the platform one bounded, transport- and hardware-neutral way to register, start, update, switch and stop applications.
 
@@ -61,13 +61,12 @@ sh scripts/test-bottom-edge-swipe-gesture.sh
 sh scripts/test-weather-app-asset-preparation.sh
 ```
 
-For merged PR #62, the user confirmed the strict C++11 runner passes (`ApplicationManager tests passed.`), including registration, null-id safety, lifecycle switching/restoration and Weather configure/start/stop/restart integration. This branch adds manager enumeration, launcher controller, Weather cached resume and offline reconnection-path coverage. Additional suites cover the launcher renderer and bottom-edge swipe recogniser. The launcher renderer suite now checks the icon bitmap coordinates, text-free tile layout, footer-free single/two-app centring, two-row geometry and touch targets. Run all commands above after pulling the latest branch; the expanded suite results must still be recorded for this revision.
+Validation completed on `refinement/phase4-cleanup` (user-confirmed 2026-11-27): `sh scripts/test-application-manager.sh` → `ApplicationManager tests passed.`; `sh scripts/test-weather-app-asset-preparation.sh` → `WeatherApp state and asset preparation tests passed.`; `sh scripts/test-application-launcher-renderer.sh` → `ApplicationLauncherRenderer tests passed.`; `sh scripts/test-bottom-edge-swipe-gesture.sh` → `BottomEdgeSwipeGesture tests passed.`. The expanded coverage includes manager enumeration, launcher-controller selection/restore, cached Weather resume and offline recovery, launcher icon geometry/touch targets, and the bounded bottom-edge swipe recogniser.
 
 
 
 ## Remaining Phase 4 validation and development
 
-- Run and record the focused strict C++11 suites for the merged final launcher revision: application manager, launcher renderer, bottom-edge swipe gesture and Weather state/asset preparation. Hardware regression does not substitute for these host-side checks.
 - Register and validate a second independent application, then verify launcher switching and shared platform-service behaviour from both apps.
 - Continue moving remaining Weather-specific sketch state and compatibility aliases behind the Weather application boundary.
 - Refine state-preservation and suspend/resume policy for longer-lived applications.
@@ -92,6 +91,13 @@ For merged PR #62, the user confirmed the strict C++11 runner passes (`Applicati
 - PR #63 merged into `main` at `0af82bf94d2419f8d59be9aecb1d13f67e5d10c`; source head: `ca6ba974e5e473e91b1c6a0bc7c1b622f0e9e035`.
 - The user confirmed the full hardware regression passed for the final icon-grid, shared-header, paper/ink card-outline and four-colour palette revision.
 - This confirmation covers the final physical regression, but no separate expanded host-suite output has yet been recorded here. Run the four commands in the Host validation section and append their actual results when available.
+
+### Clock ownership refinement — host and hardware validation (2026-11-27)
+
+- TimeAPI synchronisation and the one-second shared-header clock refresh are owned by the platform loop, not `WeatherApp::update()`. They continue while the boot launcher is visible and no application is active.
+- All four focused strict C++11 host suites listed above passed on the final refinement branch.
+- The user confirmed the physical regression passed: cold boot with the launcher left open, cold boot without Wi-Fi followed by online time recovery, repeated launcher/Weather switching, and opening/closing Wi-Fi settings while checking that the clock remains visible and updates.
+- The device has no RTC; after a fresh offline boot it cannot display accurate time until TimeAPI synchronisation succeeds. This is the documented design limitation, not a regression.
 
 Independent multi-app switching remains deferred because only Weather is registered. Runtime heap/largest-block/PSRAM profiling remains outstanding.
 
