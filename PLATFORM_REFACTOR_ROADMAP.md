@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 5.16  
+**Version:** 5.17  
 **Last reviewed:** 2026-11-27  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -1085,3 +1085,5 @@ The checked-in `sh scripts/test-forecast-mode-selector-renderer.sh` runner passe
 - **2026-11-27 — Version 5.15:** Added automatic transparent-padding removal for the Current Conditions provider icon. The first PNGdec pass scans per-pixel/palette alpha (threshold 24) and transparent colour keys to find visible bounds; the second pass draws only that rectangle, scaled proportionally and centred in the existing 84×84 px slot. Transparent pixels inside the crop are still rendered as the paper background, preserving holes and soft edges. The path uses fixed-size stack masks and line buffers, with no full image or heap allocation. Host tests, Arduino Verify/upload and physical visual regression remain pending.
 
 - **2026-11-27 — Version 5.16:** Reduced the alpha-cropped Current Conditions provider icon from 84×84 to 70×70 px and re-centred it in the same column (x=61 on the 320 px display, y=66). The description begins at y=142, close below the smaller icon. Temperature and feels-like positions are calculated from the actual rendered description and temperature heights, keeping a consistent 4 px gap between the description and current temperature and between the two temperature lines. The positions adapt to one- or two-line descriptions. Reduced the output line buffer and crop bounds checks to 70 pixels. Updated WeatherConditionsRenderer host expectations and Phase 4/README handover. Host test execution, Arduino Verify/upload and physical visual regression remain pending.
+
+- **2026-11-27 — Version 5.17:** Standardised all Weather metric-card values to a fixed size-2 font and consistent vertical baseline; metric labels remain size 1. Full and clipped cards use the same value sizing/position. Reordered cards to Rain Chance, Wind and UV Index first, followed by Humidity, Pressure, Cloud Cover, Visibility and Rain (1H). Added `WeatherMetricCatalog` for stable metric IDs, labels and presentation order, with a strict C++11 host test runner. Wind values retain one decimal below 100 km/h and use integer precision at or above 100 km/h so all size-2 values fit the 114 px inner card width. Updated metric-card renderer tests and Phase 4/README/module-boundary documentation. Host test execution, Arduino Verify/upload and physical metric-card regression remain pending.
