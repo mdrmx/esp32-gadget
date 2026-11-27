@@ -117,7 +117,7 @@ int main() {
   CHECK(target->printedColour[2] == INK);
   CHECK(target->printedY[2] == 64 + 143);
   CHECK(target->lastFillRectColour == BURNT_ORANGE);
-  CHECK(target->drawLineCount == 12); // 6 temperature segments x 2 px
+  CHECK(target->drawLineCount == 14); // 7 segments including edge continuity, 2 px each
   CHECK(target->lastLineColour == BURNT_ORANGE);
   CHECK(target->lastFillCircleX == 305);
   CHECK(target->lastFillCircleY == 92); // enlarged icon moved 4 px down
