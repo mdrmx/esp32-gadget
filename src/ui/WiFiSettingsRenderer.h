@@ -348,10 +348,10 @@ public:
             row == highlightedRow && column == highlightedColumn;
         target->fillRoundRect(
             x, y, KeyboardKeyWidth, KeyboardKeyHeight, 3,
-            highlighted ? colours_.accent : colours_.panel);
+            highlighted ? colours_.success : colours_.background);
         target->drawRoundRect(
             x, y, KeyboardKeyWidth, KeyboardKeyHeight, 3,
-            highlighted ? colours_.white : colours_.muted);
+            colours_.white);
         char label[2] = {key, '\0'};
         if (!symbols && shifted && row > 0 && key >= 'a' && key <= 'z') {
           label[0] = static_cast<char>(key - ('a' - 'A'));
