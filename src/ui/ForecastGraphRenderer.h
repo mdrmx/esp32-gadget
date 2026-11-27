@@ -204,7 +204,7 @@ public:
   }
 
 private:
-  static constexpr int LEFT_INSET = 23;
+  static constexpr int LEFT_INSET = 22;
   static constexpr int RIGHT_INSET = 17;
   static constexpr int VISIBLE_POINTS = 7;
   static constexpr int POINT_SPACING = 46;
