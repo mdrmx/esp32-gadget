@@ -45,17 +45,17 @@ int main() {
 
   CHECK(physicalTarget->printedText[1] == String("Clear sky"));
   CHECK(physicalTarget->printedX[1] == 42);
-  CHECK(physicalTarget->printedY[1] == 136);
+  CHECK(physicalTarget->printedY[1] == 156);
   CHECK(physicalTarget->printedSize[1] == 2);
 
   CHECK(physicalTarget->printedText[2] == String("18.2 C"));
   CHECK(physicalTarget->printedX[2] == 60);
-  CHECK(physicalTarget->printedY[2] == 174);
+  CHECK(physicalTarget->printedY[2] == 192);
   CHECK(physicalTarget->printedSize[2] == 2);
 
   CHECK(physicalTarget->printedText[3] == String("Feels: 17.5C"));
   CHECK(physicalTarget->printedX[3] == 60);
-  CHECK(physicalTarget->printedY[3] == 198);
+  CHECK(physicalTarget->printedY[3] == 216);
   CHECK(physicalTarget->printedSize[3] == 1);
 
   // Long location labels are shortened to fit the left content column and
@@ -72,14 +72,14 @@ int main() {
   CHECK(physicalTarget->printedY[4] == 47);
   CHECK(physicalTarget->printedText[5] == String("Partly cloudy"));
   CHECK(physicalTarget->printedX[5] == 18);
-  CHECK(physicalTarget->printedY[5] == 136);
+  CHECK(physicalTarget->printedY[5] == 156);
   CHECK(physicalTarget->printedText[6] == String("with showers"));
   CHECK(physicalTarget->printedX[6] == 24);
-  CHECK(physicalTarget->printedY[6] == 152);
+  CHECK(physicalTarget->printedY[6] == 172);
   CHECK(physicalTarget->printedText[7] == String("16.4 C"));
-  CHECK(physicalTarget->printedY[7] == 174);
+  CHECK(physicalTarget->printedY[7] == 192);
   CHECK(physicalTarget->printedText[8] == String("Feels: 15.8C"));
-  CHECK(physicalTarget->printedY[8] == 198);
+  CHECK(physicalTarget->printedY[8] == 216);
 
   // An absent render target is a safe no-op through TextRenderer.
   const int printsBeforeNull = physicalTarget->printCount;
