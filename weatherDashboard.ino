@@ -137,8 +137,9 @@ WiFiGeolocationScanner wifiGeolocationScanner(wifiGeolocationScanBackend);
 LocationService locationService(wifiGeolocationScanner);
 LocationService::LocationFix currentLocationFix = {};
 
-// Header redraw cache remains Weather presentation state.
+// Shared-header redraw cache and cadence are platform presentation state.
 String lastHeaderClock = "";
+uint32_t lastPlatformClockRefreshMs = 0;
 
 // =====================================================
 // DISPLAY
@@ -3697,14 +3698,6 @@ void weatherAppProcessInput() {
   // available even while ApplicationManager has no active application.
 }
 
-void weatherAppSyncTime() {
-  maybeSyncTimeFromAPI();
-}
-
-void weatherAppRefreshClock() {
-  refreshHeaderClock();
-}
-
 uint32_t weatherAppMillisNow() {
   return (uint32_t)millis();
 }
@@ -3907,8 +3900,6 @@ void setup() {
 #endif
   WeatherApp::Hooks weatherHooks;
   weatherHooks.processInput = weatherAppProcessInput;
-  weatherHooks.syncTime = weatherAppSyncTime;
-  weatherHooks.refreshClock = weatherAppRefreshClock;
   weatherHooks.millisNow = weatherAppMillisNow;
   weatherHooks.connectionPending = weatherAppConnectionPendingForApp;
   weatherHooks.isConnected = weatherAppIsConnected;
@@ -3952,16 +3943,22 @@ void setup() {
 void loop() {
   // Do not start a manager-owned association retry while the asynchronous
   // user-facing network scan is still using the Wi-Fi radio.
+  const uint32_t nowMs = millis();
   connectivityManager.update(
-      millis(),
+      nowMs,
       wifiNetworkScanner.state() != WiFiNetworkScanner::State::Scanning);
-  updateWiFiSignalIndicator();
-  updateWiFiSettings();
-  if (applicationLauncherController.isOpen()) {
-    // Weather is suspended while the launcher is visible, so keep the clock's
-    // one-second presentation refresh alive at platform level.
+
+  // Time synchronisation and the shared header clock belong to the platform,
+  // not the currently selected application. This must run while the boot
+  // launcher is open (when no application is active) as well as in every app.
+  maybeSyncTimeFromAPI();
+  if (nowMs - lastPlatformClockRefreshMs >= 1000UL) {
+    lastPlatformClockRefreshMs = nowMs;
     refreshHeaderClock();
   }
+
+  updateWiFiSignalIndicator();
+  updateWiFiSettings();
   pollTouch();
   applicationManager.update();
   delay(30);
