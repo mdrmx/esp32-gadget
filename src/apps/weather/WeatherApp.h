@@ -31,8 +31,6 @@ class WeatherApp : public Application {
 
   struct Hooks {
     void (*processInput)();
-    void (*syncTime)();
-    void (*refreshClock)();
     uint32_t (*millisNow)();
 
     // ConnectivityManager remains owned and advanced by the platform.
@@ -58,8 +56,6 @@ class WeatherApp : public Application {
 
     Hooks()
         : processInput(nullptr),
-          syncTime(nullptr),
-          refreshClock(nullptr),
           millisNow(nullptr),
           connectionPending(nullptr),
           isConnected(nullptr),
@@ -78,16 +74,12 @@ class WeatherApp : public Application {
   };
 
   static const uint32_t DefaultRefreshIntervalMs = 600000UL;
-  static const uint32_t DefaultClockRefreshIntervalMs = 1000UL;
 
   explicit WeatherApp(
-      uint32_t refreshIntervalMs = DefaultRefreshIntervalMs,
-      uint32_t clockRefreshIntervalMs = DefaultClockRefreshIntervalMs)
+      uint32_t refreshIntervalMs = DefaultRefreshIntervalMs)
       : hooks_(),
         refreshIntervalMs_(refreshIntervalMs),
-        clockRefreshIntervalMs_(clockRefreshIntervalMs),
         lastRefreshMs_(0),
-        lastClockRefreshMs_(0),
         state_(State::Inactive),
         active_(false),
         currentWeatherSucceeded_(false) {}
@@ -122,7 +114,6 @@ class WeatherApp : public Application {
     const bool connected = hooks_.isConnected();
 
     active_ = true;
-    lastClockRefreshMs_ = now;
 
     if (!resuming) {
       currentWeatherSucceeded_ = false;
@@ -207,16 +198,11 @@ class WeatherApp : public Application {
     }
 
     hooks_.processInput();
-    hooks_.syncTime();
 
     const uint32_t now = hooks_.millisNow();
-    if (now - lastClockRefreshMs_ >= clockRefreshIntervalMs_) {
-      lastClockRefreshMs_ = now;
-      hooks_.refreshClock();
-    }
 
-    // Modal platform settings (such as Wi-Fi management) keep input and the
-    // clock alive while pausing Weather's staged fetch/render workflow.
+    // Modal platform settings pause Weather's staged fetch/render workflow.
+    // The platform loop continues to own shared time and header-clock updates.
     if (hooks_.pauseWorkflow != nullptr && hooks_.pauseWorkflow()) {
       return;
     }
@@ -379,17 +365,13 @@ class WeatherApp : public Application {
 
   Hooks hooks_;
   uint32_t refreshIntervalMs_;
-  uint32_t clockRefreshIntervalMs_;
   uint32_t lastRefreshMs_;
-  uint32_t lastClockRefreshMs_;
   State state_;
   bool active_;
   bool currentWeatherSucceeded_;
 
   static bool hasRequiredHooks(const Hooks& hooks) {
     return hooks.processInput != nullptr &&
-           hooks.syncTime != nullptr &&
-           hooks.refreshClock != nullptr &&
            hooks.millisNow != nullptr &&
            hooks.connectionPending != nullptr &&
            hooks.isConnected != nullptr &&
