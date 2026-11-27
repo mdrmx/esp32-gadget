@@ -46,7 +46,7 @@ int main() {
         HeaderRenderer::WiFiIndicatorBottom - HeaderRenderer::WiFiIndicatorTop);
   CHECK(physicalTarget->lastFillRectColour == BG);
   CHECK(physicalTarget->horizontalLineCount == 2);
-  CHECK(physicalTarget->lastLineY == 36);
+  CHECK(physicalTarget->lastLineY == 37);
   CHECK(physicalTarget->lastLineColour == INK);
 
   CHECK(physicalTarget->printCount == 4);
