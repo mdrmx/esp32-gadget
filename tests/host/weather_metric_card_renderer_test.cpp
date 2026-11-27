@@ -27,11 +27,10 @@ public:
 };
 
 int main() {
-  const uint16_t PANEL = 0x2128;
-  const uint16_t MUTED = 0xBDF7;
-  const uint16_t ACCENT = 0x5DDF;
+  const uint16_t PAPER = 0xFF9C;
+  const uint16_t INK = 0x28C1;
   const WeatherMetricCardRenderer::Colours colours = {
-    PANEL, MUTED, ACCENT
+    PAPER, INK, INK, INK
   };
 
   WeatherMetricCardRenderer renderer(colours);
@@ -47,20 +46,22 @@ int main() {
   CHECK(target.lastFillRoundRectWidth == 114);
   CHECK(target.lastFillRoundRectHeight == 54);
   CHECK(target.lastFillRoundRectRadius == 6);
-  CHECK(target.lastFillRoundRectColour == PANEL);
+  CHECK(target.lastFillRoundRectColour == PAPER);
+  CHECK(target.drawRoundRectCount == 1);
+  CHECK(target.lastDrawRoundRectColour == INK);
 
   CHECK(target.printCount == 2);
   CHECK(target.printedText[0] == String("HUMIDITY"));
   CHECK(target.printedX[0] == 201);
   CHECK(target.printedY[0] == 56);
   CHECK(target.printedSize[0] == 1);
-  CHECK(target.printedColour[0] == MUTED);
+  CHECK(target.printedColour[0] == INK);
 
   CHECK(target.printedText[1] == String("64%"));
   CHECK(target.printedX[1] == 233);
   CHECK(target.printedY[1] == 72);
   CHECK(target.printedSize[1] == 2);
-  CHECK(target.printedColour[1] == ACCENT);
+  CHECK(target.printedColour[1] == INK);
 
   // Longer values keep the original smaller type size and vertical offset.
   renderer.draw(
@@ -72,7 +73,7 @@ int main() {
   CHECK(target.printedX[3] == 230);
   CHECK(target.printedY[3] == 136);
   CHECK(target.printedSize[3] == 1);
-  CHECK(target.printedColour[3] == ACCENT);
+  CHECK(target.printedColour[3] == INK);
 
   // A card clipped at the top draws its panel slice and only the value,
   // because its label would be above the viewport.
@@ -83,11 +84,12 @@ int main() {
     &target, "PRESSURE", "1013 hPa", 192, 35, 118, 47, 177);
   CHECK(target.fillRoundRectCount == roundRectsBeforeTopClip);
   CHECK(target.fillRectCount == fillRectsBeforeTopClip + 1);
+  CHECK(target.drawFastVLineCount >= 2);
   CHECK(target.lastFillRectX == 194);
   CHECK(target.lastFillRectY == 47);
   CHECK(target.lastFillRectWidth == 114);
   CHECK(target.lastFillRectHeight == 42);
-  CHECK(target.lastFillRectColour == PANEL);
+  CHECK(target.lastFillRectColour == PAPER);
   CHECK(target.printCount == printsBeforeTopClip + 1);
   CHECK(target.printedText[printsBeforeTopClip] == String("1013 hPa"));
   CHECK(target.printedY[printsBeforeTopClip] == 63);
