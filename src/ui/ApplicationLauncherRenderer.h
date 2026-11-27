@@ -32,9 +32,7 @@ class ApplicationLauncherRenderer {
     GridColumnGap = 72,
     GridTop = 50,
     GridRowStep = 80,
-    FooterTop = 210,
-    BackLeft = 8,
-    BackRight = 84,
+    MessageTop = 218,
     MaximumVisibleApplications = 4
   };
 
@@ -57,9 +55,10 @@ class ApplicationLauncherRenderer {
 
     const int width = displayManager_.width();
     target->fillScreen(colours_.background);
-    target->fillRect(0, 0, width, HeaderHeight, colours_.panel);
+    target->fillRect(0, 0, width, HeaderHeight, colours_.background);
     textRenderer_.drawText("APPLICATIONS", 8, 10, 2, colours_.text);
-    target->drawFastHLine(0, HeaderHeight, width, colours_.accent);
+    target->drawFastHLine(0, HeaderHeight, width, colours_.text);
+    target->drawFastHLine(0, HeaderHeight + 1, width, colours_.text);
 
     const uint8_t count = visibleApplicationCount(manager);
     if (count == 0) {
@@ -90,25 +89,12 @@ class ApplicationLauncherRenderer {
       drawApplicationIcon(target, application->id(), x, y);
     }
 
-    int footerX = 8;
-    if (returnApplicationId != nullptr) {
-      target->fillRoundRect(
-          BackLeft, FooterTop, BackRight - BackLeft, 24, 6,
-          colours_.panel);
-      target->drawRoundRect(
-          BackLeft, FooterTop, BackRight - BackLeft, 24, 6,
-          colours_.accent);
-      textRenderer_.drawText(
-          "BACK", BackLeft + 18, FooterTop + 7, 1, colours_.text);
-      footerX = BackRight + 8;
+    // Keep the normal launcher completely label-free. A failed app start
+    // may still show a short diagnostic so the user knows the tap was handled.
+    if (message.length() > 0) {
+      textRenderer_.drawCenteredText(
+          message, MessageTop, 1, colours_.accent);
     }
-
-    const String footer = message.length() > 0
-        ? message
-        : String("SELECT AN APP");
-    textRenderer_.drawText(
-        footer, footerX, FooterTop + 8, 1,
-        message.length() > 0 ? colours_.selected : colours_.muted);
   }
 
   bool applicationAt(
@@ -133,15 +119,6 @@ class ApplicationLauncherRenderer {
       }
     }
     return false;
-  }
-
-  bool backButtonContains(
-      int x, int y, const char* returnApplicationId) const {
-    if (returnApplicationId == nullptr) {
-      return false;
-    }
-    return x >= BackLeft && x < BackRight &&
-           y >= FooterTop && y < FooterTop + 24;
   }
 
  private:
