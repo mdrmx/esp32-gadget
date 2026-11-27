@@ -1,7 +1,7 @@
 # Phase 4 — Application Manager and lifecycle
 
-**Status:** Lifecycle manager merged in PR #62; launcher-first boot and interaction are implemented on `phase4/02-application-launcher`. Core launcher navigation, Wi-Fi and boot behaviour passed Arduino IDE Verify/upload and user-confirmed physical regression on 2026-11-26. The current icon-grid, paper-and-ink card treatment and shared-header visual refinement is not yet recompiled or hardware-checked. Weather remains the only registered application; second-app integration and expanded host-suite validation remain pending.  
-**Base:** PR #62 merge `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`.  
+**Status:** Lifecycle manager PR #62 and launcher PR #63 are merged into `main`. The final icon-grid, paper-and-ink card treatment, shared-header and card-outline revision passed the user's full hardware regression on 2026-11-27. The expanded strict C++11 host-suite results for the final launcher revision have not yet been confirmed. Weather remains the only registered application; second-app integration, remaining Weather-boundary cleanup and runtime memory profiling remain outstanding.  
+**Base:** PR #62 merge `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`; launcher PR #63 merge `0af82bf94d2419f8d59be9aecb1d13f67e5d10c`.  
 **Goal:** Give the platform one bounded, transport- and hardware-neutral way to register, start, update, switch and stop applications.
 
 ## Ownership
@@ -64,10 +64,12 @@ For merged PR #62, the user confirmed the strict C++11 runner passes (`Applicati
 
 
 
-## Remaining launcher validation
+## Remaining Phase 4 validation and development
 
-- Run the focused strict C++11 suites after pulling `phase4/02-application-launcher`: application manager, launcher renderer, bottom-edge swipe gesture and Weather state/asset preparation. These host-suite results have not yet been supplied for this branch.
-- Multi-app selection remains pending until a second application is registered.
+- Run and record the focused strict C++11 suites for the merged final launcher revision: application manager, launcher renderer, bottom-edge swipe gesture and Weather state/asset preparation. Hardware regression does not substitute for these host-side checks.
+- Register and validate a second independent application, then verify launcher switching and shared platform-service behaviour from both apps.
+- Continue moving remaining Weather-specific sketch state and compatibility aliases behind the Weather application boundary.
+- Refine state-preservation and suspend/resume policy for longer-lived applications.
 
 ## Firmware and device validation
 
@@ -77,12 +79,18 @@ For merged PR #62, the user confirmed the strict C++11 runner passes (`Applicati
 - Build footprint: 1,204,579 bytes program storage and 100,788 bytes global dynamic memory; uploaded image hash verified and board hard-reset via RTS.
 - The user confirmed the full physical Weather regression passed.
 
-### PR #63 launcher branch (2026-11-26)
+### PR #63 base launcher firmware validation (2026-11-26)
 
 - Arduino IDE Verify/compile and upload passed with the same Waveshare ESP32-S3 FQBN, ESP32 core 3.3.12 and esptool 5.3.1.
 - Build footprint: 1,209,815 bytes program storage (38% of the 3,145,728-byte app partition) and 100,868 bytes global dynamic memory (30% of 327,680 bytes), leaving 226,812 bytes.
 - The log reports 1,044,480 bytes written (730,023 compressed), successful flash-data hash verification and hard reset via RTS.
-- The user confirmed the launcher-first boot, background Wi-Fi, central-band swipe, launcher redraw/touch behaviour and Wi-Fi settings access before the icon-grid/palette visual follow-up. This is physical regression evidence for the prior launcher revision only. The current icon-grid, header and card-style visual revision still needs Arduino Verify/upload and a visual hardware check; focused host suites also remain to be run.
+- The user confirmed launcher-first boot, background Wi-Fi, central-band swipe, launcher redraw/touch behaviour and Wi-Fi settings access for the base navigation revision.
+
+### Final launcher visual revision — post-merge hardware regression (2026-11-27)
+
+- PR #63 merged into `main` at `0af82bf94d2419f8d59be9aecb1d13f67e5d10c`; source head: `ca6ba974e5e473e91b1c6a0bc7c1b622f0e9e035`.
+- The user confirmed the full hardware regression passed for the final icon-grid, shared-header, paper/ink card-outline and four-colour palette revision.
+- This confirmation covers the final physical regression, but no separate expanded host-suite output has yet been recorded here. Run the four commands in the Host validation section and append their actual results when available.
 
 Independent multi-app switching remains deferred because only Weather is registered. Runtime heap/largest-block/PSRAM profiling remains outstanding.
 
