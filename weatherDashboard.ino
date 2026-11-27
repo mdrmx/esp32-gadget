@@ -1503,7 +1503,9 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
   if (displayManager.forecastCanvas() != nullptr && !displayManager.renderingTabTransition()) {
     displayManager.forecastCanvas()->fillScreen(BG);
     if (forecastGraphView) {
-      drawForecastGraph(displayManager.forecastCanvas(), 0);
+      drawForecastGraph(
+        displayManager.forecastCanvas(),
+        FORECAST_GRAPH_CANVAS_ORIGIN_Y);
       if (flushForecastGraphCanvasBody()) return;
       displayManager.forecastCanvas()->flush();
       forecastModeSelectorRenderer.draw(ForecastModeSelectorRenderer::Mode::Graph);
@@ -1540,7 +1542,9 @@ void drawForecastViewport(int baseOffset, int scrollPixels) {
     BG);
 
   if (forecastGraphView) {
-    drawForecastGraph(displayManager.target(), FORECAST_VIEWPORT_TOP);
+    drawForecastGraph(
+      displayManager.target(),
+      FORECAST_GRAPH_DISPLAY_ORIGIN_Y);
     return;
   }
 
