@@ -1,7 +1,7 @@
 # ESP32 Gadget — Platform Refactor Roadmap & Handover
 
 **Document status:** Working roadmap — agreed  
-**Version:** 5.15  
+**Version:** 5.16  
 **Last reviewed:** 2026-11-27  
 **Repository:** mdrmx/esp32-gadget  
 **Default branch:** main  
@@ -1083,3 +1083,5 @@ The checked-in `sh scripts/test-forecast-mode-selector-renderer.sh` runner passe
 - **2026-11-27 — Version 5.14:** Increased the Current Conditions provider icon from 64×64 to 84×84 px (approximately 31% larger), keeping it horizontally centred in the left column. Expanded the fixed stack line buffer and output-dimension guards to 84 pixels so icon scaling remains allocation-free. Moved the description to y=156, current temperature to y=192 and feels-like reading to y=216 to keep the vertical stack clear of the enlarged icon. Updated the WeatherConditionsRenderer strict C++11 test coordinates and the Phase 4/README handover. Host tests, Arduino Verify/upload and physical visual regression remain pending.
 
 - **2026-11-27 — Version 5.15:** Added automatic transparent-padding removal for the Current Conditions provider icon. The first PNGdec pass scans per-pixel/palette alpha (threshold 24) and transparent colour keys to find visible bounds; the second pass draws only that rectangle, scaled proportionally and centred in the existing 84×84 px slot. Transparent pixels inside the crop are still rendered as the paper background, preserving holes and soft edges. The path uses fixed-size stack masks and line buffers, with no full image or heap allocation. Host tests, Arduino Verify/upload and physical visual regression remain pending.
+
+- **2026-11-27 — Version 5.16:** Reduced the alpha-cropped Current Conditions provider icon from 84×84 to 70×70 px and re-centred it in the same column (x=61 on the 320 px display, y=66). The description begins at y=142, close below the smaller icon. Temperature and feels-like positions are calculated from the actual rendered description and temperature heights, keeping a consistent 4 px gap between the description and current temperature and between the two temperature lines. The positions adapt to one- or two-line descriptions. Reduced the output line buffer and crop bounds checks to 70 pixels. Updated WeatherConditionsRenderer host expectations and Phase 4/README handover. Host test execution, Arduino Verify/upload and physical visual regression remain pending.
