@@ -95,14 +95,9 @@ public:
       const int cardWidth = displayManager_.width() - 16;
       const int cardHeight = ListRowHeight - 2;
       target->fillRoundRect(
-          8, y, cardWidth, cardHeight, 4, colours_.panel);
-
-      // The preferred/active profile is identified by the card outline rather
-      // than a text label, leaving the SSID and availability state uncluttered.
-      if (profiles[index].preferred || profiles[index].active) {
-        target->drawRoundRect(
-            8, y, cardWidth, cardHeight, 4, colours_.accent);
-      }
+          8, y, cardWidth, cardHeight, 4, colours_.background);
+      target->drawRoundRect(
+          8, y, cardWidth, cardHeight, 4, colours_.white);
 
       // Centre the size-2 SSID and availability badge on the same horizontal
       // line. Reserve the badge's width before shortening long SSIDs.
@@ -139,7 +134,7 @@ public:
 
     // Restore the fixed header after clipping list rows at either edge.
     headerRenderer_.draw(
-        location, clock, colours_.panel, colours_.white, colours_.accent);
+        location, clock, colours_.background, colours_.white, colours_.white);
     textRenderer_.drawText("WI-FI NETWORKS", 10, 46, 2, colours_.white);
     drawStatusLine(connectionStatus, message, 63);
 
@@ -198,7 +193,9 @@ public:
           ListRowsTop + row * ListRowHeight - rowOffset;
       Arduino_GFX* target = displayManager_.target();
       target->fillRoundRect(8, y, displayManager_.width() - 16,
-                            ListRowHeight - 2, 4, colours_.panel);
+                            ListRowHeight - 2, 4, colours_.background);
+      target->drawRoundRect(8, y, displayManager_.width() - 16,
+                            ListRowHeight - 2, 4, colours_.white);
 
       const bool requiresPassword = !results[index].open;
       drawScanNetworkName(results[index].ssid, y, requiresPassword);
@@ -230,7 +227,7 @@ public:
     // Restore the complete header after clipping the overflow, so the blue
     // separator and Wi-Fi indicator never retain pixels from a scan row.
     headerRenderer_.draw(
-        location, clock, colours_.panel, colours_.white, colours_.accent);
+        location, clock, colours_.background, colours_.white, colours_.white);
     textRenderer_.drawText("AVAILABLE NETWORKS", 10, 46, 2, colours_.white);
     if (showStatus) drawStatusLine(connectionStatus, status, 63);
 
@@ -309,9 +306,9 @@ public:
 
     Arduino_GFX* target = displayManager_.target();
     target->fillRoundRect(8, PasswordFieldTop, 205, 21, 4,
-                          colours_.panel);
+                          colours_.background);
     target->drawRoundRect(8, PasswordFieldTop, 205, 21, 4,
-                          colours_.accent);
+                          colours_.white);
 
     String visible;
     if (password != nullptr) {
@@ -373,10 +370,10 @@ public:
         highlightedRow == 2 && highlightedColumn == 9;
     target->fillRoundRect(
         backspaceX, backspaceY, KeyboardKeyWidth, KeyboardKeyHeight, 3,
-        backspaceHighlighted ? colours_.accent : colours_.error);
+        backspaceHighlighted ? colours_.accent : colours_.background);
     target->drawRoundRect(
         backspaceX, backspaceY, KeyboardKeyWidth, KeyboardKeyHeight, 3,
-        backspaceHighlighted ? colours_.white : colours_.accent);
+        colours_.white);
     textRenderer_.drawText("<", backspaceX + 10, backspaceY + 6, 1,
                            colours_.white);
 
@@ -551,7 +548,7 @@ private:
     if (target == nullptr) return;
     target->fillScreen(colours_.background);
     headerRenderer_.draw(
-        location, clock, colours_.panel, colours_.white, colours_.accent);
+        location, clock, colours_.background, colours_.white, colours_.white);
   }
 
   void drawStatusLine(
@@ -576,18 +573,20 @@ private:
       bool highlighted = false) const {
     Arduino_GFX* target = displayManager_.target();
     if (target == nullptr) return;
+    // Controls use the same paper-and-ink card treatment. The pressed state
+    // briefly fills with burnt orange without changing the ink outline/text.
+    (void)fill;
+    (void)text;
     target->fillRoundRect(
         x, y, width, height, 5,
-        highlighted ? colours_.accent : fill);
+        highlighted ? colours_.accent : colours_.background);
     target->drawRoundRect(
-        x, y, width, height, 5,
-        highlighted ? colours_.white : colours_.accent);
+        x, y, width, height, 5, colours_.white);
     const String value(label);
     const int textWidth = textRenderer_.measureTextWidth(value, 1);
     textRenderer_.drawText(
         value, x + (width - textWidth) / 2,
-        y + (height - 8) / 2, 1,
-        highlighted ? colours_.background : text);
+        y + (height - 8) / 2, 1, colours_.white);
   }
 
   String shortenSsidToWidth(
