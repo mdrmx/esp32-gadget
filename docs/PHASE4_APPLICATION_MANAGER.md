@@ -1,6 +1,6 @@
 # Phase 4 — Application Manager and lifecycle
 
-**Status:** Lifecycle manager PR #62 and launcher PR #63 are merged into `main`. The clock-ownership refinement was merged in [PR #64](https://github.com/mdrmx/esp32-gadget/pull/64) at `c2d2f77ab5590c2cba58c43685c1a109c3c586b2`; all four focused strict C++11 host suites passed, and the user confirmed the cold-boot, offline-to-online time recovery, launcher/Weather switching and Wi-Fi settings hardware regression passed (2026-11-27). TimeAPI synchronisation and one-second shared-header clock redraw now run independently of the active application. The Weather UI refinement on `phase4/03-weather-header-current-conditions` changes the header identity from resolved place name to app title (`Weather`) and moves the place name into the Current Conditions content. It also rearranges the Current Conditions body into a left summary and right three-card scrollable metric column. The metric-card, metrics-viewport, metric-catalog, selector, Forecast List viewport and Forecast Graph strict C++11 host suites have passed (user-confirmed, 2026-11-27). The user has also confirmed the latest Waveshare hardware regression passes. The launcher and Forecast List item renderer host-test status has not been separately confirmed. Weather remains the only registered application; second-app integration, remaining Weather-boundary cleanup and runtime memory profiling remain outstanding.  
+**Status:** Lifecycle manager PR #62 and launcher PR #63 are merged into `main`. The clock-ownership refinement was merged in [PR #64](https://github.com/mdrmx/esp32-gadget/pull/64) at `c2d2f77ab5590c2cba58c43685c1a109c3c586b2`; all four focused strict C++11 host suites passed, and the user confirmed the cold-boot, offline-to-online time recovery, launcher/Weather switching and Wi-Fi settings hardware regression passed (2026-11-27). TimeAPI synchronisation and one-second shared-header clock redraw now run independently of the active application. The Weather UI refinement on `phase4/03-weather-header-current-conditions` changes the header identity from resolved place name to app title (`Weather`) and moves the place name into the Current Conditions content. It also rearranges the Current Conditions body into a left summary and right three-card scrollable metric column. The metric-card, metrics-viewport, metric-catalog, selector, Forecast List viewport and Forecast Graph strict C++11 host suites have passed (user-confirmed, 2026-11-27). The user has also confirmed the latest Waveshare hardware regression passes. The launcher and Forecast List item renderer host-test status has not been separately confirmed. Weather remains the only registered application; second-app integration, remaining Weather-boundary cleanup and runtime memory profiling remain outstanding. The current launcher icon-catalogue branch adds five 64×64 PNG placeholders alongside Weather in a fixed six-tile grid; artwork is embedded in flash and decoded through the existing PNG instance. Only registered application IDs are selectable. The updated launcher renderer host test, Arduino Verify/upload and hardware appearance regression are awaiting validation.  
 **Base:** PR #62 merge `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`; launcher PR #63 merge `0af82bf94d2419f8d59be9aecb1d13f67e5d10c`.  
 **Goal:** Give the platform one bounded, transport- and hardware-neutral way to register, start, update, switch and stop applications.
 
@@ -9,7 +9,7 @@
 - `Application` (`src/apps/Application.h`) is the small lifecycle contract: stable id, `begin()`, `update()` and `end()`.
 - `ApplicationManager` (`src/apps/ApplicationManager.h`) stores non-owning application pointers in a fixed-capacity array of four entries. It performs no heap allocation and does not own or initialise display, touch, connectivity, location, time or storage services.
 - The sketch remains the composition root. It constructs platform services and application instances, configures each application's borrowed callbacks, registers applications and starts the initial app.
-- `ApplicationLauncherController` coordinates launcher open/select/return lifecycle through the manager; it owns no application instances or platform services. The visible launcher has no BACK control; the previously active app is resumed by selecting its icon again. `ApplicationLauncherRenderer` owns only the bounded launcher presentation.
+- `ApplicationLauncherController` coordinates launcher open/select/return lifecycle through the manager; it owns no application instances or platform services. The visible launcher has no BACK control; the previously active app is resumed by selecting its icon again. `ApplicationLauncherRenderer` owns a fixed visual catalogue that is independent of manager registration, while touch selection is limited to catalogue IDs that are actually registered.
 - `WeatherApp` implements `Application`. Its state machine still owns Weather startup/refresh sequencing; Weather-specific data, view state and rendering stay in their existing modules.
 
 ## Lifecycle semantics
@@ -21,6 +21,18 @@
 5. `stopActive()` ends app-owned update work but leaves all platform-owned services alive. Individual apps may retain state across this inactive interval and resume it in `begin()`.
 
 An application implementation must leave itself inactive when `begin()` returns false. Registered application objects and platform services must outlive the manager's registrations.
+
+## Launcher visual catalogue
+
+The follow-up branch `phase4/04-launcher-icon-catalog` keeps the launcher artwork separate from application lifecycle registration:
+
+- The fixed six-tile, three-column/two-row catalogue shows Weather plus Map, NFC, Plant, Remote and Smart Home.
+- The five supplied 64×64 PNGs remain in `src/ui/icons/` and are also embedded as flash-resident byte arrays in `LauncherPngAssets.h` for firmware use. This avoids depending on a filesystem or SD card.
+- Launcher PNGs are decoded with the existing `weatherPngDecoder` instance via `openFLASH()`; no second PNG decoder workspace or application registration is added.
+- Weather remains the only registered app in this slice. The other five tiles are artwork-only and taps on them are ignored. A future app can become selectable by registering its corresponding stable ID (`map`, `nfc`, `plant`, `remote` or `smart-home`).
+- The launcher renderer host test has been updated for the six-tile layout, PNG draw callback coordinates and registration-scoped hit targets. It still needs a local run, followed by Arduino Verify/upload and physical display validation.
+
+This is a presentation/catalogue preparation step only; it does not yet validate switching between multiple registered applications.
 
 ## Weather integration
 
