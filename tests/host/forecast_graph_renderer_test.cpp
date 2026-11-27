@@ -102,6 +102,7 @@ int main() {
     target, 320, 64, data.count, 0, &data, readTestPoint);
   CHECK(target->horizontalLineCount == 3);
   CHECK(target->fillCircleCount == 24); // 6 graph points + 6 cloud icons x 3
+  CHECK(target->drawBitmapCount == 0); // graph reuses the vector condition icons
   CHECK(target->fillRectCount == 12); // 6 cloud bodies + 6 rain bars
   CHECK(target->printCount == 18);
   CHECK(target->printedText[0] == String("10C"));
