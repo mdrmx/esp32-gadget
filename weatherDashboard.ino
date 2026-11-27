@@ -600,24 +600,76 @@ void drawError(const String& message) {
 
 PNG weatherPngDecoder;
 
+enum class WeatherPngDrawMode : uint8_t {
+  FindVisibleBounds,
+  DrawCropped
+};
+
 struct WeatherPngDrawContext {
+  WeatherPngDrawMode mode;
   int x;
   int y;
   int sourceWidth;
   int sourceHeight;
+  int cropLeft;
+  int cropTop;
+  int cropWidth;
+  int cropHeight;
   int outputWidth;
   int outputHeight;
+  int visibleLeft;
+  int visibleTop;
+  int visibleRight;
+  int visibleBottom;
+  bool hasVisiblePixels;
   uint32_t backgroundBGR;
 };
 
 int drawWeatherPngLine(PNGDRAW* pDraw) {
   WeatherPngDrawContext* context =
     (WeatherPngDrawContext*)pDraw->pUser;
+  if (context == nullptr || pDraw == nullptr ||
+      pDraw->iWidth <= 0 || pDraw->iWidth > 100) {
+    return 0;
+  }
+
+  if (context->mode == WeatherPngDrawMode::FindVisibleBounds) {
+    // PNGdec returns one bit per pixel: set bits are opaque enough to retain.
+    // A low threshold keeps anti-aliased icon edges while dropping transparent
+    // canvas padding. The fixed mask covers the maximum supported 100 px row.
+    uint8_t alphaMask[13] = {};
+    weatherPngDecoder.getAlphaMask(pDraw, alphaMask, 24);
+
+    for (int x = 0; x < pDraw->iWidth; ++x) {
+      const bool visible =
+        (alphaMask[x >> 3] & (uint8_t)(0x80U >> (x & 7))) != 0;
+      if (!visible) continue;
+
+      if (!context->hasVisiblePixels) {
+        context->visibleLeft = x;
+        context->visibleRight = x;
+        context->visibleTop = pDraw->y;
+        context->visibleBottom = pDraw->y;
+        context->hasVisiblePixels = true;
+      } else {
+        if (x < context->visibleLeft) context->visibleLeft = x;
+        if (x > context->visibleRight) context->visibleRight = x;
+        if (pDraw->y < context->visibleTop) {
+          context->visibleTop = pDraw->y;
+        }
+        if (pDraw->y > context->visibleBottom) {
+          context->visibleBottom = pDraw->y;
+        }
+      }
+    }
+    return 1;
+  }
+
   Arduino_GFX* target = displayManager.target();
-  if (context == nullptr || target == nullptr ||
-      pDraw->iWidth > 100 ||
+  if (target == nullptr ||
+      context->cropWidth <= 0 || context->cropHeight <= 0 ||
       context->outputWidth <= 0 || context->outputWidth > 84 ||
-      context->outputHeight <= 0) {
+      context->outputHeight <= 0 || context->outputHeight > 84) {
     return 0;
   }
 
@@ -629,16 +681,16 @@ int drawWeatherPngLine(PNGDRAW* pDraw) {
     PNG_RGB565_LITTLE_ENDIAN,
     context->backgroundBGR);
 
-  // Select the nearest source row for each output row. This also works when
-  // an input image is smaller than the requested display size.
+  // Sample only within the alpha-derived bounding box. The cropped bounds are
+  // scaled proportionally, so the original icon aspect ratio is preserved.
   for (int outputY = 0; outputY < context->outputHeight; ++outputY) {
-    const int sourceY =
-      outputY * context->sourceHeight / context->outputHeight;
+    const int sourceY = context->cropTop +
+      outputY * context->cropHeight / context->outputHeight;
     if (sourceY != pDraw->y) continue;
 
     for (int outputX = 0; outputX < context->outputWidth; ++outputX) {
-      const int sourceX =
-        outputX * context->sourceWidth / context->outputWidth;
+      const int sourceX = context->cropLeft +
+        outputX * context->cropWidth / context->outputWidth;
       scaledLine[outputX] = sourceLine[sourceX];
     }
 
@@ -833,36 +885,73 @@ int drawOpenWeatherIcon(int x, int y, int displaySize) {
     return 0;
   }
 
-  const int longestSourceSide =
-    iconWidth > iconHeight ? iconWidth : iconHeight;
-  const int outputWidth =
-    (iconWidth * displaySize) / longestSourceSide;
-  const int outputHeight =
-    (iconHeight * displaySize) / longestSourceSide;
-  if (outputWidth <= 0 || outputHeight <= 0 ||
-      outputWidth > 84 || outputHeight > 84) {
-    weatherPngDecoder.close();
-    return 0;
-  }
-
-  WeatherPngDrawContext context;
-  context.x = x;
-  context.y = y;
+  WeatherPngDrawContext context = {};
+  context.mode = WeatherPngDrawMode::FindVisibleBounds;
   context.sourceWidth = iconWidth;
   context.sourceHeight = iconHeight;
-  context.outputWidth = outputWidth;
-  context.outputHeight = outputHeight;
+  context.visibleLeft = iconWidth;
+  context.visibleTop = iconHeight;
+  context.visibleRight = -1;
+  context.visibleBottom = -1;
   // Blend transparent PNG pixels against the supplied paper colour.
   // PNGdec expects 00BBGGRR, so #FEF3E2 becomes 0x00E2F3FE.
   context.backgroundBGR = 0x00E2F3FEUL;
 
-  int decodeResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
-  if (decodeResult != PNG_SUCCESS) {
-    DEBUG_PRINTF("OpenWeather PNG decode failed: %d\n", decodeResult);
+  // First pass finds the content bounds from PNG alpha, not colour. This
+  // preserves white/light icon details while removing transparent canvas
+  // padding. PNGdec can decode the same open image again for the render pass.
+  int scanResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
+  if (scanResult != PNG_SUCCESS) {
+    DEBUG_PRINTF("OpenWeather PNG bounds scan failed: %d\\n", scanResult);
+    weatherPngDecoder.close();
+    return 0;
+  }
+
+  // If the image has no opaque pixels, retain the full source canvas as a safe
+  // fallback rather than drawing an invalid zero-sized crop.
+  if (context.hasVisiblePixels) {
+    context.cropLeft = context.visibleLeft;
+    context.cropTop = context.visibleTop;
+    context.cropWidth =
+      context.visibleRight - context.visibleLeft + 1;
+    context.cropHeight =
+      context.visibleBottom - context.visibleTop + 1;
+  } else {
+    context.cropLeft = 0;
+    context.cropTop = 0;
+    context.cropWidth = iconWidth;
+    context.cropHeight = iconHeight;
+  }
+
+  const int longestCropSide =
+    context.cropWidth > context.cropHeight
+      ? context.cropWidth
+      : context.cropHeight;
+  context.outputWidth =
+    (context.cropWidth * displaySize + longestCropSide / 2) /
+    longestCropSide;
+  context.outputHeight =
+    (context.cropHeight * displaySize + longestCropSide / 2) /
+    longestCropSide;
+  if (context.outputWidth <= 0 || context.outputHeight <= 0 ||
+      context.outputWidth > 84 || context.outputHeight > 84) {
+    weatherPngDecoder.close();
+    return 0;
+  }
+
+  // Centre the cropped artwork inside the existing square icon area.
+  context.x = x + (displaySize - context.outputWidth) / 2;
+  context.y = y + (displaySize - context.outputHeight) / 2;
+  context.mode = WeatherPngDrawMode::DrawCropped;
+
+  const int drawResult =
+    weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
+  if (drawResult != PNG_SUCCESS) {
+    DEBUG_PRINTF("OpenWeather PNG cropped draw failed: %d\\n", drawResult);
   }
 
   weatherPngDecoder.close();
-  return decodeResult == PNG_SUCCESS ? outputHeight : 0;
+  return drawResult == PNG_SUCCESS ? context.outputHeight : 0;
 }
 
 // =====================================================
