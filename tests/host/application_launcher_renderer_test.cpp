@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #include "../../src/apps/ApplicationManager.h"
 #include "../../src/ui/ApplicationLauncherRenderer.h"
@@ -36,6 +37,23 @@ static bool iconPixelAt(int x, int y) {
   return (byteValue & (0x80U >> (x % 8))) != 0;
 }
 
+struct IconDrawCapture {
+  uint8_t icons[5];
+  int x[5];
+  int y[5];
+  uint8_t count;
+};
+
+static void capturePlaceholderIcon(
+    void* userContext, uint8_t icon, int x, int y) {
+  IconDrawCapture* capture = (IconDrawCapture*)userContext;
+  if (capture == nullptr || capture->count >= 5) return;
+  const uint8_t slot = capture->count++;
+  capture->icons[slot] = icon;
+  capture->x[slot] = x;
+  capture->y[slot] = y;
+}
+
 static bool testWeatherIconRetainsOriginalBitmap() {
   CHECK(WeatherLauncherIcon::Width == 32);
   CHECK(WeatherLauncherIcon::Height == 32);
@@ -52,7 +70,7 @@ static bool testWeatherIconRetainsOriginalBitmap() {
   return true;
 }
 
-static bool testIconGridLayoutAndHitTargets() {
+static bool testSixTileCatalogAndRegisteredHitTargets() {
   DisplayManager displayManager;
   TextRenderer textRenderer(displayManager);
   ApplicationLauncherRenderer renderer(
@@ -63,140 +81,101 @@ static bool testIconGridLayoutAndHitTargets() {
   CHECK(displayManager.target() == nullptr);
 
   FakeApplication weather("weather");
-  FakeApplication maps("maps");
-  FakeApplication settings("settings");
-  FakeApplication diagnostics("diagnostics");
   CHECK(manager.registerApplication(weather));
-  CHECK(manager.registerApplication(maps));
-  CHECK(manager.registerApplication(settings));
-  CHECK(manager.registerApplication(diagnostics));
   CHECK(displayManager.begin());
 
-  renderer.draw(manager, "weather");
+  IconDrawCapture capture = {};
+  renderer.draw(
+      manager, "weather", String(), capturePlaceholderIcon, &capture);
+
   Arduino_GFX* target = displayManager.target();
   CHECK(target != nullptr);
   CHECK(target->fillScreenCount == 1);
   CHECK(target->lastFillScreenColour == LauncherColours.background);
 
-  // Four square icon tiles are drawn with no BACK button or footer prompt.
-  CHECK(target->fillRoundRectCount == 4);
-  CHECK(target->fillRoundRectX[0] == 56);
-  CHECK(target->fillRoundRectY[0] == 64);
-  CHECK(target->fillRoundRectWidth[0] == 68);
-  CHECK(target->fillRoundRectHeight[0] == 68);
-  CHECK(target->fillRoundRectX[1] == 196);
-  CHECK(target->fillRoundRectY[1] == 64);
-  CHECK(target->fillRoundRectX[2] == 56);
-  CHECK(target->fillRoundRectY[2] == 144);
-  CHECK(target->fillRoundRectX[3] == 196);
-  CHECK(target->fillRoundRectY[3] == 144);
-  CHECK(target->drawRoundRectCount == 4);
-  CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
-  CHECK(target->drawRoundRectColour[1] == LauncherColours.text);
+  // The visual catalogue is always a three-column, two-row grid.
+  CHECK(target->fillRoundRectCount == 6);
+  CHECK(target->drawRoundRectCount == 6);
+  const int expectedX[6] = {38, 126, 214, 38, 126, 214};
+  const int expectedY[6] = {60, 60, 60, 148, 148, 148};
+  for (int i = 0; i < 6; ++i) {
+    CHECK(target->fillRoundRectX[i] == expectedX[i]);
+    CHECK(target->fillRoundRectY[i] == expectedY[i]);
+    CHECK(target->fillRoundRectWidth[i] == 68);
+    CHECK(target->fillRoundRectHeight[i] == 68);
+    CHECK(target->drawRoundRectColour[i] == LauncherColours.text);
+  }
 
-  // The original 32x32 Weather glyph is centred in the 68px tile.
+  // The original 32x32 Weather glyph stays centred in its own tile.
   CHECK(target->drawBitmapCount == 1);
-  CHECK(target->lastBitmapX == 74);
-  CHECK(target->lastBitmapY == 82);
+  CHECK(target->lastBitmapX == 56);
+  CHECK(target->lastBitmapY == 78);
   CHECK(target->lastBitmapWidth == 32);
   CHECK(target->lastBitmapHeight == 32);
   CHECK(target->lastBitmapColour == LauncherColours.text);
   CHECK(target->lastBitmap != nullptr);
 
-  // Only the launcher title is printed: no app names, BACK or prompt.
+  // Five non-Weather assets are delegated to the PNG drawer, inset by 2 px.
+  CHECK(capture.count == 5);
+  for (uint8_t i = 0; i < capture.count; ++i) {
+    CHECK(capture.icons[i] == (uint8_t)(i + 1));
+  }
+  CHECK(capture.x[0] == 128);
+  CHECK(capture.y[0] == 62);
+  CHECK(capture.x[1] == 216);
+  CHECK(capture.y[1] == 62);
+  CHECK(capture.x[2] == 40);
+  CHECK(capture.y[2] == 150);
+  CHECK(capture.x[3] == 128);
+  CHECK(capture.y[3] == 150);
+  CHECK(capture.x[4] == 216);
+  CHECK(capture.y[4] == 150);
+
+  // Only the launcher title is printed: no app names or instructions.
   CHECK(target->printCount == 1);
   CHECK(target->printedText[0] == String("APPLICATIONS"));
 
+  // Weather is the only registered app, so the other five tiles are inert.
   uint8_t applicationIndex = 99;
   CHECK(renderer.applicationAt(60, 65, applicationIndex, manager));
   CHECK(applicationIndex == 0);
-  CHECK(renderer.applicationAt(200, 65, applicationIndex, manager));
-  CHECK(applicationIndex == 1);
-  CHECK(renderer.applicationAt(60, 145, applicationIndex, manager));
-  CHECK(applicationIndex == 2);
-  CHECK(renderer.applicationAt(200, 145, applicationIndex, manager));
-  CHECK(applicationIndex == 3);
-  CHECK(!renderer.applicationAt(160, 65, applicationIndex, manager));
-  CHECK(!renderer.applicationAt(60, 136, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(130, 65, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(220, 65, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(60, 155, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(130, 155, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(220, 155, applicationIndex, manager));
   CHECK(!renderer.applicationAt(20, 65, applicationIndex, manager));
+  CHECK(!renderer.applicationAt(60, 136, applicationIndex, manager));
   CHECK(!renderer.applicationAt(60, 213, applicationIndex, manager));
 
   return true;
 }
 
-static bool testSingleWeatherIconIsCentred() {
+static bool testRegisteredPlaceholderUsesManagerIndex() {
   DisplayManager displayManager;
   TextRenderer textRenderer(displayManager);
   ApplicationLauncherRenderer renderer(
       displayManager, textRenderer, LauncherColours);
   ApplicationManager manager;
+  FakeApplication plant("plant");
   FakeApplication weather("weather");
 
+  // Registration order need not match the fixed visual catalogue order.
+  CHECK(manager.registerApplication(plant));
   CHECK(manager.registerApplication(weather));
   CHECK(displayManager.begin());
   renderer.draw(manager, nullptr);
 
-  Arduino_GFX* target = displayManager.target();
-  CHECK(target != nullptr);
-  CHECK(target->fillRoundRectCount == 1);
-  CHECK(target->fillRoundRectX[0] == 126);
-  CHECK(target->fillRoundRectY[0] == 104);
-  CHECK(target->fillRoundRectWidth[0] == 68);
-  CHECK(target->fillRoundRectHeight[0] == 68);
-  CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
-  CHECK(target->drawBitmapCount == 1);
-  CHECK(target->lastBitmapX == 144);
-  CHECK(target->lastBitmapY == 122);
-  CHECK(target->lastBitmapWidth == 32);
-  CHECK(target->lastBitmapHeight == 32);
-  CHECK(target->printCount == 1);
-  CHECK(target->printedText[0] == String("APPLICATIONS"));
-
   uint8_t applicationIndex = 99;
-  CHECK(renderer.applicationAt(126, 104, applicationIndex, manager));
+  CHECK(renderer.applicationAt(40, 150, applicationIndex, manager));
   CHECK(applicationIndex == 0);
-  CHECK(renderer.applicationAt(193, 171, applicationIndex, manager));
-  CHECK(applicationIndex == 0);
-  CHECK(!renderer.applicationAt(125, 104, applicationIndex, manager));
-  CHECK(!renderer.applicationAt(194, 171, applicationIndex, manager));
-  return true;
-}
-
-static bool testTwoAppRowIsVerticallyCentred() {
-  DisplayManager displayManager;
-  TextRenderer textRenderer(displayManager);
-  ApplicationLauncherRenderer renderer(
-      displayManager, textRenderer, LauncherColours);
-  ApplicationManager manager;
-  FakeApplication weather("weather");
-  FakeApplication maps("maps");
-
-  CHECK(manager.registerApplication(weather));
-  CHECK(manager.registerApplication(maps));
-  CHECK(displayManager.begin());
-  renderer.draw(manager, nullptr);
-
-  Arduino_GFX* target = displayManager.target();
-  CHECK(target != nullptr);
-  CHECK(target->fillRoundRectCount == 2);
-  CHECK(target->fillRoundRectX[0] == 56);
-  CHECK(target->fillRoundRectX[1] == 196);
-  CHECK(target->fillRoundRectY[0] == 104);
-  CHECK(target->fillRoundRectY[1] == 104);
-  CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
-  CHECK(target->drawBitmapCount == 1);
-  CHECK(target->printCount == 1);
-  CHECK(target->printedText[0] == String("APPLICATIONS"));
-
-  uint8_t applicationIndex = 99;
-  CHECK(renderer.applicationAt(60, 105, applicationIndex, manager));
-  CHECK(applicationIndex == 0);
-  CHECK(renderer.applicationAt(200, 105, applicationIndex, manager));
+  CHECK(renderer.applicationAt(40, 62, applicationIndex, manager));
   CHECK(applicationIndex == 1);
+  CHECK(!renderer.applicationAt(128, 62, applicationIndex, manager));
   return true;
 }
 
-static bool testEmptyLauncherState() {
+static bool testEmptyLauncherStillShowsReferenceCatalogue() {
   DisplayManager displayManager;
   TextRenderer textRenderer(displayManager);
   ApplicationLauncherRenderer renderer(
@@ -205,22 +184,22 @@ static bool testEmptyLauncherState() {
 
   CHECK(displayManager.begin());
   renderer.draw(manager, nullptr);
+
   Arduino_GFX* target = displayManager.target();
   CHECK(target != nullptr);
-  CHECK(target->fillRoundRectCount == 0);
-  CHECK(target->drawBitmapCount == 0);
-  CHECK(target->printCount == 2);
+  CHECK(target->fillRoundRectCount == 6);
+  CHECK(target->drawRoundRectCount == 6);
+  CHECK(target->drawBitmapCount == 1);
+  CHECK(target->printCount == 1);
   CHECK(target->printedText[0] == String("APPLICATIONS"));
-  CHECK(target->printedText[1] == String("NO APPLICATIONS"));
   return true;
 }
 
 int main() {
   if (!testWeatherIconRetainsOriginalBitmap()) return EXIT_FAILURE;
-  if (!testIconGridLayoutAndHitTargets()) return EXIT_FAILURE;
-  if (!testSingleWeatherIconIsCentred()) return EXIT_FAILURE;
-  if (!testTwoAppRowIsVerticallyCentred()) return EXIT_FAILURE;
-  if (!testEmptyLauncherState()) return EXIT_FAILURE;
+  if (!testSixTileCatalogAndRegisteredHitTargets()) return EXIT_FAILURE;
+  if (!testRegisteredPlaceholderUsesManagerIndex()) return EXIT_FAILURE;
+  if (!testEmptyLauncherStillShowsReferenceCatalogue()) return EXIT_FAILURE;
 
   printf("ApplicationLauncherRenderer tests passed.\n");
   return EXIT_SUCCESS;
