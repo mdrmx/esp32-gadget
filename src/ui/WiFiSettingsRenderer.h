@@ -516,18 +516,12 @@ private:
       int width,
       int height) const {
     const char* label = "UNKNOWN";
-    uint16_t fill = colours_.panel;
-    uint16_t text = colours_.muted;
     switch (availability) {
       case Availability::Available:
         label = "AVAILABLE";
-        fill = colours_.success;
-        text = colours_.background;
         break;
       case Availability::Unavailable:
         label = "UNAVAILABLE";
-        fill = colours_.error;
-        text = colours_.white;
         break;
       case Availability::Unknown:
       default:
@@ -536,11 +530,14 @@ private:
 
     Arduino_GFX* target = displayManager_.target();
     if (target == nullptr) return;
-    target->fillRoundRect(x, y, width, height, 3, fill);
+    target->fillRoundRect(
+        x, y, width, height, 3, colours_.background);
+    target->drawRoundRect(
+        x, y, width, height, 3, colours_.white);
     const String value(label);
     const int textWidth = textRenderer_.measureTextWidth(value, 1);
     textRenderer_.drawText(
-        value, x + (width - textWidth) / 2, y + 4, 1, text);
+        value, x + (width - textWidth) / 2, y + 4, 1, colours_.white);
   }
 
   void beginPage(const String& location, const String& clock) const {
