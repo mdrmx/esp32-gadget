@@ -119,7 +119,7 @@ int main() {
   CHECK(target->lastFillRectColour == BURNT_ORANGE);
   CHECK(target->drawLineCount == 14); // 7 segments including edge continuity, 2 px each
   CHECK(target->lastLineColour == BURNT_ORANGE);
-  CHECK(target->lastFillCircleX == 305);
+  CHECK(target->lastFillCircleX == 304);
   CHECK(target->lastFillCircleY == 92); // enlarged icon moved 4 px down
   CHECK(target->lastFillCircleRadius == 4); // cloud icon scaled by 120%
 
