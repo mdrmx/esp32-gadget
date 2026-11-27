@@ -64,10 +64,14 @@ public:
     textRenderer_.drawText(
       fitLocationText(locationText), LOCATION_X, TEXT_Y,
       TEXT_SIZE, locationColour);
+    // Use the supplied ink/divider colour for the clock, Wi-Fi state and
+    // the slightly heavier two-pixel header rule.
     drawClockText(clockText, accentColour);
 
     target->drawFastHLine(
       0, HEADER_HEIGHT, displayManager_.width(), accentColour);
+    target->drawFastHLine(
+      0, HEADER_HEIGHT + 1, displayManager_.width(), accentColour);
     drawWiFiIndicator(panelColour, locationColour, accentColour);
   }
 
