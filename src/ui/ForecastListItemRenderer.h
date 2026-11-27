@@ -102,10 +102,11 @@ public:
     Arduino_GFX* target,
     const String& condition,
     int x,
-    int y
+    int y,
+    int scalePercent
   ) const {
-    if (target == nullptr) return;
-    drawMiniWeatherIcon(target, condition, x, y, 120);
+    if (target == nullptr || scalePercent <= 0) return;
+    drawMiniWeatherIcon(target, condition, x, y, scalePercent);
   }
 
   void drawClipped(
