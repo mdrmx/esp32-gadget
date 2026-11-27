@@ -26,11 +26,17 @@ public:
   static constexpr int16_t TrackWidth = 137;
   static constexpr int16_t TrackHeight = 26;
   static constexpr int16_t TrackRadius = 6;
-  static constexpr int16_t ListSegmentX = 181;
-  static constexpr int16_t GraphSegmentX = 248;
-  static constexpr int16_t SegmentY = 41;
-  static constexpr int16_t SegmentWidth = 67;
-  static constexpr int16_t SegmentHeight = 24;
+  static constexpr int16_t SegmentInset = 1;
+  static constexpr int16_t ListSegmentX = TrackX + SegmentInset;
+  static constexpr int16_t ListSegmentWidth =
+    (TrackWidth - 2 * SegmentInset) / 2;
+  static constexpr int16_t GraphSegmentX =
+    ListSegmentX + ListSegmentWidth;
+  static constexpr int16_t GraphSegmentWidth =
+    TrackWidth - 2 * SegmentInset - ListSegmentWidth;
+  static constexpr int16_t SegmentY = TrackY + SegmentInset;
+  static constexpr int16_t SegmentHeight =
+    TrackHeight - 2 * SegmentInset;
   static constexpr int16_t SegmentRadius = 5;
   static constexpr int16_t ListLabelX = 201;
   static constexpr int16_t GraphLabelX = 265;
@@ -58,17 +64,20 @@ public:
 
     const bool graphSelected = mode == Mode::Graph;
     const int selectedX = graphSelected ? GraphSegmentX : ListSegmentX;
+    const int selectedWidth = graphSelected
+      ? GraphSegmentWidth
+      : ListSegmentWidth;
     target->fillRoundRect(
       selectedX,
       SegmentY,
-      SegmentWidth,
+      selectedWidth,
       SegmentHeight,
       SegmentRadius,
       colours_.selectedSegment);
     target->drawRoundRect(
       selectedX,
       SegmentY,
-      SegmentWidth,
+      selectedWidth,
       SegmentHeight,
       SegmentRadius,
       colours_.unselectedText);
