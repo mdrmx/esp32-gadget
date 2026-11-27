@@ -27,6 +27,7 @@ class ApplicationLauncherRenderer {
 
   enum {
     HeaderHeight = 36,
+    DisplayHeight = 240,
     IconTileSize = 68,
     IconTileRadius = 14,
     GridColumnGap = 72,
@@ -144,8 +145,9 @@ class ApplicationLauncherRenderer {
 
   static int tileTop(uint8_t index, uint8_t count) {
     if (count <= 2) {
-      // Centre a single icon or single row of two icons between header/footer.
-      return (HeaderHeight + FooterTop - IconTileSize) / 2;
+      // Centre a single icon or single row of two icons in the full body
+      // area below the fixed header. Keep this independent of a footer.
+      return (HeaderHeight + DisplayHeight - IconTileSize) / 2;
     }
     return GridTop + (index / 2) * GridRowStep;
   }
