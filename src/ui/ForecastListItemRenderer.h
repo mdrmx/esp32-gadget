@@ -96,6 +96,18 @@ public:
     drawMiniWeatherIcon(target, condition, x, y);
   }
 
+  // Graph uses a slightly enlarged vector symbol; List keeps the original
+  // compact 16x17 drawing so its established card layout is unchanged.
+  void drawGraphConditionIcon(
+    Arduino_GFX* target,
+    const String& condition,
+    int x,
+    int y
+  ) const {
+    if (target == nullptr) return;
+    drawMiniWeatherIcon(target, condition, x, y, 120);
+  }
+
   void drawClipped(
     Arduino_GFX* target,
     const Item& item,
@@ -184,11 +196,16 @@ private:
     return percent;
   }
 
+  static int scaleIconValue(int value, int scalePercent) {
+    return (value * scalePercent + 50) / 100;
+  }
+
   void drawMiniWeatherIcon(
     Arduino_GFX* target,
     const String& condition,
     int x,
-    int y
+    int y,
+    int scalePercent = 100
   ) const {
     const bool clear = condition.indexOf("Clear") >= 0;
     const bool rain = condition.indexOf("Rain") >= 0 ||
@@ -200,42 +217,127 @@ private:
                       condition.indexOf("Haze") >= 0;
 
     if (clear) {
-      target->fillCircle(x + 8, y + 7, 4, colours_.temperature);
-      target->drawFastHLine(x + 1, y + 7, 3, colours_.temperature);
-      target->drawFastHLine(x + 12, y + 7, 3, colours_.temperature);
-      target->drawFastVLine(x + 8, y, 3, colours_.temperature);
-      target->drawFastVLine(x + 8, y + 11, 3, colours_.temperature);
-      target->drawLine(x + 3, y + 2, x + 5, y + 4, colours_.temperature);
-      target->drawLine(x + 11, y + 10, x + 13, y + 12, colours_.temperature);
-      target->drawLine(x + 11, y + 4, x + 13, y + 2, colours_.temperature);
-      target->drawLine(x + 3, y + 12, x + 5, y + 10, colours_.temperature);
+      target->fillCircle(
+        x + scaleIconValue(8, scalePercent),
+        y + scaleIconValue(7, scalePercent),
+        scaleIconValue(4, scalePercent),
+        colours_.temperature);
+      target->drawFastHLine(
+        x + scaleIconValue(1, scalePercent),
+        y + scaleIconValue(7, scalePercent),
+        scaleIconValue(3, scalePercent), colours_.temperature);
+      target->drawFastHLine(
+        x + scaleIconValue(12, scalePercent),
+        y + scaleIconValue(7, scalePercent),
+        scaleIconValue(3, scalePercent), colours_.temperature);
+      target->drawFastVLine(
+        x + scaleIconValue(8, scalePercent), y,
+        scaleIconValue(3, scalePercent), colours_.temperature);
+      target->drawFastVLine(
+        x + scaleIconValue(8, scalePercent),
+        y + scaleIconValue(11, scalePercent),
+        scaleIconValue(3, scalePercent), colours_.temperature);
+      target->drawLine(
+        x + scaleIconValue(3, scalePercent),
+        y + scaleIconValue(2, scalePercent),
+        x + scaleIconValue(5, scalePercent),
+        y + scaleIconValue(4, scalePercent), colours_.temperature);
+      target->drawLine(
+        x + scaleIconValue(11, scalePercent),
+        y + scaleIconValue(10, scalePercent),
+        x + scaleIconValue(13, scalePercent),
+        y + scaleIconValue(12, scalePercent), colours_.temperature);
+      target->drawLine(
+        x + scaleIconValue(11, scalePercent),
+        y + scaleIconValue(4, scalePercent),
+        x + scaleIconValue(13, scalePercent),
+        y + scaleIconValue(2, scalePercent), colours_.temperature);
+      target->drawLine(
+        x + scaleIconValue(3, scalePercent),
+        y + scaleIconValue(12, scalePercent),
+        x + scaleIconValue(5, scalePercent),
+        y + scaleIconValue(10, scalePercent), colours_.temperature);
       return;
     }
 
     if (mist) {
-      target->drawFastHLine(x + 1, y + 4, 14, colours_.muted);
-      target->drawFastHLine(x, y + 8, 15, colours_.text);
-      target->drawFastHLine(x + 2, y + 12, 12, colours_.muted);
+      target->drawFastHLine(
+        x + scaleIconValue(1, scalePercent),
+        y + scaleIconValue(4, scalePercent),
+        scaleIconValue(14, scalePercent), colours_.muted);
+      target->drawFastHLine(
+        x, y + scaleIconValue(8, scalePercent),
+        scaleIconValue(15, scalePercent), colours_.text);
+      target->drawFastHLine(
+        x + scaleIconValue(2, scalePercent),
+        y + scaleIconValue(12, scalePercent),
+        scaleIconValue(12, scalePercent), colours_.muted);
       return;
     }
 
-    target->fillCircle(x + 5, y + 8, 3, colours_.text);
-    target->fillCircle(x + 9, y + 5, 4, colours_.text);
-    target->fillCircle(x + 13, y + 8, 3, colours_.text);
-    target->fillRect(x + 4, y + 7, 10, 5, colours_.text);
+    target->fillCircle(
+      x + scaleIconValue(5, scalePercent),
+      y + scaleIconValue(8, scalePercent),
+      scaleIconValue(3, scalePercent), colours_.text);
+    target->fillCircle(
+      x + scaleIconValue(9, scalePercent),
+      y + scaleIconValue(5, scalePercent),
+      scaleIconValue(4, scalePercent), colours_.text);
+    target->fillCircle(
+      x + scaleIconValue(13, scalePercent),
+      y + scaleIconValue(8, scalePercent),
+      scaleIconValue(3, scalePercent), colours_.text);
+    target->fillRect(
+      x + scaleIconValue(4, scalePercent),
+      y + scaleIconValue(7, scalePercent),
+      scaleIconValue(10, scalePercent),
+      scaleIconValue(5, scalePercent), colours_.text);
 
     if (thunder) {
-      target->drawLine(x + 9, y + 10, x + 6, y + 14, colours_.temperature);
-      target->drawLine(x + 6, y + 14, x + 9, y + 14, colours_.temperature);
-      target->drawLine(x + 9, y + 14, x + 7, y + 17, colours_.temperature);
+      target->drawLine(
+        x + scaleIconValue(9, scalePercent),
+        y + scaleIconValue(10, scalePercent),
+        x + scaleIconValue(6, scalePercent),
+        y + scaleIconValue(14, scalePercent), colours_.temperature);
+      target->drawLine(
+        x + scaleIconValue(6, scalePercent),
+        y + scaleIconValue(14, scalePercent),
+        x + scaleIconValue(9, scalePercent),
+        y + scaleIconValue(14, scalePercent), colours_.temperature);
+      target->drawLine(
+        x + scaleIconValue(9, scalePercent),
+        y + scaleIconValue(14, scalePercent),
+        x + scaleIconValue(7, scalePercent),
+        y + scaleIconValue(17, scalePercent), colours_.temperature);
     } else if (snow) {
-      target->drawFastVLine(x + 6, y + 13, 4, colours_.accent);
-      target->drawFastHLine(x + 4, y + 14, 4, colours_.accent);
-      target->drawFastHLine(x + 9, y + 15, 4, colours_.accent);
+      target->drawFastVLine(
+        x + scaleIconValue(6, scalePercent),
+        y + scaleIconValue(13, scalePercent),
+        scaleIconValue(4, scalePercent), colours_.accent);
+      target->drawFastHLine(
+        x + scaleIconValue(4, scalePercent),
+        y + scaleIconValue(14, scalePercent),
+        scaleIconValue(4, scalePercent), colours_.accent);
+      target->drawFastHLine(
+        x + scaleIconValue(9, scalePercent),
+        y + scaleIconValue(15, scalePercent),
+        scaleIconValue(4, scalePercent), colours_.accent);
     } else if (rain) {
-      target->drawLine(x + 5, y + 13, x + 3, y + 16, colours_.accent);
-      target->drawLine(x + 10, y + 13, x + 8, y + 16, colours_.accent);
-      target->drawLine(x + 14, y + 13, x + 12, y + 16, colours_.accent);
+      target->drawLine(
+        x + scaleIconValue(5, scalePercent),
+        y + scaleIconValue(13, scalePercent),
+        x + scaleIconValue(3, scalePercent),
+        y + scaleIconValue(16, scalePercent), colours_.accent);
+      target->drawLine(
+        x + scaleIconValue(10, scalePercent),
+        y + scaleIconValue(13, scalePercent),
+        x + scaleIconValue(8, scalePercent),
+        y + scaleIconValue(16, scalePercent), colours_.accent);
+      target->drawLine(
+        x + scaleIconValue(14, scalePercent),
+        y + scaleIconValue(13, scalePercent),
+        x + scaleIconValue(12, scalePercent),
+        y + scaleIconValue(16, scalePercent), colours_.accent);
     }
   }
 
