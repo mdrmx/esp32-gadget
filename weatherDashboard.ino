@@ -404,9 +404,9 @@ const int WEATHER_METRIC_ROW_TOP = 2;
 
 // The 64 px provider icon sits left of the current temperature. PNGdec reads
 // the cached 2x source and the line callback downsamples it without allocating.
-const int WEATHER_CONDITION_ICON_X = 64;
+const int WEATHER_CONDITION_ICON_X = 54;
 const int WEATHER_CONDITION_ICON_Y = 66;
-const int WEATHER_CONDITION_ICON_SIZE = 64;
+const int WEATHER_CONDITION_ICON_SIZE = 84;
 
 // Keep three 44 px list cards with 4 px gaps visible through y=212.
 // Controls are 32 px tall, with a 2 px gap below the header and above the List
@@ -616,13 +616,13 @@ int drawWeatherPngLine(PNGDRAW* pDraw) {
   Arduino_GFX* target = displayManager.target();
   if (context == nullptr || target == nullptr ||
       pDraw->iWidth > 100 ||
-      context->outputWidth <= 0 || context->outputWidth > 64 ||
+      context->outputWidth <= 0 || context->outputWidth > 84 ||
       context->outputHeight <= 0) {
     return 0;
   }
 
   uint16_t sourceLine[100];
-  uint16_t scaledLine[64];
+  uint16_t scaledLine[84];
   weatherPngDecoder.getLineAsRGB565(
     pDraw,
     sourceLine,
@@ -840,7 +840,7 @@ int drawOpenWeatherIcon(int x, int y, int displaySize) {
   const int outputHeight =
     (iconHeight * displaySize) / longestSourceSide;
   if (outputWidth <= 0 || outputHeight <= 0 ||
-      outputWidth > 64 || outputHeight > 64) {
+      outputWidth > 84 || outputHeight > 84) {
     weatherPngDecoder.close();
     return 0;
   }
