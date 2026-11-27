@@ -54,6 +54,7 @@ int main() {
   CHECK(target->printedX[3] == 268);
   CHECK(target->fillCircleCount == 1);
   CHECK(target->lastFillCircleColour == INK);
+  CHECK(target->drawBitmapCount == 0); // condition icon is vector-drawn
   CHECK(target->drawFastVLineCount == 2);
 
   ForecastListItemRenderer::Item rainItem = {
@@ -64,6 +65,7 @@ int main() {
   CHECK(target->printedText[7] == String("POP 100%"));
   CHECK(target->drawLineCount >= 3);
   CHECK(target->lastLineColour == INK);
+  CHECK(target->drawBitmapCount == 0);
 
   ForecastListItemRenderer::Item clippedItem = {
     "17:00", "Clouds", 13.0f, 12.0f, -0.2f
