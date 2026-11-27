@@ -64,33 +64,28 @@ int main() {
   ForecastListViewportRenderer renderer(cardRenderer);
 
   const ForecastListViewportRenderer::Layout layout = {
-    8, 3, 72, 48, 64, 152
+    8, 3, 72, 48, 72, 144
   };
 
-  // Buffered path includes the preceding partial row and the three settled
-  // rows. A row beginning at the bottom boundary is not read or drawn.
+  // The first row begins at the viewport's upper edge. The preceding row is
+  // fully clipped, while the three visible rows are drawn at local y=0, 48, 96.
   Source bufferedSource = {8, -1, 0, {}};
   TestGfx bufferedTarget;
   renderer.drawClippedViewport(
     &bufferedTarget, layout, 1, 0, &bufferedSource, readItem);
 
-  CHECK(bufferedSource.readCount == 4);
-  CHECK(bufferedSource.indices[0] == 0);
-  CHECK(bufferedSource.indices[1] == 1);
-  CHECK(bufferedSource.indices[2] == 2);
-  CHECK(bufferedSource.indices[3] == 3);
-  CHECK(bufferedTarget.fillRectCount == 1); // clipped 4 px of row 0
-  CHECK(bufferedTarget.lastFillRectX == 4);
-  CHECK(bufferedTarget.lastFillRectY == 0);
-  CHECK(bufferedTarget.lastFillRectWidth == 312);
-  CHECK(bufferedTarget.lastFillRectHeight == 4);
+  CHECK(bufferedSource.readCount == 3);
+  CHECK(bufferedSource.indices[0] == 1);
+  CHECK(bufferedSource.indices[1] == 2);
+  CHECK(bufferedSource.indices[2] == 3);
+  CHECK(bufferedTarget.fillRectCount == 0);
   CHECK(bufferedTarget.fillRoundRectCount == 3);
   CHECK(bufferedTarget.drawRoundRectCount == 3);
   CHECK(bufferedTarget.drawRoundRectColour[0] == INK);
   CHECK(bufferedTarget.printCount == 12);
   CHECK(bufferedTarget.printedText[0] == String("TIME 1"));
-  CHECK(bufferedTarget.printedY[0] == 26);
-  CHECK(bufferedTarget.lastFillRoundRectY == 104);
+  CHECK(bufferedTarget.printedY[0] == 18);
+  CHECK(bufferedTarget.lastFillRoundRectY == 96);
 
   // The direct-display and transition fallback renders only settled rows at
   // screen coordinates, preserving the old fallback's non-animated layout.
@@ -123,12 +118,12 @@ int main() {
   CHECK(bottomClipSource.indices[2] == 2);
   CHECK(bottomClipTarget.fillRectCount == 1);
   CHECK(bottomClipTarget.lastFillRectX == 4);
-  CHECK(bottomClipTarget.lastFillRectY == 124);
+  CHECK(bottomClipTarget.lastFillRectY == 116);
   CHECK(bottomClipTarget.lastFillRectWidth == 312);
   CHECK(bottomClipTarget.lastFillRectHeight == 28);
   CHECK(bottomClipTarget.printCount == 11);
   CHECK(bottomClipTarget.printedText[8] == String("TIME 2"));
-  CHECK(bottomClipTarget.printedY[8] == 142);
+  CHECK(bottomClipTarget.printedY[8] == 134);
 
   // A high requested offset is bounded to the last valid page.
   Source boundedSource = {8, -1, 0, {}};
@@ -142,7 +137,7 @@ int main() {
 
   // Failed reads skip only the affected card.
   ForecastListViewportRenderer::Layout oneItemLayout = {
-    1, 1, 72, 48, 64, 152
+    1, 1, 72, 48, 72, 144
   };
   Source failedSource = {1, 0, 0, {}};
   TestGfx failedTarget;
@@ -151,6 +146,29 @@ int main() {
   CHECK(failedSource.readCount == 1);
   CHECK(failedTarget.fillRoundRectCount == 0);
   CHECK(failedTarget.printCount == 0);
+
+  // During upward scrolling a card may be partially visible at the viewport
+  // edge, but no part of it is painted above y=72. Once its final visible
+  // portion passes that edge, the renderer skips it entirely.
+  Source topClipSource = {1, -1, 0, {}};
+  TestGfx topClipTarget;
+  renderer.drawClippedViewport(
+    &topClipTarget, oneItemLayout, 0, 20, &topClipSource, readItem);
+  CHECK(topClipSource.readCount == 1);
+  CHECK(topClipTarget.fillRectCount == 1);
+  CHECK(topClipTarget.lastFillRectY == 0);
+  CHECK(topClipTarget.lastFillRectHeight == 24);
+  CHECK(topClipTarget.fillRoundRectCount == 0);
+  CHECK(topClipTarget.printCount == 0);
+
+  Source hiddenSource = {1, -1, 0, {}};
+  TestGfx hiddenTarget;
+  renderer.drawClippedViewport(
+    &hiddenTarget, oneItemLayout, 0, 45, &hiddenSource, readItem);
+  CHECK(hiddenSource.readCount == 0);
+  CHECK(hiddenTarget.fillRectCount == 0);
+  CHECK(hiddenTarget.fillRoundRectCount == 0);
+  CHECK(hiddenTarget.printCount == 0);
 
   // Null targets/readers and invalid layouts are no-ops.
   TestGfx invalidTarget;
