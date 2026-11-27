@@ -58,13 +58,13 @@ int main() {
   CHECK(physicalTarget->lastFillRectY == 0);
   CHECK(physicalTarget->lastFillRectWidth == 78);
   CHECK(physicalTarget->lastFillRectHeight == 36);
-  CHECK(physicalTarget->lastFillRectColour == PANEL);
-  CHECK(physicalTarget->horizontalLineCount == 1);
+  CHECK(physicalTarget->lastFillRectColour == PAPER);
+  CHECK(physicalTarget->horizontalLineCount == 2);
   CHECK(physicalTarget->printCount == 3);
   CHECK(physicalTarget->printedText[2] == String("14:00"));
   CHECK(physicalTarget->printedX[2] == 250);
   CHECK(physicalTarget->printedY[2] == 10);
-  CHECK(physicalTarget->printedColour[2] == ACCENT);
+  CHECK(physicalTarget->printedColour[2] == INK);
 
   // Preserve the existing minimum x position when the clock text is wide.
   renderer.drawClockOnly("123456789012", PAPER, INK, INK);
