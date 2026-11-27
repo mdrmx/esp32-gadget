@@ -42,6 +42,8 @@ class ApplicationLauncherRenderer {
     DisplayHeight = 240,
     IconTileSize = 68,
     IconTileRadius = 14,
+    IconArtworkSize = 32,
+    IconArtworkInset = (IconTileSize - IconArtworkSize) / 2,
     GridColumnGap = 20,
     GridRowGap = 20,
     GridColumns = 3,
@@ -196,8 +198,9 @@ class ApplicationLauncherRenderer {
     }
 
     if (drawIcon != nullptr) {
-      // The 64x64 PNG artwork sits inside a two-pixel inset in each tile.
-      drawIcon(iconContext, icon, tileX + 2, tileY + 2);
+      // PNG artwork is downsampled to the same 32x32 footprint as Weather.
+      drawIcon(iconContext, icon,
+               tileX + IconArtworkInset, tileY + IconArtworkInset);
       return;
     }
 
