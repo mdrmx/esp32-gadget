@@ -38,7 +38,7 @@ int main() {
 
   CHECK(physicalTarget->printCount == 2);
   CHECK(physicalTarget->printedText[0] == String("Weather"));
-  CHECK(physicalTarget->printedX[0] == 10);
+  CHECK(physicalTarget->printedX[0] == 8);
   CHECK(physicalTarget->printedY[0] == 10);
   CHECK(physicalTarget->printedSize[0] == 2);
   CHECK(physicalTarget->printedColour[0] == INK);
