@@ -37,7 +37,7 @@ int main() {
 
   CHECK(physicalTarget->fillScreenCount == 1);
   CHECK(physicalTarget->lastFillScreenColour == BG);
-  CHECK(physicalTarget->fillRectCount == 1);
+  CHECK(physicalTarget->fillRectCount == 2);
   CHECK(physicalTarget->lastFillRectX == 0);
   CHECK(physicalTarget->lastFillRectY == 0);
   CHECK(physicalTarget->lastFillRectWidth == 320);
@@ -65,7 +65,7 @@ int main() {
 
   CHECK(physicalTarget->fillScreenCount == 2);
   CHECK(physicalTarget->lastFillScreenColour == BG);
-  CHECK(physicalTarget->fillRectCount == 2);
+  CHECK(physicalTarget->fillRectCount == 4);
   CHECK(physicalTarget->horizontalLineCount == 4);
   CHECK(physicalTarget->printCount == 9);
   CHECK(physicalTarget->printedText[6] == String("WEATHER ERROR"));
