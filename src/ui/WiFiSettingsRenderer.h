@@ -370,7 +370,7 @@ public:
         highlightedRow == 2 && highlightedColumn == 9;
     target->fillRoundRect(
         backspaceX, backspaceY, KeyboardKeyWidth, KeyboardKeyHeight, 3,
-        backspaceHighlighted ? colours_.accent : colours_.background);
+        backspaceHighlighted ? colours_.success : colours_.background);
     target->drawRoundRect(
         backspaceX, backspaceY, KeyboardKeyWidth, KeyboardKeyHeight, 3,
         colours_.white);
