@@ -237,7 +237,7 @@ const uint16_t UI_ORANGE = ACCENT;
 const uint16_t ERROR_COLOUR = ACCENT;
 
 const StatusScreenRenderer::Colours STATUS_SCREEN_COLOURS = {
-  BG, PANEL, UI_INK, ACCENT, UI_INK, ERROR_COLOUR, MUTED
+  BG, PANEL, UI_INK, UI_INK, UI_INK, UI_INK, UI_INK
 };
 
 const ApplicationLauncherRenderer::Colours APPLICATION_LAUNCHER_COLOURS = {
