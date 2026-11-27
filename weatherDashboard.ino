@@ -228,10 +228,11 @@ unsigned long forecastGestureSuppressionStartedMs = 0;
 // Warm paper, ink and burnt-orange palette inspired by e-ink devices.
 // Shared OS palette supplied for the e-ink / retro-terminal visual style.
 const uint16_t BG = 0xFF9C;          // #FEF3E2 — warm off-white paper
-const uint16_t PANEL = 0xF56A;       // #F4AE52 — amber panel
+const uint16_t PANEL = BG;              // Card surfaces stay paper-coloured.
+const uint16_t BURNT_ORANGE_LIGHT = 0xF56A; // #F4AE52 — lighter burnt orange.
 const uint16_t UI_INK = 0x28C1;      // #2A1A0E — dark brown ink
 const uint16_t ACCENT = 0xD303;      // #D4621A — burnt orange
-const uint16_t MUTED = ACCENT;       // Use only the supplied palette colours.
+const uint16_t MUTED = UI_INK;        // Secondary text remains ink-coloured.
 const uint16_t UI_ORANGE = ACCENT;
 const uint16_t ERROR_COLOUR = ACCENT;
 
@@ -247,11 +248,11 @@ ApplicationLauncherRenderer applicationLauncherRenderer(
   displayManager, textRenderer, APPLICATION_LAUNCHER_COLOURS);
 
 const WiFiSettingsRenderer::Colours WIFI_SETTINGS_COLOURS = {
-  BG, BG, UI_INK, UI_INK, ACCENT, PANEL, ACCENT
+  BG, BG, UI_INK, UI_INK, ACCENT, BURNT_ORANGE_LIGHT, ACCENT
 };
 
 const ForecastModeSelectorRenderer::Colours FORECAST_MODE_SELECTOR_COLOURS = {
-  BG, PANEL, UI_INK, UI_INK
+  BG, BURNT_ORANGE_LIGHT, UI_INK, UI_INK
 };
 
 enum class WiFiSettingsScreen : uint8_t {
@@ -559,7 +560,7 @@ void drawHeader() {
 
 void drawTabIndicator() {
   int y = displayManager.height() - 8;
-  displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24, y, 48, 4, 2, PANEL);
+  displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24, y, 48, 4, 2, BG);
   displayManager.target()->fillRoundRect(displayManager.width() / 2 - 24 + (currentTab * 24), y, 24, 4, 2, UI_ORANGE);
 }
 
