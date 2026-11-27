@@ -36,31 +36,19 @@ static bool iconPixelAt(int x, int y) {
   return (byteValue & (0x80U >> (x % 8))) != 0;
 }
 
-static bool testWeatherIconUsesItsFullBitmapBounds() {
-  CHECK(WeatherLauncherIcon::Width == 40);
-  CHECK(WeatherLauncherIcon::Height == 35);
-  CHECK(WeatherLauncherIcon::BytesPerRow == 5);
+static bool testWeatherIconRetainsOriginalBitmap() {
+  CHECK(WeatherLauncherIcon::Width == 32);
+  CHECK(WeatherLauncherIcon::Height == 32);
+  CHECK(WeatherLauncherIcon::BytesPerRow == 4);
 
-  bool topRowHasArtwork = false;
-  bool bottomRowHasArtwork = false;
-  bool leftColumnHasArtwork = false;
-  bool rightColumnHasArtwork = false;
-
+  // Preserve the original two transparent rows above and below the artwork.
   for (int x = 0; x < WeatherLauncherIcon::Width; ++x) {
-    topRowHasArtwork = topRowHasArtwork || iconPixelAt(x, 0);
-    bottomRowHasArtwork = bottomRowHasArtwork ||
-      iconPixelAt(x, WeatherLauncherIcon::Height - 1);
+    CHECK(!iconPixelAt(x, 0));
+    CHECK(!iconPixelAt(x, 1));
+    CHECK(!iconPixelAt(x, 30));
+    CHECK(!iconPixelAt(x, 31));
   }
-  for (int y = 0; y < WeatherLauncherIcon::Height; ++y) {
-    leftColumnHasArtwork = leftColumnHasArtwork || iconPixelAt(0, y);
-    rightColumnHasArtwork = rightColumnHasArtwork ||
-      iconPixelAt(WeatherLauncherIcon::Width - 1, y);
-  }
-
-  CHECK(topRowHasArtwork);
-  CHECK(bottomRowHasArtwork);
-  CHECK(leftColumnHasArtwork);
-  CHECK(rightColumnHasArtwork);
+  CHECK(iconPixelAt(1, 8));
   return true;
 }
 
@@ -106,13 +94,12 @@ static bool testIconGridLayoutAndHitTargets() {
   CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
   CHECK(target->drawRoundRectColour[1] == LauncherColours.text);
 
-  // The cropped 40x35 Weather glyph fills its visible bitmap bounds and is
-  // centred in the 68px tile without transparent rows around the artwork.
+  // The original 32x32 Weather glyph is centred in the 68px tile.
   CHECK(target->drawBitmapCount == 1);
-  CHECK(target->lastBitmapX == 70);
-  CHECK(target->lastBitmapY == 80);
-  CHECK(target->lastBitmapWidth == 40);
-  CHECK(target->lastBitmapHeight == 35);
+  CHECK(target->lastBitmapX == 74);
+  CHECK(target->lastBitmapY == 82);
+  CHECK(target->lastBitmapWidth == 32);
+  CHECK(target->lastBitmapHeight == 32);
   CHECK(target->lastBitmapColour == LauncherColours.text);
   CHECK(target->lastBitmap != nullptr);
 
@@ -158,10 +145,10 @@ static bool testSingleWeatherIconIsCentred() {
   CHECK(target->fillRoundRectHeight[0] == 68);
   CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
   CHECK(target->drawBitmapCount == 1);
-  CHECK(target->lastBitmapX == 140);
-  CHECK(target->lastBitmapY == 120);
-  CHECK(target->lastBitmapWidth == 40);
-  CHECK(target->lastBitmapHeight == 35);
+  CHECK(target->lastBitmapX == 144);
+  CHECK(target->lastBitmapY == 122);
+  CHECK(target->lastBitmapWidth == 32);
+  CHECK(target->lastBitmapHeight == 32);
   CHECK(target->printCount == 1);
   CHECK(target->printedText[0] == String("APPLICATIONS"));
 
@@ -229,7 +216,7 @@ static bool testEmptyLauncherState() {
 }
 
 int main() {
-  if (!testWeatherIconUsesItsFullBitmapBounds()) return EXIT_FAILURE;
+  if (!testWeatherIconRetainsOriginalBitmap()) return EXIT_FAILURE;
   if (!testIconGridLayoutAndHitTargets()) return EXIT_FAILURE;
   if (!testSingleWeatherIconIsCentred()) return EXIT_FAILURE;
   if (!testTwoAppRowIsVerticallyCentred()) return EXIT_FAILURE;
