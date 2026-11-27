@@ -623,6 +623,30 @@ struct WeatherPngDrawContext {
   uint32_t backgroundBGR;
 };
 
+uint8_t weatherPngGrayscaleSample(const PNGDRAW* pDraw, int x) {
+  switch (pDraw->iBpp) {
+    case 8:
+      return pDraw->pPixels[x];
+    case 4: {
+      const uint8_t packed = pDraw->pPixels[x >> 1];
+      return (x & 1) == 0 ? (uint8_t)(packed >> 4)
+                          : (uint8_t)(packed & 0x0f);
+    }
+    case 2: {
+      const uint8_t packed = pDraw->pPixels[x >> 2];
+      const int shift = 6 - ((x & 3) * 2);
+      return (uint8_t)((packed >> shift) & 0x03);
+    }
+    case 1: {
+      const uint8_t packed = pDraw->pPixels[x >> 3];
+      const int shift = 7 - (x & 7);
+      return (uint8_t)((packed >> shift) & 0x01);
+    }
+    default:
+      return 0;
+  }
+}
+
 bool weatherPngPixelIsVisible(
   const PNGDRAW* pDraw,
   int x,
@@ -643,7 +667,7 @@ bool weatherPngPixelIsVisible(
 
   if (weatherPngDecoder.hasAlpha() &&
       pDraw->iPixelType == PNG_PIXEL_GRAYSCALE) {
-    return pDraw->pPixels[x] !=
+    return weatherPngGrayscaleSample(pDraw, x) !=
       (uint8_t)weatherPngDecoder.getTransparentColor();
   }
 
@@ -738,7 +762,8 @@ int drawWeatherPngLine(PNGDRAW* pDraw) {
         isTransparent = colour == transparentColour;
       } else {
         isTransparent =
-          pDraw->pPixels[sourceX] == (uint8_t)transparentColour;
+          weatherPngGrayscaleSample(pDraw, sourceX) ==
+          (uint8_t)transparentColour;
       }
       if (isTransparent) sourceLine[sourceX] = background565;
     }
