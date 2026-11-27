@@ -76,7 +76,7 @@ static bool testIconGridLayoutAndHitTargets() {
   // centred in the 68px tile and tinted with the OS ink colour.
   CHECK(target->drawBitmapCount == 1);
   CHECK(target->lastBitmapX == 74);
-  CHECK(target->lastBitmapY == 68);
+  CHECK(target->lastBitmapY == 82);
   CHECK(target->lastBitmapWidth == 32);
   CHECK(target->lastBitmapHeight == 32);
   CHECK(target->lastBitmapColour == LauncherColours.text);
