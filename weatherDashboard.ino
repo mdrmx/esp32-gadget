@@ -17,6 +17,7 @@
 #include "src/ui/ForecastModeSelectorRenderer.h"
 #include "src/ui/HeaderRenderer.h"
 #include "src/ui/ApplicationLauncherRenderer.h"
+#include "src/ui/icons/LauncherPngAssets.h"
 #include "src/ui/StatusScreenRenderer.h"
 #include "src/ui/WiFiSettingsRenderer.h"
 #include "src/ui/ForecastListItemRenderer.h"
@@ -607,6 +608,77 @@ void drawError(const String& message) {
 // =====================================================
 
 PNG weatherPngDecoder;
+
+// Reuse the existing global PNG decoder for launcher artwork so the launcher
+// does not add another large PNGIMAGE/DEFLATE workspace to static RAM.
+struct LauncherPngDrawContext {
+  Arduino_GFX* target;
+  int x;
+  int y;
+};
+
+int drawLauncherPngLine(PNGDRAW* pDraw) {
+  if (pDraw == nullptr || pDraw->pUser == nullptr ||
+      pDraw->iWidth <= 0 || pDraw->iWidth > 64) {
+    return 0;
+  }
+
+  LauncherPngDrawContext* context =
+    (LauncherPngDrawContext*)pDraw->pUser;
+  if (context->target == nullptr) return 0;
+
+  uint16_t line[64];
+  // PNGdec expects 00BBGGRR for its blend colour. The launcher paper is
+  // #FEF3E2, represented as 0x00E2F3FE here.
+  weatherPngDecoder.getLineAsRGB565(
+    pDraw,
+    line,
+    PNG_RGB565_LITTLE_ENDIAN,
+    0x00E2F3FEUL);
+  context->target->draw16bitRGBBitmap(
+    context->x,
+    context->y + pDraw->y,
+    line,
+    pDraw->iWidth,
+    1);
+  return 1;
+}
+
+void drawLauncherPngIcon(
+  void* /*callbackContext*/, uint8_t icon, int x, int y) {
+  const uint8_t* imageData = nullptr;
+  size_t imageLength = 0;
+  if (!LauncherPngAssets::get(icon, &imageData, &imageLength) ||
+      imageData == nullptr || imageLength == 0 ||
+      imageLength > (size_t)0x7fffffff) {
+    return;
+  }
+
+  const int openResult = weatherPngDecoder.openFLASH(
+    (uint8_t*)imageData,
+    (int)imageLength,
+    drawLauncherPngLine);
+  if (openResult != PNG_SUCCESS) return;
+
+  if (weatherPngDecoder.getWidth() != 64 ||
+      weatherPngDecoder.getHeight() != 64) {
+    weatherPngDecoder.close();
+    return;
+  }
+
+  LauncherPngDrawContext context = {
+    displayManager.target(),
+    x,
+    y
+  };
+  const int drawResult =
+    weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
+  if (drawResult != PNG_SUCCESS) {
+    DEBUG_PRINTF("Launcher PNG decode failed (icon %u): %d\n",
+                 (unsigned)icon, drawResult);
+  }
+  weatherPngDecoder.close();
+}
 
 enum class WeatherPngDrawMode : uint8_t {
   FindVisibleBounds,
@@ -2597,7 +2669,8 @@ void drawApplicationLauncherScreen() {
   applicationLauncherRenderer.draw(
       applicationManager,
       applicationLauncherController.returnApplicationId(),
-      applicationLauncherMessage);
+      applicationLauncherMessage,
+      drawLauncherPngIcon);
 
   // The launcher is a platform screen, but it uses the same persistent clock
   // and Wi-Fi indicator as Weather. drawClockOnly() also redraws the signal.
