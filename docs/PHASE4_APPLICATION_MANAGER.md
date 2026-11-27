@@ -92,7 +92,7 @@ Independent multi-app switching remains deferred because only Weather is registe
 - Every shared header uses the same paper background as the screen. Clock text and the Wi-Fi glyph are dark ink, with no coloured rectangle behind either indicator. The horizontal header divider is a two-pixel ink rule and is restored by clock/Wi-Fi partial redraws.
 - Weather metric cards, hourly list cards, Wi-Fi network rows/fields/buttons and launcher icon tiles use the paper background with a dark-ink outline. Partially clipped Weather/Forecast cards draw the visible outline edges during scrolling.
 - Weather descriptions, metric labels/values and Forecast list/graph labels use the dark ink colour.
-- The List/Graph selector track uses the paper background and ink outline. The selected segment uses the lighter burnt-orange tone; both labels remain ink.
+- The List/Graph selector track uses the paper background and ink outline. The selected segment uses the lighter burnt-orange tone (`#F4AE52`); both labels remain ink.
 - Graph grid/divider lines and all graph text use ink. The plotted temperature/rain series retain burnt-orange emphasis.
 
 ## E-ink-inspired OS palette (2026-11-26)
