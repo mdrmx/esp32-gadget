@@ -48,16 +48,19 @@ int main() {
 
   CHECK(physicalTarget->horizontalLineCount == 2);
   CHECK(physicalTarget->lastLineX == 0);
-  CHECK(physicalTarget->lastLineY == 36);
+  CHECK(physicalTarget->lastLineY == 37);
   CHECK(physicalTarget->lastLineWidth == 320);
   CHECK(physicalTarget->lastLineColour == INK);
 
   renderer.drawClockOnly("14:00", PAPER, INK, INK);
-  CHECK(physicalTarget->fillRectCount == 2);
-  CHECK(physicalTarget->lastFillRectX == 242);
-  CHECK(physicalTarget->lastFillRectY == 0);
-  CHECK(physicalTarget->lastFillRectWidth == 78);
-  CHECK(physicalTarget->lastFillRectHeight == 36);
+  // Clock region and Wi-Fi glyph are both repainted in the paper colour.
+  CHECK(physicalTarget->fillRectCount == 3);
+  CHECK(physicalTarget->lastFillRectX == HeaderRenderer::WiFiIndicatorLeft);
+  CHECK(physicalTarget->lastFillRectY == HeaderRenderer::WiFiIndicatorTop);
+  CHECK(physicalTarget->lastFillRectWidth ==
+        HeaderRenderer::WiFiIndicatorRight - HeaderRenderer::WiFiIndicatorLeft);
+  CHECK(physicalTarget->lastFillRectHeight ==
+        HeaderRenderer::WiFiIndicatorBottom - HeaderRenderer::WiFiIndicatorTop);
   CHECK(physicalTarget->lastFillRectColour == PAPER);
   CHECK(physicalTarget->horizontalLineCount == 2);
   CHECK(physicalTarget->printCount == 3);
