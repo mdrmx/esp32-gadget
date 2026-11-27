@@ -156,7 +156,8 @@ public:
           target,
           *item.description,
           x - ICON_HALF_WIDTH,
-          originY + ICON_TOP + VERTICAL_SHIFT);
+          originY + ICON_TOP + VERTICAL_SHIFT,
+          ICON_SCALE_PERCENT);
       }
 
       const String temperatureText =
