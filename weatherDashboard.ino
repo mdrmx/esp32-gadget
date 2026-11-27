@@ -708,6 +708,42 @@ int drawWeatherPngLine(PNGDRAW* pDraw) {
     PNG_RGB565_LITTLE_ENDIAN,
     context->backgroundBGR);
 
+  // PNGdec's RGB565 conversion blends per-pixel alpha and indexed palette
+  // transparency. Its truecolour/grayscale colour-key variants need this
+  // explicit replacement so transparent pixels inside the crop stay paper.
+  if (weatherPngDecoder.hasAlpha() &&
+      (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR ||
+       pDraw->iPixelType == PNG_PIXEL_GRAYSCALE)) {
+    const uint8_t backgroundRed =
+      (uint8_t)(context->backgroundBGR & 0xff);
+    const uint8_t backgroundGreen =
+      (uint8_t)((context->backgroundBGR >> 8) & 0xff);
+    const uint8_t backgroundBlue =
+      (uint8_t)((context->backgroundBGR >> 16) & 0xff);
+    const uint16_t background565 =
+      ((uint16_t)(backgroundRed & 0xf8) << 8) |
+      ((uint16_t)(backgroundGreen & 0xfc) << 3) |
+      ((uint16_t)backgroundBlue >> 3);
+    const uint32_t transparentColour =
+      weatherPngDecoder.getTransparentColor() & 0xFFFFFFUL;
+
+    for (int sourceX = 0; sourceX < pDraw->iWidth; ++sourceX) {
+      bool isTransparent = false;
+      if (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR) {
+        const uint8_t* pixel = pDraw->pPixels + sourceX * 3;
+        const uint32_t colour =
+          ((uint32_t)pixel[0] << 16) |
+          ((uint32_t)pixel[1] << 8) |
+          (uint32_t)pixel[2];
+        isTransparent = colour == transparentColour;
+      } else {
+        isTransparent =
+          pDraw->pPixels[sourceX] == (uint8_t)transparentColour;
+      }
+      if (isTransparent) sourceLine[sourceX] = background565;
+    }
+  }
+
   // Sample only within the alpha-derived bounding box. The cropped bounds are
   // scaled proportionally, so the original icon aspect ratio is preserved.
   for (int outputY = 0; outputY < context->outputHeight; ++outputY) {
