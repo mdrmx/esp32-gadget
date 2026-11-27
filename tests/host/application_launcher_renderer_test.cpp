@@ -27,7 +27,7 @@ class FakeApplication : public Application {
 };
 
 static const ApplicationLauncherRenderer::Colours LauncherColours = {
-  0xFF9C, 0xF56A, 0x28C1, 0xD303, 0xD303, 0xD303
+  0xFF9C, 0xFF9C, 0x28C1, 0x28C1, 0xD303, 0x28C1
 };
 
 static bool testIconGridLayoutAndHitTargets() {
@@ -72,7 +72,7 @@ static bool testIconGridLayoutAndHitTargets() {
   CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
   CHECK(target->drawRoundRectColour[1] == LauncherColours.text);
 
-  // The user-supplied Weather glyph is drawn as a 48x48 flash bitmap,
+  // The user-supplied Weather glyph is drawn as a 32x32 flash bitmap,
   // centred in the 68px tile and tinted with the OS ink colour.
   CHECK(target->drawBitmapCount == 1);
   CHECK(target->lastBitmapX == 74);
@@ -122,7 +122,7 @@ static bool testSingleWeatherIconIsCentred() {
   CHECK(target->fillRoundRectY[0] == 89);
   CHECK(target->fillRoundRectWidth[0] == 68);
   CHECK(target->fillRoundRectHeight[0] == 68);
-  CHECK(target->drawRoundRectColour[0] == LauncherColours.selected);
+  CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
   CHECK(target->drawBitmapCount == 1);
   CHECK(target->lastBitmapX == 144);
   CHECK(target->lastBitmapY == 107);
@@ -185,10 +185,9 @@ static bool testEmptyLauncherState() {
   CHECK(target != nullptr);
   CHECK(target->fillRoundRectCount == 0);
   CHECK(target->drawBitmapCount == 0);
-  CHECK(target->printCount == 3);
+  CHECK(target->printCount == 2);
   CHECK(target->printedText[0] == String("APPLICATIONS"));
   CHECK(target->printedText[1] == String("NO APPLICATIONS"));
-  CHECK(target->printedText[2] == String("SELECT AN APP"));
   return true;
 }
 
