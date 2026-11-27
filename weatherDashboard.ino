@@ -3261,37 +3261,25 @@ bool processApplicationLauncherTouch(
   if (applicationLauncherTouchActive && observation.touchReleased) {
     bool redrawLauncher = false;
     if (!applicationLauncherTouchMoved) {
-      if (applicationLauncherRenderer.backButtonContains(
+      uint8_t applicationIndex = 0;
+      if (applicationLauncherRenderer.applicationAt(
               applicationLauncherTouchStartX,
               applicationLauncherTouchStartY,
-              applicationLauncherController.returnApplicationId())) {
-        if (!applicationLauncherController.back()) {
-          applicationLauncherMessage = "COULD NOT RESUME APP";
+              applicationIndex,
+              applicationManager)) {
+        if (!applicationLauncherController.select(applicationIndex)) {
+          applicationLauncherMessage = "APP FAILED TO START";
           redrawLauncher = true;
         } else {
           applicationLauncherMessage = "";
-        }
-      } else {
-        uint8_t applicationIndex = 0;
-        if (applicationLauncherRenderer.applicationAt(
-                applicationLauncherTouchStartX,
-                applicationLauncherTouchStartY,
-                applicationIndex,
-                applicationManager)) {
-          if (!applicationLauncherController.select(applicationIndex)) {
-            applicationLauncherMessage = "APP FAILED TO START";
-            redrawLauncher = true;
-          } else {
-            applicationLauncherMessage = "";
-          }
         }
       }
     }
 
     applicationLauncherTouchActive = false;
     applicationLauncherTouchMoved = false;
-    // Ignore touches outside an app tile/BACK. In particular, do not repaint
-    // the full-screen launcher for a harmless background tap.
+    // Ignore touches outside app tiles. There is no BACK or prompt region.
+    // Re-enter the previous app by selecting its icon again.
     if (applicationLauncherController.isOpen() && redrawLauncher) {
       drawApplicationLauncherScreen();
     }
