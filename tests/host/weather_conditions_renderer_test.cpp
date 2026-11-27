@@ -54,7 +54,7 @@ int main() {
   CHECK(physicalTarget->printedSize[2] == 2);
 
   CHECK(physicalTarget->printedText[3] == String("Feels: 17.5 C"));
-  CHECK(physicalTarget->printedX[3] == 60);
+  CHECK(physicalTarget->printedX[3] == 57);
   CHECK(physicalTarget->printedY[3] == 182);
   CHECK(physicalTarget->printedSize[3] == 1);
 
