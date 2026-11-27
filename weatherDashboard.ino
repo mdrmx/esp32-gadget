@@ -410,10 +410,10 @@ const int WEATHER_CONDITION_ICON_Y = 66;
 const int WEATHER_CONDITION_ICON_SIZE = 70;
 
 // Keep three 44 px list cards with 4 px gaps visible through y=212.
-// Controls are 32 px tall, with a 2 px gap below the header and above the List
-// rows. In Graph mode the same controls overlay the chart's blank upper strip.
-const int FORECAST_VIEWPORT_TOP = 64;
-const int FORECAST_VIEWPORT_HEIGHT = 152;
+// The List/Graph selector occupies the area above y=70; the scrolling
+// viewport starts at y=72 so rows can never overwrite the fixed controls.
+const int FORECAST_VIEWPORT_TOP = 72;
+const int FORECAST_VIEWPORT_HEIGHT = 144;
 const int FORECAST_VIEWPORT_BOTTOM =
   FORECAST_VIEWPORT_TOP + FORECAST_VIEWPORT_HEIGHT;
 
@@ -421,7 +421,14 @@ const int FORECAST_VIEWPORT_BOTTOM =
 const int TAB_TRANSITION_CONTENT_TOP = 37;
 const int TAB_TRANSITION_FOOTER_HEIGHT = 12;
 
-const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP + 8;
+// The first row begins directly below the 2 px gap under the selector.
+const int FORECAST_ROW_TOP = FORECAST_VIEWPORT_TOP;
+
+// The forecast canvas now begins 8 px lower. Preserve the chart's established
+// physical graph position by applying the inverse offset within that canvas.
+const int FORECAST_GRAPH_CANVAS_ORIGIN_Y = -8;
+const int FORECAST_GRAPH_DISPLAY_ORIGIN_Y =
+  FORECAST_VIEWPORT_TOP + FORECAST_GRAPH_CANVAS_ORIGIN_Y;
 const int FORECAST_ROW_STEP = 48;
 const int FORECAST_GRAPH_POINTS = 6;
 const int FORECAST_GRAPH_POINT_SPACING = 56;
@@ -1375,8 +1382,8 @@ void drawForecastGraph(Arduino_GFX* target, int originY) {
     readForecastGraphItem);
 }
 
-// Copy only the graph body from the existing canvas. The 8-pixel source crop
-// starts at screen y=72, below the selector, so controls never need repainting.
+// Copy only the graph body from the existing canvas. The canvas begins at
+// screen y=72, below the selector, so the full viewport crop is safe.
 bool flushForecastGraphCanvasBody() {
   if (displayManager.forecastCanvas() == nullptr) return false;
   uint16_t* framebuffer = displayManager.forecastCanvas()->getFramebuffer();
@@ -1404,7 +1411,9 @@ void redrawForecastGraphAtCurrentScroll() {
   if (displayManager.forecastCanvas() != nullptr && !displayManager.renderingTabTransition()) {
     displayManager.forecastCanvas()->fillScreen(BG);
     if (forecastAvailable && forecastCount > 0) {
-      drawForecastGraph(displayManager.forecastCanvas(), 0);
+      drawForecastGraph(
+        displayManager.forecastCanvas(),
+        FORECAST_GRAPH_CANVAS_ORIGIN_Y);
     }
     if (flushForecastGraphCanvasBody()) return;
     displayManager.forecastCanvas()->flush();
@@ -1419,7 +1428,9 @@ void redrawForecastGraphAtCurrentScroll() {
     0, graphRedrawTop, displayManager.width(),
     FORECAST_VIEWPORT_BOTTOM - graphRedrawTop, BG);
   if (forecastAvailable && forecastCount > 0) {
-    drawForecastGraph(displayManager.target(), FORECAST_VIEWPORT_TOP);
+    drawForecastGraph(
+      displayManager.target(),
+      FORECAST_GRAPH_DISPLAY_ORIGIN_Y);
   }
 }
 
