@@ -185,9 +185,10 @@ class WeatherApp : public Application {
     return configure(hooks) && begin();
   }
 
-  // Called from the device loop. While associating, input, clock and other
-  // loop-level work continue on every pass. Each startup/refresh stage is
-  // advanced separately rather than waiting for connectivity here.
+  // Called from the device loop while Weather is active. Platform connectivity,
+  // time synchronisation, shared-header refresh and touch sampling are advanced
+  // independently by loop(), regardless of the active application. Each
+  // Weather startup/refresh stage advances separately without waiting here.
   //
   // Location lookup, HTTP requests and asset preparation are still synchronous
   // operations when their individual stages run. Their transport-level
