@@ -615,11 +615,28 @@ struct LauncherPngDrawContext {
   Arduino_GFX* target;
   int x;
   int y;
+  uint16_t previousSourceRow[64];
 };
+
+// Each 64x64 RGBA source is reduced to 32x32 with a 2x2 box filter. Averaging
+// after PNGdec's alpha blend keeps anti-aliased artwork clean at Weather scale.
+uint16_t averageLauncherRgb565(
+  uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
+  const uint16_t red =
+    (uint16_t)((((a >> 11) & 0x1f) + ((b >> 11) & 0x1f) +
+                ((c >> 11) & 0x1f) + ((d >> 11) & 0x1f) + 2) / 4);
+  const uint16_t green =
+    (uint16_t)((((a >> 5) & 0x3f) + ((b >> 5) & 0x3f) +
+                ((c >> 5) & 0x3f) + ((d >> 5) & 0x3f) + 2) / 4);
+  const uint16_t blue =
+    (uint16_t)(((a & 0x1f) + (b & 0x1f) +
+                (c & 0x1f) + (d & 0x1f) + 2) / 4);
+  return (uint16_t)((red << 11) | (green << 5) | blue);
+}
 
 int drawLauncherPngLine(PNGDRAW* pDraw) {
   if (pDraw == nullptr || pDraw->pUser == nullptr ||
-      pDraw->iWidth <= 0 || pDraw->iWidth > 64) {
+      pDraw->iWidth != 64 || pDraw->y < 0 || pDraw->y >= 64) {
     return 0;
   }
 
@@ -627,19 +644,37 @@ int drawLauncherPngLine(PNGDRAW* pDraw) {
     (LauncherPngDrawContext*)pDraw->pUser;
   if (context->target == nullptr) return 0;
 
-  uint16_t line[64];
+  uint16_t sourceLine[64];
   // PNGdec expects 00BBGGRR for its blend colour. The launcher paper is
   // #FEF3E2, represented as 0x00E2F3FE here.
   weatherPngDecoder.getLineAsRGB565(
     pDraw,
-    line,
+    sourceLine,
     PNG_RGB565_LITTLE_ENDIAN,
     0x00E2F3FEUL);
+
+  if ((pDraw->y & 1) == 0) {
+    for (int x = 0; x < 64; ++x) {
+      context->previousSourceRow[x] = sourceLine[x];
+    }
+    return 1;
+  }
+
+  uint16_t scaledLine[32];
+  for (int x = 0; x < 32; ++x) {
+    const int sourceX = x * 2;
+    scaledLine[x] = averageLauncherRgb565(
+      context->previousSourceRow[sourceX],
+      context->previousSourceRow[sourceX + 1],
+      sourceLine[sourceX],
+      sourceLine[sourceX + 1]);
+  }
+
   context->target->draw16bitRGBBitmap(
     context->x,
-    context->y + pDraw->y,
-    line,
-    pDraw->iWidth,
+    context->y + (pDraw->y / 2),
+    scaledLine,
+    32,
     1);
   return 1;
 }
@@ -666,11 +701,10 @@ void drawLauncherPngIcon(
     return;
   }
 
-  LauncherPngDrawContext context = {
-    displayManager.target(),
-    x,
-    y
-  };
+  LauncherPngDrawContext context = {};
+  context.target = displayManager.target();
+  context.x = x;
+  context.y = y;
   const int drawResult =
     weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
   if (drawResult != PNG_SUCCESS) {
