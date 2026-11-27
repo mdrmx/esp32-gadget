@@ -518,6 +518,7 @@ See [Phase 4 Application Manager](docs/PHASE4_APPLICATION_MANAGER.md) for the in
 
 - Weather launches and behaves as it did before.
 - The launcher is reachable from any app/platform screen by a quick swipe-up beginning in the central 64 px band at the bottom edge, without relying on an active app's update loop.
+- The launcher shows icon tiles only: no BACK control or SELECT AN APP prompt. The previous app is resumed by selecting its icon again.
 - Bottom-edge swipes beginning outside that central band are not claimed, preserving metric-card/list interactions elsewhere on the screen.
 - Boot opens the launcher before starting Wi-Fi association; connection/retry runs in the background and is reflected by the persistent signal icon.
 - Opening the launcher stops active-app updates without destroying platform services.
