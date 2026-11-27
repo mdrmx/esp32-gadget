@@ -27,10 +27,10 @@ An application implementation must leave itself inactive when `begin()` returns 
 The follow-up branch `phase4/04-launcher-icon-catalog` keeps the launcher artwork separate from application lifecycle registration:
 
 - The fixed six-tile, three-column/two-row catalogue shows Weather plus Map, NFC, Plant, Remote and Smart Home.
-- The five supplied 64×64 PNGs remain in `src/ui/icons/` and are also embedded as flash-resident byte arrays in `LauncherPngAssets.h` for firmware use. This avoids depending on a filesystem or SD card.
+- The five supplied 64×64 PNGs remain in `src/ui/icons/` and are also embedded as flash-resident byte arrays in `LauncherPngAssets.h` for firmware use. At draw time each RGBA source is reduced to a centred 32×32 footprint with a 2×2 RGB565 box filter, matching the original Weather bitmap dimensions while preserving alpha blending. This avoids depending on a filesystem or SD card.
 - Launcher PNGs are decoded with the existing `weatherPngDecoder` instance via `openFLASH()`; no second PNG decoder workspace or application registration is added.
 - Weather remains the only registered app in this slice. The other five tiles are artwork-only and taps on them are ignored. A future app can become selectable by registering its corresponding stable ID (`map`, `nfc`, `plant`, `remote` or `smart-home`).
-- The launcher renderer host test has been updated for the six-tile layout, PNG draw callback coordinates and registration-scoped hit targets. It still needs a local run, followed by Arduino Verify/upload and physical display validation.
+- The launcher renderer host test has been updated for the six-tile layout, embedded PNG signatures/dimensions, Weather-sized artwork placement and registration-scoped hit targets. It still needs a local run, followed by Arduino Verify/upload and physical display validation.
 
 This is a presentation/catalogue preparation step only; it does not yet validate switching between multiple registered applications.
 
