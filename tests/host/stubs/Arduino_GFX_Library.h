@@ -131,8 +131,16 @@ public:
     ++drawRoundRectCount;
   }
 
-  void fillCircle(int16_t, int16_t, int16_t, uint16_t colour) {
+  void fillCircle(
+    int16_t x,
+    int16_t y,
+    int16_t radius,
+    uint16_t colour
+  ) {
     ++fillCircleCount;
+    lastFillCircleX = x;
+    lastFillCircleY = y;
+    lastFillCircleRadius = radius;
     lastFillCircleColour = colour;
   }
 
@@ -227,6 +235,9 @@ public:
   uint16_t drawRoundRectColour[MAX_RECORDED_ROUND_RECTS] = {};
 
   int fillCircleCount = 0;
+  int lastFillCircleX = 0;
+  int lastFillCircleY = 0;
+  int lastFillCircleRadius = 0;
   uint16_t lastFillCircleColour = 0;
   int drawFastVLineCount = 0;
   int drawLineCount = 0;
