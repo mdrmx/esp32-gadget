@@ -1,6 +1,6 @@
 # Phase 4 — Application Manager and lifecycle
 
-**Status:** Lifecycle manager PR #62 and launcher PR #63 are merged into `main`. The clock-ownership refinement is implemented on `refinement/phase4-cleanup`; all four focused strict C++11 host suites passed, and the user confirmed the cold-boot, offline-to-online time recovery, launcher/Weather switching and Wi-Fi settings hardware regression passed (2026-11-27). TimeAPI synchronisation and one-second shared-header clock redraw now run independently of the active application. Weather remains the only registered application; second-app integration, remaining Weather-boundary cleanup and runtime memory profiling remain outstanding.  
+**Status:** Lifecycle manager PR #62 and launcher PR #63 are merged into `main`. The clock-ownership refinement was merged in [PR #64](https://github.com/mdrmx/esp32-gadget/pull/64) at `c2d2f77ab5590c2cba58c43685c1a109c3c586b2`; all four focused strict C++11 host suites passed, and the user confirmed the cold-boot, offline-to-online time recovery, launcher/Weather switching and Wi-Fi settings hardware regression passed (2026-11-27). TimeAPI synchronisation and one-second shared-header clock redraw now run independently of the active application. Weather remains the only registered application; second-app integration, remaining Weather-boundary cleanup and runtime memory profiling remain outstanding.  
 **Base:** PR #62 merge `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`; launcher PR #63 merge `0af82bf94d2419f8d59be9aecb1d13f67e5d10c`.  
 **Goal:** Give the platform one bounded, transport- and hardware-neutral way to register, start, update, switch and stop applications.
 
@@ -94,6 +94,7 @@ Validation completed on `refinement/phase4-cleanup` (user-confirmed 2026-11-27):
 
 ### Clock ownership refinement — host and hardware validation (2026-11-27)
 
+- Merged into `main` in [PR #64](https://github.com/mdrmx/esp32-gadget/pull/64) at `c2d2f77ab5590c2cba58c43685c1a109c3c586b2`.
 - TimeAPI synchronisation and the one-second shared-header clock refresh are owned by the platform loop, not `WeatherApp::update()`. They continue while the boot launcher is visible and no application is active.
 - All four focused strict C++11 host suites listed above passed on the final refinement branch.
 - The user confirmed the physical regression passed: cold boot with the launcher left open, cold boot without Wi-Fi followed by online time recovery, repeated launcher/Weather switching, and opening/closing Wi-Fi settings while checking that the clock remains visible and updates.
