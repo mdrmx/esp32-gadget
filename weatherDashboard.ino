@@ -3690,9 +3690,8 @@ bool fetchForecast() {
 // =====================================================
 
 // WeatherApp's hooks keep its lifecycle independent from Arduino APIs while
-// these adapters connect it to the existing touch/time services and
-// sketch-owned data/renderers. WeatherApp owns startup/refresh sequencing;
-// platform and renderer resources remain with their existing owners.
+// these adapters connect it to connectivity, location, data and rendering.
+// Shared touch sampling and TimeService remain platform-loop responsibilities.
 void weatherAppProcessInput() {
   // Touch sampling is promoted to loop() so the platform launcher remains
   // available even while ApplicationManager has no active application.
