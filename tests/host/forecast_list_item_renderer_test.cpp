@@ -13,13 +13,10 @@ static void check(bool condition, const char* expression, int line) {
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
 int main() {
-  const uint16_t PANEL = 0x2128;
-  const uint16_t WHITE = 0xFFFF;
-  const uint16_t YELLOW = 0xFEA0;
-  const uint16_t MUTED = 0xBDF7;
-  const uint16_t ACCENT = 0x5DDF;
+  const uint16_t PAPER = 0xFF9C;
+  const uint16_t INK = 0x28C1;
   const ForecastListItemRenderer::Colours colours = {
-    PANEL, WHITE, YELLOW, MUTED, ACCENT
+    PAPER, INK, INK, INK, INK, INK
   };
 
   DisplayManager displayManager;
@@ -39,7 +36,9 @@ int main() {
   CHECK(target->lastFillRoundRectWidth == 312);
   CHECK(target->lastFillRoundRectHeight == 44);
   CHECK(target->lastFillRoundRectRadius == 4);
-  CHECK(target->lastFillRoundRectColour == PANEL);
+  CHECK(target->lastFillRoundRectColour == PAPER);
+  CHECK(target->drawRoundRectCount == 1);
+  CHECK(target->lastDrawRoundRectColour == INK);
   CHECK(target->printCount == 4);
   CHECK(target->printedText[0] == String("15:00"));
   CHECK(target->printedX[0] == 10);
@@ -48,13 +47,13 @@ int main() {
   CHECK(target->printedX[1] == 72);
   CHECK(target->printedY[1] == 86);
   CHECK(target->printedSize[1] == 2);
-  CHECK(target->printedColour[1] == YELLOW);
+  CHECK(target->printedColour[1] == INK);
   CHECK(target->printedText[2] == String("FL 17C"));
   CHECK(target->printedX[2] == 145);
   CHECK(target->printedText[3] == String("POP 26%"));
   CHECK(target->printedX[3] == 268);
   CHECK(target->fillCircleCount == 1);
-  CHECK(target->lastFillCircleColour == YELLOW);
+  CHECK(target->lastFillCircleColour == INK);
   CHECK(target->drawFastVLineCount == 2);
 
   ForecastListItemRenderer::Item rainItem = {
@@ -64,7 +63,7 @@ int main() {
   CHECK(target->printCount == 8);
   CHECK(target->printedText[7] == String("POP 100%"));
   CHECK(target->drawLineCount >= 3);
-  CHECK(target->lastLineColour == ACCENT);
+  CHECK(target->lastLineColour == INK);
 
   ForecastListItemRenderer::Item clippedItem = {
     "17:00", "Clouds", 13.0f, 12.0f, -0.2f
@@ -73,6 +72,7 @@ int main() {
   const int printsBeforeClip = target->printCount;
   renderer.drawClipped(target, clippedItem, 50, 64, 152);
   CHECK(target->fillRectCount == fillsBeforeClip + 1);
+  CHECK(target->drawFastVLineCount >= 2);
   CHECK(target->lastFillRectX == 4);
   CHECK(target->lastFillRectY == 0);
   CHECK(target->lastFillRectWidth == 312);
