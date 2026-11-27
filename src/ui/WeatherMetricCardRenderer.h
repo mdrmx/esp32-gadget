@@ -118,7 +118,7 @@ public:
     target->setTextSize(VALUE_TEXT_SIZE);
     target->getTextBounds(
       value.c_str(), 0, 0, &x1, &y1, &width, &height);
-    const int valueLocalY = localY + (VALUE_TEXT_SIZE == 2 ? 23 : 28);
+    const int valueLocalY = localY + VALUE_TEXT_TOP;
     if (valueLocalY >= 0 &&
         valueLocalY + (int)height <= viewportHeight) {
       const int valueX = x + (panelWidth - (int)width) / 2;
