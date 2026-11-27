@@ -44,8 +44,10 @@ int main() {
   CHECK(physicalTarget->fillRoundRectHeight[0] == 26);
   CHECK(physicalTarget->fillRoundRectRadius[0] == 6);
   CHECK(physicalTarget->fillRoundRectColour[0] == PAPER);
-  CHECK(physicalTarget->fillRoundRectX[1] == 181);
-  CHECK(physicalTarget->fillRoundRectY[1] == 41);
+  // The selected half sits one pixel inside the track outline on every
+  // outer edge, with no extra exposed border along the left or bottom.
+  CHECK(physicalTarget->fillRoundRectX[1] == 180);
+  CHECK(physicalTarget->fillRoundRectY[1] == 42);
   CHECK(physicalTarget->fillRoundRectWidth[1] == 67);
   CHECK(physicalTarget->fillRoundRectHeight[1] == 24);
   CHECK(physicalTarget->fillRoundRectRadius[1] == 5);
@@ -68,7 +70,13 @@ int main() {
   CHECK(physicalTarget->fillRoundRectCount == 4);
   CHECK(physicalTarget->drawRoundRectCount == 4);
   CHECK(physicalTarget->fillRoundRectX[2] == 179);
-  CHECK(physicalTarget->fillRoundRectX[3] == 248);
+  CHECK(physicalTarget->fillRoundRectY[2] == 41);
+  CHECK(physicalTarget->fillRoundRectWidth[2] == 137);
+  CHECK(physicalTarget->fillRoundRectHeight[2] == 26);
+  CHECK(physicalTarget->fillRoundRectX[3] == 247);
+  CHECK(physicalTarget->fillRoundRectY[3] == 42);
+  CHECK(physicalTarget->fillRoundRectWidth[3] == 68);
+  CHECK(physicalTarget->fillRoundRectHeight[3] == 24);
   CHECK(physicalTarget->fillRoundRectColour[3] == BURNT_ORANGE);
   CHECK(physicalTarget->printCount == 4);
   CHECK(physicalTarget->printedText[2] == String("LIST"));
@@ -87,7 +95,10 @@ int main() {
   renderer.draw(ForecastModeSelectorRenderer::Mode::List);
   CHECK(transitionTarget->fillRoundRectCount == 2);
   CHECK(transitionTarget->drawRoundRectCount == 2);
-  CHECK(transitionTarget->fillRoundRectX[1] == 181);
+  CHECK(transitionTarget->fillRoundRectX[1] == 180);
+  CHECK(transitionTarget->fillRoundRectY[1] == 42);
+  CHECK(transitionTarget->fillRoundRectWidth[1] == 67);
+  CHECK(transitionTarget->fillRoundRectHeight[1] == 24);
   CHECK(transitionTarget->printCount == 2);
   CHECK(transitionTarget->printedText[0] == String("LIST"));
   CHECK(physicalTarget->fillRoundRectCount == 4);
