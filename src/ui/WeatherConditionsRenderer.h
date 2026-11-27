@@ -36,9 +36,10 @@ public:
         colours.location);
     }
 
-    // Keep the condition description and both temperature readings in one
-    // vertical stack beneath the provider icon.
-    textRenderer_.drawWrappedCenteredText(
+    // Keep a compact, consistent gap between the icon and description.
+    // Following values are placed from the rendered text heights so the gap
+    // remains the same whether the description wraps onto one or two lines.
+    const int descriptionHeight = textRenderer_.drawWrappedCenteredText(
       description,
       CONTENT_CENTRE_X,
       DESCRIPTION_MAX_WIDTH,
@@ -46,16 +47,21 @@ public:
       DESCRIPTION_TEXT_SIZE,
       colours.description);
 
-    textRenderer_.drawCenteredWeatherLine(
+    const int temperatureY =
+      DESCRIPTION_TOP + descriptionHeight + DESCRIPTION_TEMPERATURE_GAP;
+    const int temperatureHeight = textRenderer_.drawCenteredWeatherLine(
       temperatureText,
       CONTENT_CENTRE_X,
-      TEMPERATURE_Y,
+      temperatureY,
       TEMPERATURE_TEXT_SIZE,
       colours.temperature);
+
+    const int feelsLikeY =
+      temperatureY + temperatureHeight + TEMPERATURE_FEELS_LIKE_GAP;
     textRenderer_.drawCenteredWeatherLine(
       feelsLikeText,
       CONTENT_CENTRE_X,
-      FEELS_LIKE_Y,
+      feelsLikeY,
       FEELS_LIKE_TEXT_SIZE,
       colours.feelsLike);
   }
@@ -68,11 +74,11 @@ private:
     LOCATION_TEXT_SIZE = 2,
     CONTENT_CENTRE_X = 96,
     DESCRIPTION_MAX_WIDTH = 176,
-    DESCRIPTION_TOP = 156,
+    DESCRIPTION_TOP = 142,
     DESCRIPTION_TEXT_SIZE = 2,
-    TEMPERATURE_Y = 192,
+    DESCRIPTION_TEMPERATURE_GAP = 4,
     TEMPERATURE_TEXT_SIZE = 2,
-    FEELS_LIKE_Y = 216,
+    TEMPERATURE_FEELS_LIKE_GAP = 4,
     FEELS_LIKE_TEXT_SIZE = 1
   };
 
