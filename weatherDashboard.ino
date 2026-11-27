@@ -821,7 +821,8 @@ int drawOpenWeatherIcon(int x, int y, int displaySize) {
   int iconWidth = weatherPngDecoder.getWidth();
   int iconHeight = weatherPngDecoder.getHeight();
 
-  if (iconWidth > 100 || iconHeight > 100) {
+  if (iconWidth <= 0 || iconHeight <= 0 ||
+      iconWidth > 100 || iconHeight > 100) {
     DEBUG_PRINTF("OpenWeather PNG dimensions unexpected: %d x %d\n", iconWidth, iconHeight);
     weatherPngDecoder.close();
     return 0;
@@ -861,7 +862,7 @@ int drawOpenWeatherIcon(int x, int y, int displaySize) {
   }
 
   weatherPngDecoder.close();
-  return decodeResult == PNG_SUCCESS ? iconHeight : 0;
+  return decodeResult == PNG_SUCCESS ? outputHeight : 0;
 }
 
 // =====================================================
