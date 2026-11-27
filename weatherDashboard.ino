@@ -623,6 +623,34 @@ struct WeatherPngDrawContext {
   uint32_t backgroundBGR;
 };
 
+bool weatherPngPixelIsVisible(
+  const PNGDRAW* pDraw,
+  int x,
+  const uint8_t* alphaMask
+) {
+  // PNGdec's alpha-mask helper handles per-pixel alpha and indexed palette
+  // transparency. Its colour-key transparency is stored separately, so test
+  // those two pixel formats against that key explicitly.
+  if (weatherPngDecoder.hasAlpha() &&
+      pDraw->iPixelType == PNG_PIXEL_TRUECOLOR) {
+    const uint8_t* pixel = pDraw->pPixels + x * 3;
+    const uint32_t colour =
+      ((uint32_t)pixel[0] << 16) |
+      ((uint32_t)pixel[1] << 8) |
+      (uint32_t)pixel[2];
+    return colour != (weatherPngDecoder.getTransparentColor() & 0xFFFFFFUL);
+  }
+
+  if (weatherPngDecoder.hasAlpha() &&
+      pDraw->iPixelType == PNG_PIXEL_GRAYSCALE) {
+    return pDraw->pPixels[x] !=
+      (uint8_t)weatherPngDecoder.getTransparentColor();
+  }
+
+  return (alphaMask[x >> 3] &
+          (uint8_t)(0x80U >> (x & 7))) != 0;
+}
+
 int drawWeatherPngLine(PNGDRAW* pDraw) {
   if (pDraw == nullptr) return 0;
   WeatherPngDrawContext* context =
@@ -641,7 +669,7 @@ int drawWeatherPngLine(PNGDRAW* pDraw) {
 
     for (int x = 0; x < pDraw->iWidth; ++x) {
       const bool visible =
-        (alphaMask[x >> 3] & (uint8_t)(0x80U >> (x & 7))) != 0;
+        weatherPngPixelIsVisible(pDraw, x, alphaMask);
       if (!visible) continue;
 
       if (!context->hasVisiblePixels) {
