@@ -240,7 +240,7 @@ const StatusScreenRenderer::Colours STATUS_SCREEN_COLOURS = {
 };
 
 const ApplicationLauncherRenderer::Colours APPLICATION_LAUNCHER_COLOURS = {
-  BG, PANEL, UI_INK, MUTED, ACCENT, UI_ORANGE
+  BG, BG, UI_INK, MUTED, ACCENT, UI_INK
 };
 
 ApplicationLauncherRenderer applicationLauncherRenderer(
