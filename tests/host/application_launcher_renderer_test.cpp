@@ -56,9 +56,8 @@ static bool testIconGridLayoutAndHitTargets() {
   CHECK(target->fillScreenCount == 1);
   CHECK(target->lastFillScreenColour == LauncherColours.background);
 
-  // Four square icon tiles and the BACK control are drawn. The old wide
-  // application cards and per-app text labels are intentionally gone.
-  CHECK(target->fillRoundRectCount == 5);
+  // Four square icon tiles are drawn with no BACK button or footer prompt.
+  CHECK(target->fillRoundRectCount == 4);
   CHECK(target->fillRoundRectX[0] == 56);
   CHECK(target->fillRoundRectY[0] == 50);
   CHECK(target->fillRoundRectWidth[0] == 68);
@@ -69,14 +68,9 @@ static bool testIconGridLayoutAndHitTargets() {
   CHECK(target->fillRoundRectY[2] == 130);
   CHECK(target->fillRoundRectX[3] == 196);
   CHECK(target->fillRoundRectY[3] == 130);
-  CHECK(target->fillRoundRectX[4] == 8);
-  CHECK(target->fillRoundRectY[4] == 210);
-  CHECK(target->fillRoundRectWidth[4] == 76);
-  CHECK(target->fillRoundRectHeight[4] == 24);
-
-  CHECK(target->drawRoundRectCount == 5);
-  CHECK(target->drawRoundRectColour[0] == LauncherColours.selected);
-  CHECK(target->drawRoundRectColour[1] == LauncherColours.muted);
+  CHECK(target->drawRoundRectCount == 4);
+  CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
+  CHECK(target->drawRoundRectColour[1] == LauncherColours.text);
 
   // The user-supplied Weather glyph is drawn as a 48x48 flash bitmap,
   // centred in the 68px tile and tinted with the OS ink colour.
@@ -88,12 +82,9 @@ static bool testIconGridLayoutAndHitTargets() {
   CHECK(target->lastBitmapColour == LauncherColours.text);
   CHECK(target->lastBitmap != nullptr);
 
-  // No application ids, OPEN/LAST USED labels or metadata text are rendered.
-  CHECK(target->printCount == 3);
+  // Only the launcher title is printed: no app names, BACK or prompt.
+  CHECK(target->printCount == 1);
   CHECK(target->printedText[0] == String("APPLICATIONS"));
-  CHECK(target->printedText[0] != String("WEATHER"));
-  CHECK(target->printedText[1] == String("BACK"));
-  CHECK(target->printedText[2] == String("SELECT AN APP"));
 
   uint8_t applicationIndex = 99;
   CHECK(renderer.applicationAt(60, 54, applicationIndex, manager));
@@ -109,11 +100,6 @@ static bool testIconGridLayoutAndHitTargets() {
   CHECK(!renderer.applicationAt(20, 60, applicationIndex, manager));
   CHECK(!renderer.applicationAt(60, 205, applicationIndex, manager));
 
-  CHECK(renderer.backButtonContains(8, 210, "weather"));
-  CHECK(renderer.backButtonContains(83, 233, "weather"));
-  CHECK(!renderer.backButtonContains(8, 210, nullptr));
-  CHECK(!renderer.backButtonContains(84, 220, "weather"));
-  CHECK(!renderer.backButtonContains(20, 209, "weather"));
   return true;
 }
 
@@ -140,9 +126,8 @@ static bool testSingleWeatherIconIsCentred() {
   CHECK(target->drawBitmapCount == 1);
   CHECK(target->lastBitmapX == 144);
   CHECK(target->lastBitmapY == 107);
-  CHECK(target->printCount == 2);
+  CHECK(target->printCount == 1);
   CHECK(target->printedText[0] == String("APPLICATIONS"));
-  CHECK(target->printedText[1] == String("SELECT AN APP"));
 
   uint8_t applicationIndex = 99;
   CHECK(renderer.applicationAt(126, 89, applicationIndex, manager));
@@ -151,7 +136,6 @@ static bool testSingleWeatherIconIsCentred() {
   CHECK(applicationIndex == 0);
   CHECK(!renderer.applicationAt(125, 89, applicationIndex, manager));
   CHECK(!renderer.applicationAt(194, 156, applicationIndex, manager));
-  CHECK(!renderer.backButtonContains(8, 210, nullptr));
   return true;
 }
 
@@ -176,7 +160,7 @@ static bool testTwoAppRowIsVerticallyCentred() {
   CHECK(target->fillRoundRectX[1] == 196);
   CHECK(target->fillRoundRectY[0] == 89);
   CHECK(target->fillRoundRectY[1] == 89);
-  CHECK(target->drawRoundRectColour[0] == LauncherColours.muted);
+  CHECK(target->drawRoundRectColour[0] == LauncherColours.text);
   CHECK(target->drawBitmapCount == 1);
   CHECK(target->printCount == 2);
 
