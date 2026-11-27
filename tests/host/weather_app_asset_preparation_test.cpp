@@ -36,8 +36,6 @@ static void resetEnvironment() {
 }
 
 static void processInput() { record('I'); }
-static void syncTime() { record('S'); }
-static void refreshClock() { record('C'); }
 static uint32_t millisNow() { return clockMs; }
 
 static bool isConnectionPending() { return connectionPending; }
@@ -65,8 +63,6 @@ static void refreshStarted() { record('X'); }
 static WeatherApp::Hooks makeHooks(bool includeAssetHook = true) {
   WeatherApp::Hooks hooks;
   hooks.processInput = processInput;
-  hooks.syncTime = syncTime;
-  hooks.refreshClock = refreshClock;
   hooks.millisNow = millisNow;
   hooks.connectionPending = isConnectionPending;
   hooks.isConnected = isConnected;
@@ -109,7 +105,7 @@ static bool completeSuccessfulStartup(WeatherApp& app) {
 
 static bool testStartupAdvancesWithoutWaitingForConnection() {
   resetEnvironment();
-  WeatherApp app(50, 1000);
+  WeatherApp app(50);
 
   if (!app.begin(makeHooks())) {
     fprintf(stderr, "FAIL: async startup begin\n");
@@ -123,7 +119,7 @@ static bool testStartupAdvancesWithoutWaitingForConnection() {
 
   clearEvents();
   app.update();
-  if (!expectEvents("IS", "pending connection loop")) return false;
+  if (!expectEvents("I", "pending connection loop")) return false;
   if (app.state() != WeatherApp::State::Connecting) {
     fprintf(stderr, "FAIL: app left Connecting while connection was pending\n");
     return false;
@@ -133,7 +129,7 @@ static bool testStartupAdvancesWithoutWaitingForConnection() {
   connected = true;
   connectionPending = false;
   app.update();
-  if (!expectEvents("IS", "connection completed")) return false;
+  if (!expectEvents("I", "connection completed")) return false;
   if (app.state() != WeatherApp::State::ResolvingLocation) {
     fprintf(stderr, "FAIL: connection completion did not advance to location\n");
     return false;
@@ -141,7 +137,7 @@ static bool testStartupAdvancesWithoutWaitingForConnection() {
 
   clearEvents();
   app.update();
-  if (!expectEvents("ISL", "location stage")) return false;
+  if (!expectEvents("IL", "location stage")) return false;
   if (app.state() != WeatherApp::State::FetchingCurrentWeather) {
     fprintf(stderr, "FAIL: location stage did not advance to current weather\n");
     return false;
@@ -149,7 +145,7 @@ static bool testStartupAdvancesWithoutWaitingForConnection() {
 
   clearEvents();
   app.update();
-  if (!expectEvents("ISW", "current weather stage")) return false;
+  if (!expectEvents("IW", "current weather stage")) return false;
   if (app.state() != WeatherApp::State::FetchingForecast) {
     fprintf(stderr, "FAIL: current weather stage did not advance to forecast\n");
     return false;
@@ -157,7 +153,7 @@ static bool testStartupAdvancesWithoutWaitingForConnection() {
 
   clearEvents();
   app.update();
-  if (!expectEvents("ISF", "forecast stage")) return false;
+  if (!expectEvents("IF", "forecast stage")) return false;
   if (app.state() != WeatherApp::State::PreparingStartupAssets) {
     fprintf(stderr, "FAIL: forecast stage did not advance to assets\n");
     return false;
@@ -165,7 +161,7 @@ static bool testStartupAdvancesWithoutWaitingForConnection() {
 
   clearEvents();
   app.update();
-  if (!expectEvents("ISAD", "startup render")) return false;
+  if (!expectEvents("IAD", "startup render")) return false;
   if (!app.isReady()) {
     fprintf(stderr, "FAIL: startup did not become Ready\n");
     return false;
@@ -189,7 +185,7 @@ static bool testUnavailableNetworkFallsBackWithoutWaiting() {
   connected = false;
   available = false;
 
-  WeatherApp app(50, 1000);
+  WeatherApp app(50);
   if (!app.begin(makeHooks())) {
     fprintf(stderr, "FAIL: offline startup begin\n");
     return false;
@@ -204,19 +200,19 @@ static bool testUnavailableNetworkFallsBackWithoutWaiting() {
 
   clearEvents();
   app.update();
-  if (!expectEvents("ISL", "offline location fallback")) return false;
+  if (!expectEvents("IL", "offline location fallback")) return false;
 
   clearEvents();
   app.update();
-  if (!expectEvents("ISW", "offline current weather")) return false;
+  if (!expectEvents("IW", "offline current weather")) return false;
 
   clearEvents();
   app.update();
-  if (!expectEvents("ISF", "offline forecast")) return false;
+  if (!expectEvents("IF", "offline forecast")) return false;
 
   clearEvents();
   app.update();
-  if (!expectEvents("ISE", "offline startup error")) return false;
+  if (!expectEvents("IE", "offline startup error")) return false;
   if (!app.isReady()) {
     fprintf(stderr, "FAIL: offline startup did not settle into Ready\n");
     return false;
@@ -226,7 +222,7 @@ static bool testUnavailableNetworkFallsBackWithoutWaiting() {
 
 static bool testRefreshWaitsForConnectionAndPreservesViewOrdering() {
   resetEnvironment();
-  WeatherApp app(50, 1000);
+  WeatherApp app(50);
 
   if (!app.begin(makeHooks())) {
     fprintf(stderr, "FAIL: refresh app begin\n");
@@ -243,7 +239,7 @@ static bool testRefreshWaitsForConnectionAndPreservesViewOrdering() {
   connectionPending = true;
   clockMs = 151;
   app.update();
-  if (!expectEvents("ISX", "refresh connection wait")) return false;
+  if (!expectEvents("IX", "refresh connection wait")) return false;
   if (app.state() != WeatherApp::State::RefreshConnecting) {
     fprintf(stderr, "FAIL: refresh did not enter its connection wait stage\n");
     return false;
@@ -251,7 +247,7 @@ static bool testRefreshWaitsForConnectionAndPreservesViewOrdering() {
 
   clearEvents();
   app.update();
-  if (!expectEvents("IS", "refresh pending connection")) return false;
+  if (!expectEvents("I", "refresh pending connection")) return false;
   if (app.state() != WeatherApp::State::RefreshConnecting) {
     fprintf(stderr, "FAIL: refresh advanced before network connection completed\n");
     return false;
@@ -261,19 +257,19 @@ static bool testRefreshWaitsForConnectionAndPreservesViewOrdering() {
   connected = true;
   connectionPending = false;
   app.update();
-  if (!expectEvents("IS", "refresh connection completed")) return false;
+  if (!expectEvents("I", "refresh connection completed")) return false;
 
   clearEvents();
   app.update();
-  if (!expectEvents("ISW", "refresh current weather")) return false;
+  if (!expectEvents("IW", "refresh current weather")) return false;
 
   clearEvents();
   app.update();
-  if (!expectEvents("ISF", "refresh forecast")) return false;
+  if (!expectEvents("IF", "refresh forecast")) return false;
 
   clearEvents();
   app.update();
-  if (!expectEvents("ISR", "forecast render without weather asset fetch")) return false;
+  if (!expectEvents("IR", "forecast render without weather asset fetch")) return false;
   if (!app.isReady()) {
     fprintf(stderr, "FAIL: refresh did not return to Ready\n");
     return false;
@@ -283,7 +279,7 @@ static bool testRefreshWaitsForConnectionAndPreservesViewOrdering() {
 
 static bool testWeatherRefreshPreparesAssetsAndRetainsStaleWeather() {
   resetEnvironment();
-  WeatherApp app(50, 1000);
+  WeatherApp app(50);
   if (!app.begin(makeHooks())) {
     fprintf(stderr, "FAIL: Weather refresh app begin\n");
     return false;
@@ -305,15 +301,15 @@ static bool testWeatherRefreshPreparesAssetsAndRetainsStaleWeather() {
   fetchResult = false;
   available = true; // Last known weather remains usable.
   app.update(); // Fetch current weather.
-  if (!expectEvents("ISW", "Weather refresh current fetch")) return false;
+  if (!expectEvents("IW", "Weather refresh current fetch")) return false;
 
   clearEvents();
   app.update(); // Fetch forecast.
-  if (!expectEvents("ISF", "Weather refresh forecast fetch")) return false;
+  if (!expectEvents("IF", "Weather refresh forecast fetch")) return false;
 
   clearEvents();
   app.update(); // Prepare icon and redraw stale-but-available Weather.
-  if (!expectEvents("ISAD", "Weather refresh asset/render")) return false;
+  if (!expectEvents("IAD", "Weather refresh asset/render")) return false;
   return app.isReady();
 }
 

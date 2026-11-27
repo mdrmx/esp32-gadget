@@ -256,17 +256,15 @@ static bool testLauncherControllerSelectsAndRestoresApplications() {
 
 static uint32_t fakeMillis = 100;
 static int weatherInputCalls = 0;
-static int weatherSyncCalls = 0;
 static int weatherEndToEndFetchCalls = 0;
 static bool weatherConnected = true;
+static bool weatherDataAvailable = true;
 static int weatherDrawLoadingCalls = 0;
 static int weatherDrawWeatherCalls = 0;
 static int weatherDrawForecastCalls = 0;
 static const char* weatherLastLoadingMessage = nullptr;
 
 static void weatherProcessInput() { ++weatherInputCalls; }
-static void weatherSyncTime() { ++weatherSyncCalls; }
-static void weatherRefreshClock() {}
 static uint32_t weatherMillisNow() { return fakeMillis; }
 static bool weatherConnectionPending() { return false; }
 static bool weatherIsConnected() { return weatherConnected; }
@@ -274,7 +272,7 @@ static void weatherResolveLocation() { ++weatherEndToEndFetchCalls; }
 static bool weatherFetchCurrent() { ++weatherEndToEndFetchCalls; return true; }
 static void weatherFetchForecast() { ++weatherEndToEndFetchCalls; }
 static void weatherPrepareAssets() {}
-static bool weatherAvailable() { return true; }
+static bool weatherAvailable() { return weatherDataAvailable; }
 static WeatherApp::View weatherActiveView() { return WeatherApp::View::Weather; }
 static void weatherDrawLoading(const char* message) {
   ++weatherDrawLoadingCalls;
@@ -287,8 +285,6 @@ static void weatherDrawError(const char*) {}
 static WeatherApp::Hooks makeWeatherHooks() {
   WeatherApp::Hooks hooks;
   hooks.processInput = weatherProcessInput;
-  hooks.syncTime = weatherSyncTime;
-  hooks.refreshClock = weatherRefreshClock;
   hooks.millisNow = weatherMillisNow;
   hooks.connectionPending = weatherConnectionPending;
   hooks.isConnected = weatherIsConnected;
@@ -312,7 +308,6 @@ static bool testWeatherAppResumesWithoutReconnectingWhenOnline() {
 
   fakeMillis = 100;
   weatherInputCalls = 0;
-  weatherSyncCalls = 0;
   weatherEndToEndFetchCalls = 0;
   weatherConnected = true;
   weatherDrawLoadingCalls = 0;
@@ -333,7 +328,6 @@ static bool testWeatherAppResumesWithoutReconnectingWhenOnline() {
   // platform connection are retained while the app is inactive.
   manager.update();
   CHECK(weatherInputCalls == 1);
-  CHECK(weatherSyncCalls == 1);
   CHECK(weather.state() == WeatherApp::State::FetchingCurrentWeather);
 
   const uint32_t lastRefreshBeforeStop = weather.lastRefreshMs();
@@ -341,10 +335,8 @@ static bool testWeatherAppResumesWithoutReconnectingWhenOnline() {
   CHECK(!weather.isActive());
   CHECK(weather.state() == WeatherApp::State::FetchingCurrentWeather);
   const int inputCallsAtStop = weatherInputCalls;
-  const int syncCallsAtStop = weatherSyncCalls;
   manager.update();
   CHECK(weatherInputCalls == inputCallsAtStop);
-  CHECK(weatherSyncCalls == syncCallsAtStop);
 
   // Returning from the launcher resumes Weather's existing state and redraws
   // its cached view. It must not start Wi-Fi association or show a connecting
@@ -369,6 +361,7 @@ static bool testReadyWeatherRestoresCacheWhenOffline() {
 
   fakeMillis = 1000;
   weatherConnected = true;
+  weatherDataAvailable = false;
   weatherDrawLoadingCalls = 0;
   weatherDrawWeatherCalls = 0;
   weatherDrawForecastCalls = 0;
@@ -377,17 +370,23 @@ static bool testReadyWeatherRestoresCacheWhenOffline() {
   CHECK(weather.configure(hooks));
   CHECK(manager.registerApplication(weather));
   CHECK(manager.start("weather"));
-  for (int i = 0; i < 4; ++i) manager.update();
+  for (int i = 0; i < 3; ++i) manager.update();
+  CHECK(weather.state() == WeatherApp::State::PreparingStartupAssets);
+  weatherDataAvailable = true; // The initial fetch has populated the cache.
+  manager.update();
   CHECK(weather.state() == WeatherApp::State::Ready);
   CHECK(weatherDrawWeatherCalls == 1);
   const uint32_t lastRefresh = weather.lastRefreshMs();
+  const int loadingCallsBeforeResume = weatherDrawLoadingCalls;
 
   CHECK(manager.stopActive());
   weatherConnected = false;
   CHECK(manager.start("weather"));
   CHECK(weather.state() == WeatherApp::State::Ready);
   CHECK(weatherDrawWeatherCalls == 2);
-  CHECK(weatherDrawLoadingCalls == 0);
+  // The initial cold start legitimately showed a loading message. Resuming
+  // with cached data must not add another loading message while offline.
+  CHECK(weatherDrawLoadingCalls == loadingCallsBeforeResume);
   CHECK(weather.lastRefreshMs() == lastRefresh);
   CHECK(manager.stopActive());
   return true;
@@ -400,6 +399,7 @@ static bool testRefreshConnectingResumeKeepsCachedWeatherVisible() {
 
   fakeMillis = 2000;
   weatherConnected = true;
+  weatherDataAvailable = true;
   weatherDrawLoadingCalls = 0;
   weatherDrawWeatherCalls = 0;
   weatherDrawForecastCalls = 0;
@@ -416,7 +416,9 @@ static bool testRefreshConnectingResumeKeepsCachedWeatherVisible() {
   weatherConnected = false;
   CHECK(manager.start("weather"));
   CHECK(weather.state() == WeatherApp::State::RefreshConnecting);
-  CHECK(weatherDrawWeatherCalls == 2);
+  // Cached weather is drawn on initial entry, after startup preparation, and
+  // again when the suspended refresh workflow resumes.
+  CHECK(weatherDrawWeatherCalls == 3);
   CHECK(weatherDrawLoadingCalls == 0);
   CHECK(manager.stopActive());
   return true;
@@ -429,6 +431,7 @@ static bool testLostLinkDuringRefreshRestoresCachedWeather() {
 
   fakeMillis = 3000;
   weatherConnected = true;
+  weatherDataAvailable = true;
   weatherDrawLoadingCalls = 0;
   weatherDrawWeatherCalls = 0;
   weatherDrawForecastCalls = 0;
@@ -446,7 +449,8 @@ static bool testLostLinkDuringRefreshRestoresCachedWeather() {
   weatherConnected = false;
   CHECK(manager.start("weather"));
   CHECK(weather.state() == WeatherApp::State::RefreshConnecting);
-  CHECK(weatherDrawWeatherCalls == 2);
+  // The cache is redrawn when Weather resumes after the link drops.
+  CHECK(weatherDrawWeatherCalls == 3);
   CHECK(weatherDrawLoadingCalls == 0);
   CHECK(manager.stopActive());
   return true;
@@ -459,7 +463,6 @@ static bool testWeatherAppWaitsForPlatformConnectionWhenOffline() {
 
   fakeMillis = 500;
   weatherInputCalls = 0;
-  weatherSyncCalls = 0;
   weatherEndToEndFetchCalls = 0;
   weatherConnected = false;
   weatherDrawLoadingCalls = 0;
