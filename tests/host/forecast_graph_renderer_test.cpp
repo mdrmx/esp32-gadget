@@ -97,15 +97,15 @@ int main() {
   CHECK(target->printCount == 0);
   CHECK(target->fillCircleCount == 0);
 
-  // Eight hourly points fit across the plot at 40 px spacing. The ninth
+  // Seven hourly points fit across the plot at 46 px spacing. The eighth
   // record remains available as a neighbouring sample for scale continuity.
   graphRenderer.draw(
     target, 320, 64, data.count, 0, &data, readTestPoint);
   CHECK(target->horizontalLineCount == 2);
-  CHECK(target->fillCircleCount == 32); // 8 graph points + 8 cloud icons x 3
+  CHECK(target->fillCircleCount == 28); // 7 graph points + 7 cloud icons x 3
   CHECK(target->drawBitmapCount == 0); // graph reuses the vector condition icons
-  CHECK(target->fillRectCount == 16); // 8 cloud bodies + 8 rain bars
-  CHECK(target->printCount == 24);
+  CHECK(target->fillRectCount == 14); // 7 cloud bodies + 7 rain bars
+  CHECK(target->printCount == 21);
   CHECK(target->printedText[0] == String("10C"));
   CHECK(target->printedText[1] == String("10:00"));
   CHECK(target->printedText[2] == String("0%"));
@@ -117,22 +117,22 @@ int main() {
   CHECK(target->printedColour[2] == INK);
   CHECK(target->printedY[2] == 64 + 143);
   CHECK(target->lastFillRectColour == BURNT_ORANGE);
-  CHECK(target->drawLineCount == 16); // 8 temperature segments x 2 px
+  CHECK(target->drawLineCount == 12); // 6 temperature segments x 2 px
   CHECK(target->lastLineColour == BURNT_ORANGE);
-  CHECK(target->lastFillCircleX == 309);
+  CHECK(target->lastFillCircleX == 305);
   CHECK(target->lastFillCircleY == 92); // enlarged icon moved 4 px down
   CHECK(target->lastFillCircleRadius == 4); // cloud icon scaled by 120%
 
-  // At one full point spacing, index zero moves off-screen and the next eight
+  // At one full point spacing, index zero moves off-screen and the next seven
   // forecast points become visible. Scroll is supplied by Weather, unchanged.
   const int printsBeforeScroll = target->printCount;
   const int circlesBeforeScroll = target->fillCircleCount;
   const int gridLinesBeforeScroll = target->horizontalLineCount;
   graphRenderer.draw(
-    target, 320, 64, data.count, 40, &data, readTestPoint);
+    target, 320, 64, data.count, 46, &data, readTestPoint);
   CHECK(target->horizontalLineCount == gridLinesBeforeScroll + 2);
-  CHECK(target->printCount == printsBeforeScroll + 24);
-  CHECK(target->fillCircleCount == circlesBeforeScroll + 32);
+  CHECK(target->printCount == printsBeforeScroll + 21);
+  CHECK(target->fillCircleCount == circlesBeforeScroll + 28);
 
   // Negative elastic scroll remains a caller concern, but the renderer keeps
   // the existing chart offset and uses zero for the visible-range calculation.
