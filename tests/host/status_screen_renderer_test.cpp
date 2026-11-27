@@ -17,7 +17,7 @@ int main() {
   const uint16_t INK = 0x28C1;
   const uint16_t BURNT_ORANGE = 0xD303;
   const StatusScreenRenderer::Colours colours = {
-    BG, 0xF56A, INK, BURNT_ORANGE, INK, BURNT_ORANGE, INK
+    BG, BG, INK, BURNT_ORANGE, INK, BURNT_ORANGE, INK
   };
 
   DisplayManager displayManager;
