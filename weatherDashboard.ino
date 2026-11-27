@@ -1261,7 +1261,7 @@ void drawWeather() {
     getWeatherLocationText(),
     weatherDescription,
     String(temperature, 1) + " C",
-    "Feels: " + String(feelsLike, 1) + "C",
+    "Feels: " + String(feelsLike, 1) + " C",
     WEATHER_CONDITIONS_COLOURS);
 
   drawWeatherMetricsPanel(weatherMetricOffset, 0);
