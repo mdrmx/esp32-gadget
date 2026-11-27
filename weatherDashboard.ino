@@ -404,8 +404,8 @@ const int WEATHER_METRIC_ROW_TOP = 2;
 
 // The 64 px provider icon sits left of the current temperature. PNGdec reads
 // the cached 2x source and the line callback downsamples it without allocating.
-const int WEATHER_CONDITION_ICON_X = 22;
-const int WEATHER_CONDITION_ICON_Y = 74;
+const int WEATHER_CONDITION_ICON_X = 64;
+const int WEATHER_CONDITION_ICON_Y = 66;
 const int WEATHER_CONDITION_ICON_SIZE = 64;
 
 // Keep three 44 px list cards with 4 px gaps visible through y=212.
@@ -1069,7 +1069,7 @@ void drawWeather() {
 
   // The resolved location moves into the Current Conditions body. The shared
   // header now identifies the Weather app, and the 2x provider icon is drawn
-  // at a compact 64 px size beside the temperature/feels-like summary.
+  // at a compact 64 px size above the vertically stacked condition summary.
   drawOpenWeatherIcon(
     WEATHER_CONDITION_ICON_X,
     WEATHER_CONDITION_ICON_Y,
