@@ -83,6 +83,9 @@ public:
     target->print(rainText);
   }
 
+  // Forecast condition symbols are drawn directly from vector primitives,
+  // not from PNGs or padded bitmap canvases. List and Graph use this same
+  // tightly bounded drawing path, so there are no transparent pixels to crop.
   void drawConditionIcon(
     Arduino_GFX* target,
     const String& condition,
