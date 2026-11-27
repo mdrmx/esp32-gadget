@@ -72,7 +72,7 @@ int main() {
   CHECK(physicalTarget->printedText[6] == String("WEATHER ERROR"));
   CHECK(physicalTarget->printedY[6] == 82);
   CHECK(physicalTarget->printedSize[6] == 2);
-  CHECK(physicalTarget->printedColour[6] == ERROR);
+  CHECK(physicalTarget->printedColour[6] == INK);
   CHECK(physicalTarget->printedText[7] == String("Wi-Fi unavailable"));
   CHECK(physicalTarget->printedY[7] == 117);
   CHECK(physicalTarget->printedColour[7] == INK);
