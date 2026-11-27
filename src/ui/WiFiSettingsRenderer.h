@@ -576,7 +576,7 @@ private:
     (void)text;
     target->fillRoundRect(
         x, y, width, height, 5,
-        highlighted ? colours_.accent : colours_.background);
+        highlighted ? colours_.success : colours_.background);
     target->drawRoundRect(
         x, y, width, height, 5, colours_.white);
     const String value(label);
