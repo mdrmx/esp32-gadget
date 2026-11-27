@@ -35,7 +35,7 @@ An application implementation must leave itself inactive when `begin()` returns 
 
 - The shared header identifies the active application rather than the resolved weather location. The Weather app displays `Weather`; the clock and Wi-Fi indicator retain their shared-header positions.
 - The resolved location remains visible as a title within Current Conditions, directly below the header.
-- Current Conditions uses a two-column composition: the left side contains the location, compact provider icon, temperature, feels-like temperature and condition description; the right side retains the existing three-visible-card metric viewport and its eight metric records.
+- Current Conditions uses a two-column composition: the left side contains the location heading followed by the provider icon, condition description, temperature and feels-like temperature in a vertical stack; the right side retains the existing three-visible-card metric viewport and its eight metric records.
 - The metrics viewport begins at y=39 and retains its 177 px height, 54 px card height, 59 px row step, canvas-backed redraw and touch-scroll boundaries. The 2× provider icon is downsampled into a 64 px display footprint without an additional image allocation.
 - The Weather and header renderer host tests have been updated for app-title and new content positioning. Strict host test execution, Arduino Verify/upload and physical regression remain pending for this branch.
 
