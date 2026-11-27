@@ -258,6 +258,7 @@ static uint32_t fakeMillis = 100;
 static int weatherInputCalls = 0;
 static int weatherEndToEndFetchCalls = 0;
 static bool weatherConnected = true;
+static bool weatherDataAvailable = true;
 static int weatherDrawLoadingCalls = 0;
 static int weatherDrawWeatherCalls = 0;
 static int weatherDrawForecastCalls = 0;
@@ -271,7 +272,7 @@ static void weatherResolveLocation() { ++weatherEndToEndFetchCalls; }
 static bool weatherFetchCurrent() { ++weatherEndToEndFetchCalls; return true; }
 static void weatherFetchForecast() { ++weatherEndToEndFetchCalls; }
 static void weatherPrepareAssets() {}
-static bool weatherAvailable() { return true; }
+static bool weatherAvailable() { return weatherDataAvailable; }
 static WeatherApp::View weatherActiveView() { return WeatherApp::View::Weather; }
 static void weatherDrawLoading(const char* message) {
   ++weatherDrawLoadingCalls;
@@ -360,6 +361,7 @@ static bool testReadyWeatherRestoresCacheWhenOffline() {
 
   fakeMillis = 1000;
   weatherConnected = true;
+  weatherDataAvailable = false;
   weatherDrawLoadingCalls = 0;
   weatherDrawWeatherCalls = 0;
   weatherDrawForecastCalls = 0;
@@ -368,7 +370,10 @@ static bool testReadyWeatherRestoresCacheWhenOffline() {
   CHECK(weather.configure(hooks));
   CHECK(manager.registerApplication(weather));
   CHECK(manager.start("weather"));
-  for (int i = 0; i < 4; ++i) manager.update();
+  for (int i = 0; i < 3; ++i) manager.update();
+  CHECK(weather.state() == WeatherApp::State::PreparingStartupAssets);
+  weatherDataAvailable = true; // The initial fetch has populated the cache.
+  manager.update();
   CHECK(weather.state() == WeatherApp::State::Ready);
   CHECK(weatherDrawWeatherCalls == 1);
   const uint32_t lastRefresh = weather.lastRefreshMs();
