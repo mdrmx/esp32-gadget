@@ -963,7 +963,7 @@ int drawOpenWeatherIcon(int x, int y, int displaySize) {
   // padding. PNGdec can decode the same open image again for the render pass.
   int scanResult = weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
   if (scanResult != PNG_SUCCESS) {
-    DEBUG_PRINTF("OpenWeather PNG bounds scan failed: %d\\n", scanResult);
+    DEBUG_PRINTF("OpenWeather PNG bounds scan failed: %d\n", scanResult);
     weatherPngDecoder.close();
     return 0;
   }
@@ -1008,7 +1008,7 @@ int drawOpenWeatherIcon(int x, int y, int displaySize) {
   const int drawResult =
     weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
   if (drawResult != PNG_SUCCESS) {
-    DEBUG_PRINTF("OpenWeather PNG cropped draw failed: %d\\n", drawResult);
+    DEBUG_PRINTF("OpenWeather PNG cropped draw failed: %d\n", drawResult);
   }
 
   weatherPngDecoder.close();
