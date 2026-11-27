@@ -1,6 +1,6 @@
 # Phase 4 — Application Manager and lifecycle
 
-**Status:** Lifecycle manager PR #62 and launcher PR #63 are merged into `main`. The clock-ownership refinement was merged in [PR #64](https://github.com/mdrmx/esp32-gadget/pull/64) at `c2d2f77ab5590c2cba58c43685c1a109c3c586b2`; all four focused strict C++11 host suites passed, and the user confirmed the cold-boot, offline-to-online time recovery, launcher/Weather switching and Wi-Fi settings hardware regression passed (2026-11-27). TimeAPI synchronisation and one-second shared-header clock redraw now run independently of the active application. Weather remains the only registered application; second-app integration, remaining Weather-boundary cleanup and runtime memory profiling remain outstanding.  
+**Status:** Lifecycle manager PR #62 and launcher PR #63 are merged into `main`. The clock-ownership refinement was merged in [PR #64](https://github.com/mdrmx/esp32-gadget/pull/64) at `c2d2f77ab5590c2cba58c43685c1a109c3c586b2`; all four focused strict C++11 host suites passed, and the user confirmed the cold-boot, offline-to-online time recovery, launcher/Weather switching and Wi-Fi settings hardware regression passed (2026-11-27). TimeAPI synchronisation and one-second shared-header clock redraw now run independently of the active application. The current Weather UI refinement on `phase4/03-weather-header-current-conditions` changes the header identity from resolved place name to app title (`Weather`) and moves the place name into the Current Conditions content. It also rearranges the current-conditions body into a left summary and right three-card scrollable metric column; host and device validation are pending. Weather remains the only registered application; second-app integration, remaining Weather-boundary cleanup and runtime memory profiling remain outstanding.  
 **Base:** PR #62 merge `bf4e0120d3be330f5b4113aa5e80bb3ff3eb9f14`; launcher PR #63 merge `0af82bf94d2419f8d59be9aecb1d13f67e5d10c`.  
 **Goal:** Give the platform one bounded, transport- and hardware-neutral way to register, start, update, switch and stop applications.
 
@@ -30,6 +30,14 @@ An application implementation must leave itself inactive when `begin()` returns 
 - Weather retains the same staged connection/location/current-weather/forecast/asset/render sequence.
 - On `end()`, Weather becomes inactive and no longer processes Weather input or refresh work. It retains its current state-machine stage, last-refresh timestamp, fetched data and platform hook bindings, so re-entry resumes the same instance without rebuilding shared services. Time synchronisation and shared-header clock redraw are platform-loop responsibilities and continue while no app is active.
 - Weather observes the platform-owned connection state; it does not start Wi-Fi association. The launcher starts the saved preferred profile at boot and `ConnectivityManager` advances/retries it from the platform loop, independently of which app is selected. Weather waits for the shared connection when starting and keeps cached data visible during offline resume/refresh paths. `WeatherDataService`, `WeatherViewState` and `WeatherAssetCache` remain platform-composed objects and are not destroyed by an app switch.
+
+## Weather app identity and Current Conditions layout refinement (in progress)
+
+- The shared header identifies the active application rather than the resolved weather location. The Weather app displays `Weather`; the clock and Wi-Fi indicator retain their shared-header positions.
+- The resolved location remains visible as a title within Current Conditions, directly below the header.
+- Current Conditions uses a two-column composition: the left side contains the location, compact provider icon, temperature, feels-like temperature and condition description; the right side retains the existing three-visible-card metric viewport and its eight metric records.
+- The metrics viewport begins at y=39 and retains its 177 px height, 54 px card height, 59 px row step, canvas-backed redraw and touch-scroll boundaries. The 2× provider icon is downsampled into a 64 px display footprint without an additional image allocation.
+- The Weather and header renderer host tests have been updated for app-title and new content positioning. Strict host test execution, Arduino Verify/upload and physical regression remain pending for this branch.
 
 ## Application launcher slice
 
