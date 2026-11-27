@@ -13,14 +13,11 @@ static void check(bool condition, const char* expression, int line) {
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
 int main() {
-  const uint16_t BG = 0x1082;
-  const uint16_t PANEL = 0x2128;
-  const uint16_t WHITE = 0xFFFF;
-  const uint16_t ACCENT = 0x5DDF;
-  const uint16_t MUTED = 0xBDF7;
-  const uint16_t ERROR = 0xF986;
+  const uint16_t BG = 0xFF9C;
+  const uint16_t INK = 0x28C1;
+  const uint16_t BURNT_ORANGE = 0xD303;
   const StatusScreenRenderer::Colours colours = {
-    BG, PANEL, WHITE, ACCENT, WHITE, ERROR, MUTED
+    BG, 0xF56A, INK, BURNT_ORANGE, INK, BURNT_ORANGE, INK
   };
 
   DisplayManager displayManager;
@@ -45,10 +42,10 @@ int main() {
   CHECK(physicalTarget->lastFillRectY == 0);
   CHECK(physicalTarget->lastFillRectWidth == 320);
   CHECK(physicalTarget->lastFillRectHeight == 36);
-  CHECK(physicalTarget->lastFillRectColour == PANEL);
-  CHECK(physicalTarget->horizontalLineCount == 1);
+  CHECK(physicalTarget->lastFillRectColour == BG);
+  CHECK(physicalTarget->horizontalLineCount == 2);
   CHECK(physicalTarget->lastLineY == 36);
-  CHECK(physicalTarget->lastLineColour == ACCENT);
+  CHECK(physicalTarget->lastLineColour == INK);
 
   CHECK(physicalTarget->printCount == 4);
   CHECK(physicalTarget->printedText[0] == String("Manchester"));
@@ -57,11 +54,11 @@ int main() {
   CHECK(physicalTarget->printedX[2] == 76);
   CHECK(physicalTarget->printedY[2] == 83);
   CHECK(physicalTarget->printedSize[2] == 2);
-  CHECK(physicalTarget->printedColour[2] == ACCENT);
+  CHECK(physicalTarget->printedColour[2] == BURNT_ORANGE);
   CHECK(physicalTarget->printedText[3] == String("Connecting Wi-Fi..."));
   CHECK(physicalTarget->printedY[3] == 119);
   CHECK(physicalTarget->printedSize[3] == 1);
-  CHECK(physicalTarget->printedColour[3] == WHITE);
+  CHECK(physicalTarget->printedColour[3] == INK);
 
   renderer.drawError(
     "Manchester", "15:31", "Wi-Fi unavailable", colours);
@@ -77,10 +74,10 @@ int main() {
   CHECK(physicalTarget->printedColour[6] == ERROR);
   CHECK(physicalTarget->printedText[7] == String("Wi-Fi unavailable"));
   CHECK(physicalTarget->printedY[7] == 117);
-  CHECK(physicalTarget->printedColour[7] == WHITE);
+  CHECK(physicalTarget->printedColour[7] == INK);
   CHECK(physicalTarget->printedText[8] == String("Will retry automatically"));
   CHECK(physicalTarget->printedY[8] == 143);
-  CHECK(physicalTarget->printedColour[8] == MUTED);
+  CHECK(physicalTarget->printedColour[8] == INK);
 
   // A missing active target must not partially clear or draw a status screen.
   const int fillScreenCountBeforeNull = physicalTarget->fillScreenCount;
