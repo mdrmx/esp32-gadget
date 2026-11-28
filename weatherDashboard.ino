@@ -616,22 +616,57 @@ struct LauncherPngDrawContext {
   int x;
   int y;
   uint16_t previousSourceRow[64];
+  int previousSourceY;
 };
 
-// Each 64x64 RGBA source is reduced to 32x32 with a 2x2 box filter. Averaging
-// after PNGdec's alpha blend keeps anti-aliased artwork clean at Weather scale.
-uint16_t averageLauncherRgb565(
-  uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
-  const uint16_t red =
-    (uint16_t)((((a >> 11) & 0x1f) + ((b >> 11) & 0x1f) +
-                ((c >> 11) & 0x1f) + ((d >> 11) & 0x1f) + 2) / 4);
-  const uint16_t green =
-    (uint16_t)((((a >> 5) & 0x3f) + ((b >> 5) & 0x3f) +
-                ((c >> 5) & 0x3f) + ((d >> 5) & 0x3f) + 2) / 4);
-  const uint16_t blue =
-    (uint16_t)(((a & 0x1f) + (b & 0x1f) +
-                (c & 0x1f) + (d & 0x1f) + 2) / 4);
-  return (uint16_t)((red << 11) | (green << 5) | blue);
+// Bilinear interpolation in RGB565 channel space. A 64x64 source is reduced
+// to a crisp 36x36 draw area while retaining smooth edges and alpha blending.
+uint8_t interpolateLauncherChannel(
+  uint8_t topLeft,
+  uint8_t topRight,
+  uint8_t bottomLeft,
+  uint8_t bottomRight,
+  int fractionX,
+  int fractionY) {
+  const uint32_t inverseX = 35 - fractionX;
+  const uint32_t inverseY = 35 - fractionY;
+  const uint32_t weighted =
+    (uint32_t)topLeft * inverseX * inverseY +
+    (uint32_t)topRight * fractionX * inverseY +
+    (uint32_t)bottomLeft * inverseX * fractionY +
+    (uint32_t)bottomRight * fractionX * fractionY;
+  return (uint8_t)((weighted + 612) / 1225);
+}
+
+uint16_t interpolateLauncherPixel(
+  uint16_t topLeft,
+  uint16_t topRight,
+  uint16_t bottomLeft,
+  uint16_t bottomRight,
+  int fractionX,
+  int fractionY) {
+  const uint8_t red = interpolateLauncherChannel(
+    (uint8_t)((topLeft >> 11) & 0x1f),
+    (uint8_t)((topRight >> 11) & 0x1f),
+    (uint8_t)((bottomLeft >> 11) & 0x1f),
+    (uint8_t)((bottomRight >> 11) & 0x1f),
+    fractionX, fractionY);
+  const uint8_t green = interpolateLauncherChannel(
+    (uint8_t)((topLeft >> 5) & 0x3f),
+    (uint8_t)((topRight >> 5) & 0x3f),
+    (uint8_t)((bottomLeft >> 5) & 0x3f),
+    (uint8_t)((bottomRight >> 5) & 0x3f),
+    fractionX, fractionY);
+  const uint8_t blue = interpolateLauncherChannel(
+    (uint8_t)(topLeft & 0x1f),
+    (uint8_t)(topRight & 0x1f),
+    (uint8_t)(bottomLeft & 0x1f),
+    (uint8_t)(bottomRight & 0x1f),
+    fractionX, fractionY);
+  return (uint16_t)(
+    ((uint16_t)red << 11) |
+    ((uint16_t)green << 5) |
+    (uint16_t)blue);
 }
 
 int drawLauncherPngLine(PNGDRAW* pDraw) {
@@ -653,29 +688,56 @@ int drawLauncherPngLine(PNGDRAW* pDraw) {
     PNG_RGB565_LITTLE_ENDIAN,
     0x00E2F3FEUL);
 
-  if ((pDraw->y & 1) == 0) {
-    for (int x = 0; x < 64; ++x) {
-      context->previousSourceRow[x] = sourceLine[x];
+  // A 36-pixel output spans source positions 0..63. Coordinates are kept as
+  // integer numerators over 35 so both endpoints stay aligned to the PNG.
+  for (int outputY = 0; outputY < 36; ++outputY) {
+    const int sourceYNumerator = outputY * 63;
+    const int sourceY0 = sourceYNumerator / 35;
+    const int fractionY = sourceYNumerator % 35;
+    const int sourceY1 = fractionY == 0 ? sourceY0 : sourceY0 + 1;
+    if (sourceY1 != pDraw->y) continue;
+
+    const uint16_t* topRow = nullptr;
+    if (sourceY0 == pDraw->y) {
+      topRow = sourceLine;
+    } else if (sourceY0 == pDraw->y - 1 &&
+               context->previousSourceY == sourceY0) {
+      topRow = context->previousSourceRow;
     }
-    return 1;
+    if (topRow == nullptr) continue;
+
+    const uint16_t* bottomRow =
+      fractionY == 0 ? topRow : sourceLine;
+    uint16_t scaledLine[36];
+
+    for (int outputX = 0; outputX < 36; ++outputX) {
+      const int sourceXNumerator = outputX * 63;
+      const int sourceX0 = sourceXNumerator / 35;
+      const int fractionX = sourceXNumerator % 35;
+      const int sourceX1 =
+        fractionX == 0 ? sourceX0 : sourceX0 + 1;
+
+      scaledLine[outputX] = interpolateLauncherPixel(
+        topRow[sourceX0],
+        topRow[sourceX1],
+        bottomRow[sourceX0],
+        bottomRow[sourceX1],
+        fractionX,
+        fractionY);
+    }
+
+    context->target->draw16bitRGBBitmap(
+      context->x,
+      context->y + outputY,
+      scaledLine,
+      36,
+      1);
   }
 
-  uint16_t scaledLine[32];
-  for (int x = 0; x < 32; ++x) {
-    const int sourceX = x * 2;
-    scaledLine[x] = averageLauncherRgb565(
-      context->previousSourceRow[sourceX],
-      context->previousSourceRow[sourceX + 1],
-      sourceLine[sourceX],
-      sourceLine[sourceX + 1]);
+  for (int x = 0; x < 64; ++x) {
+    context->previousSourceRow[x] = sourceLine[x];
   }
-
-  context->target->draw16bitRGBBitmap(
-    context->x,
-    context->y + (pDraw->y / 2),
-    scaledLine,
-    32,
-    1);
+  context->previousSourceY = pDraw->y;
   return 1;
 }
 
@@ -705,6 +767,7 @@ void drawLauncherPngIcon(
   context.target = displayManager.target();
   context.x = x;
   context.y = y;
+  context.previousSourceY = -1;
   const int drawResult =
     weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
   if (drawResult != PNG_SUCCESS) {
