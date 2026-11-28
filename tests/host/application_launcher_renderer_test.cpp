@@ -56,7 +56,7 @@ static void capturePlaceholderIcon(
 }
 
 static bool testFlashResidentPngAssets() {
-  const uint8_t expectedSizes[5] = {2268, 1898, 2499, 1499, 3032};
+  const size_t expectedSizes[5] = {2268, 1898, 2499, 1499, 3032};
   for (uint8_t icon = 1; icon <= 5; ++icon) {
     const uint8_t* data = nullptr;
     size_t length = 0;
