@@ -17,6 +17,7 @@
 #include "src/ui/ForecastModeSelectorRenderer.h"
 #include "src/ui/HeaderRenderer.h"
 #include "src/ui/ApplicationLauncherRenderer.h"
+#include "src/ui/icons/LauncherPngAssets.h"
 #include "src/ui/StatusScreenRenderer.h"
 #include "src/ui/WiFiSettingsRenderer.h"
 #include "src/ui/ForecastListItemRenderer.h"
@@ -607,6 +608,183 @@ void drawError(const String& message) {
 // =====================================================
 
 PNG weatherPngDecoder;
+
+// Reuse the existing global PNG decoder for launcher artwork so the launcher
+// does not add another large PNGIMAGE/DEFLATE workspace to static RAM.
+enum {
+  LauncherPngSourceSize = 64,
+  LauncherPngOutputSize = ApplicationLauncherRenderer::IconArtworkSize,
+  LauncherPngScaleDenominator = LauncherPngOutputSize - 1
+};
+
+struct LauncherPngDrawContext {
+  Arduino_GFX* target;
+  int x;
+  int y;
+  uint16_t previousSourceRow[LauncherPngSourceSize];
+  int previousSourceY;
+};
+
+// Bilinear interpolation in RGB565 channel space. A 64x64 source is reduced
+// to the launcher artwork size while retaining smooth edges and alpha blending.
+uint8_t interpolateLauncherChannel(
+  uint8_t topLeft,
+  uint8_t topRight,
+  uint8_t bottomLeft,
+  uint8_t bottomRight,
+  int fractionX,
+  int fractionY) {
+  const uint32_t inverseX = LauncherPngScaleDenominator - fractionX;
+  const uint32_t inverseY = LauncherPngScaleDenominator - fractionY;
+  const uint32_t weighted =
+    (uint32_t)topLeft * inverseX * inverseY +
+    (uint32_t)topRight * fractionX * inverseY +
+    (uint32_t)bottomLeft * inverseX * fractionY +
+    (uint32_t)bottomRight * fractionX * fractionY;
+  const uint32_t denominator =
+    LauncherPngScaleDenominator * LauncherPngScaleDenominator;
+  return (uint8_t)((weighted + denominator / 2) / denominator);
+}
+
+uint16_t interpolateLauncherPixel(
+  uint16_t topLeft,
+  uint16_t topRight,
+  uint16_t bottomLeft,
+  uint16_t bottomRight,
+  int fractionX,
+  int fractionY) {
+  const uint8_t red = interpolateLauncherChannel(
+    (uint8_t)((topLeft >> 11) & 0x1f),
+    (uint8_t)((topRight >> 11) & 0x1f),
+    (uint8_t)((bottomLeft >> 11) & 0x1f),
+    (uint8_t)((bottomRight >> 11) & 0x1f),
+    fractionX, fractionY);
+  const uint8_t green = interpolateLauncherChannel(
+    (uint8_t)((topLeft >> 5) & 0x3f),
+    (uint8_t)((topRight >> 5) & 0x3f),
+    (uint8_t)((bottomLeft >> 5) & 0x3f),
+    (uint8_t)((bottomRight >> 5) & 0x3f),
+    fractionX, fractionY);
+  const uint8_t blue = interpolateLauncherChannel(
+    (uint8_t)(topLeft & 0x1f),
+    (uint8_t)(topRight & 0x1f),
+    (uint8_t)(bottomLeft & 0x1f),
+    (uint8_t)(bottomRight & 0x1f),
+    fractionX, fractionY);
+  return (uint16_t)(
+    ((uint16_t)red << 11) |
+    ((uint16_t)green << 5) |
+    (uint16_t)blue);
+}
+
+int drawLauncherPngLine(PNGDRAW* pDraw) {
+  if (pDraw == nullptr || pDraw->pUser == nullptr ||
+      pDraw->iWidth != LauncherPngSourceSize ||
+      pDraw->y < 0 || pDraw->y >= LauncherPngSourceSize) {
+    return 0;
+  }
+
+  LauncherPngDrawContext* context =
+    (LauncherPngDrawContext*)pDraw->pUser;
+  if (context->target == nullptr) return 0;
+
+  uint16_t sourceLine[LauncherPngSourceSize];
+  // PNGdec expects 00BBGGRR for its blend colour. The launcher paper is
+  // #FEF3E2, represented as 0x00E2F3FE here.
+  weatherPngDecoder.getLineAsRGB565(
+    pDraw,
+    sourceLine,
+    PNG_RGB565_LITTLE_ENDIAN,
+    0x00E2F3FEUL);
+
+  // Output coordinates span source positions 0..63 using integer numerators
+  // over the output's final coordinate, keeping both endpoints aligned.
+  for (int outputY = 0; outputY < LauncherPngOutputSize; ++outputY) {
+    const int sourceYNumerator = outputY * (LauncherPngSourceSize - 1);
+    const int sourceY0 = sourceYNumerator / LauncherPngScaleDenominator;
+    const int fractionY = sourceYNumerator % LauncherPngScaleDenominator;
+    const int sourceY1 = fractionY == 0 ? sourceY0 : sourceY0 + 1;
+    if (sourceY1 != pDraw->y) continue;
+
+    const uint16_t* topRow = nullptr;
+    if (sourceY0 == pDraw->y) {
+      topRow = sourceLine;
+    } else if (sourceY0 == pDraw->y - 1 &&
+               context->previousSourceY == sourceY0) {
+      topRow = context->previousSourceRow;
+    }
+    if (topRow == nullptr) continue;
+
+    const uint16_t* bottomRow =
+      fractionY == 0 ? topRow : sourceLine;
+    uint16_t scaledLine[LauncherPngOutputSize];
+
+    for (int outputX = 0; outputX < LauncherPngOutputSize; ++outputX) {
+      const int sourceXNumerator = outputX * (LauncherPngSourceSize - 1);
+      const int sourceX0 = sourceXNumerator / LauncherPngScaleDenominator;
+      const int fractionX = sourceXNumerator % LauncherPngScaleDenominator;
+      const int sourceX1 =
+        fractionX == 0 ? sourceX0 : sourceX0 + 1;
+
+      scaledLine[outputX] = interpolateLauncherPixel(
+        topRow[sourceX0],
+        topRow[sourceX1],
+        bottomRow[sourceX0],
+        bottomRow[sourceX1],
+        fractionX,
+        fractionY);
+    }
+
+    context->target->draw16bitRGBBitmap(
+      context->x,
+      context->y + outputY,
+      scaledLine,
+      LauncherPngOutputSize,
+      1);
+  }
+
+  for (int x = 0; x < LauncherPngSourceSize; ++x) {
+    context->previousSourceRow[x] = sourceLine[x];
+  }
+  context->previousSourceY = pDraw->y;
+  return 1;
+}
+
+void drawLauncherPngIcon(
+  void* /*callbackContext*/, uint8_t icon, int x, int y) {
+  const uint8_t* imageData = nullptr;
+  size_t imageLength = 0;
+  if (!LauncherPngAssets::get(icon, &imageData, &imageLength) ||
+      imageData == nullptr || imageLength == 0 ||
+      imageLength > (size_t)0x7fffffff) {
+    return;
+  }
+
+  const int openResult = weatherPngDecoder.openFLASH(
+    (uint8_t*)imageData,
+    (int)imageLength,
+    drawLauncherPngLine);
+  if (openResult != PNG_SUCCESS) return;
+
+  if (weatherPngDecoder.getWidth() != LauncherPngSourceSize ||
+      weatherPngDecoder.getHeight() != LauncherPngSourceSize) {
+    weatherPngDecoder.close();
+    return;
+  }
+
+  LauncherPngDrawContext context = {};
+  context.target = displayManager.target();
+  context.x = x;
+  context.y = y;
+  context.previousSourceY = -1;
+  const int drawResult =
+    weatherPngDecoder.decode(&context, PNG_FAST_PALETTE);
+  if (drawResult != PNG_SUCCESS) {
+    DEBUG_PRINTF("Launcher PNG decode failed (icon %u): %d\n",
+                 (unsigned)icon, drawResult);
+  }
+  weatherPngDecoder.close();
+}
 
 enum class WeatherPngDrawMode : uint8_t {
   FindVisibleBounds,
@@ -2597,7 +2775,8 @@ void drawApplicationLauncherScreen() {
   applicationLauncherRenderer.draw(
       applicationManager,
       applicationLauncherController.returnApplicationId(),
-      applicationLauncherMessage);
+      applicationLauncherMessage,
+      drawLauncherPngIcon);
 
   // The launcher is a platform screen, but it uses the same persistent clock
   // and Wi-Fi indicator as Weather. drawClockOnly() also redraws the signal.
