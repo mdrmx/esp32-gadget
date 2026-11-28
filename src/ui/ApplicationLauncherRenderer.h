@@ -198,7 +198,7 @@ class ApplicationLauncherRenderer {
     }
 
     if (drawIcon != nullptr) {
-      // PNG artwork is downsampled to the same 32x32 footprint as Weather.
+      // PNG artwork uses the shared 36x36 launcher footprint.
       drawIcon(iconContext, icon,
                tileX + IconArtworkInset, tileY + IconArtworkInset);
       return;
