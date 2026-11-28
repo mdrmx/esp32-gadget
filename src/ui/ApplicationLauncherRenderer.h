@@ -42,7 +42,7 @@ class ApplicationLauncherRenderer {
     DisplayHeight = 240,
     IconTileSize = 68,
     IconTileRadius = 14,
-    IconArtworkSize = 32,
+    IconArtworkSize = 36,
     IconArtworkInset = (IconTileSize - IconArtworkSize) / 2,
     GridColumnGap = 20,
     GridRowGap = 20,
