@@ -611,16 +611,22 @@ PNG weatherPngDecoder;
 
 // Reuse the existing global PNG decoder for launcher artwork so the launcher
 // does not add another large PNGIMAGE/DEFLATE workspace to static RAM.
+enum {
+  LauncherPngSourceSize = 64,
+  LauncherPngOutputSize = ApplicationLauncherRenderer::IconArtworkSize,
+  LauncherPngScaleDenominator = LauncherPngOutputSize - 1
+};
+
 struct LauncherPngDrawContext {
   Arduino_GFX* target;
   int x;
   int y;
-  uint16_t previousSourceRow[64];
+  uint16_t previousSourceRow[LauncherPngSourceSize];
   int previousSourceY;
 };
 
 // Bilinear interpolation in RGB565 channel space. A 64x64 source is reduced
-// to a crisp 36x36 draw area while retaining smooth edges and alpha blending.
+// to the launcher artwork size while retaining smooth edges and alpha blending.
 uint8_t interpolateLauncherChannel(
   uint8_t topLeft,
   uint8_t topRight,
@@ -628,14 +634,15 @@ uint8_t interpolateLauncherChannel(
   uint8_t bottomRight,
   int fractionX,
   int fractionY) {
-  const uint32_t inverseX = 35 - fractionX;
-  const uint32_t inverseY = 35 - fractionY;
+  const uint32_t inverseX = LauncherPngScaleDenominator - fractionX;
+  const uint32_t inverseY = LauncherPngScaleDenominator - fractionY;
   const uint32_t weighted =
     (uint32_t)topLeft * inverseX * inverseY +
     (uint32_t)topRight * fractionX * inverseY +
     (uint32_t)bottomLeft * inverseX * fractionY +
     (uint32_t)bottomRight * fractionX * fractionY;
-  return (uint8_t)((weighted + 612) / 1225);
+  return (uint8_t)((weighted + (LauncherPngScaleDenominator * LauncherPngScaleDenominator) / 2) /
+      (LauncherPngScaleDenominator * LauncherPngScaleDenominator));
 }
 
 uint16_t interpolateLauncherPixel(
@@ -671,7 +678,7 @@ uint16_t interpolateLauncherPixel(
 
 int drawLauncherPngLine(PNGDRAW* pDraw) {
   if (pDraw == nullptr || pDraw->pUser == nullptr ||
-      pDraw->iWidth != 64 || pDraw->y < 0 || pDraw->y >= 64) {
+      pDraw->iWidth != LauncherPngSourceSize || pDraw->y < 0 || pDraw->y >= LauncherPngSourceSize) {
     return 0;
   }
 
@@ -679,7 +686,7 @@ int drawLauncherPngLine(PNGDRAW* pDraw) {
     (LauncherPngDrawContext*)pDraw->pUser;
   if (context->target == nullptr) return 0;
 
-  uint16_t sourceLine[64];
+  uint16_t sourceLine[LauncherPngSourceSize];
   // PNGdec expects 00BBGGRR for its blend colour. The launcher paper is
   // #FEF3E2, represented as 0x00E2F3FE here.
   weatherPngDecoder.getLineAsRGB565(
@@ -690,10 +697,10 @@ int drawLauncherPngLine(PNGDRAW* pDraw) {
 
   // A 36-pixel output spans source positions 0..63. Coordinates are kept as
   // integer numerators over 35 so both endpoints stay aligned to the PNG.
-  for (int outputY = 0; outputY < 36; ++outputY) {
-    const int sourceYNumerator = outputY * 63;
-    const int sourceY0 = sourceYNumerator / 35;
-    const int fractionY = sourceYNumerator % 35;
+  for (int outputY = 0; outputY < LauncherPngOutputSize; ++outputY) {
+    const int sourceYNumerator = outputY * (LauncherPngSourceSize - 1);
+    const int sourceY0 = sourceYNumerator / LauncherPngScaleDenominator;
+    const int fractionY = sourceYNumerator % LauncherPngScaleDenominator;
     const int sourceY1 = fractionY == 0 ? sourceY0 : sourceY0 + 1;
     if (sourceY1 != pDraw->y) continue;
 
@@ -708,12 +715,12 @@ int drawLauncherPngLine(PNGDRAW* pDraw) {
 
     const uint16_t* bottomRow =
       fractionY == 0 ? topRow : sourceLine;
-    uint16_t scaledLine[36];
+    uint16_t scaledLine[LauncherPngOutputSize];
 
-    for (int outputX = 0; outputX < 36; ++outputX) {
-      const int sourceXNumerator = outputX * 63;
-      const int sourceX0 = sourceXNumerator / 35;
-      const int fractionX = sourceXNumerator % 35;
+    for (int outputX = 0; outputX < LauncherPngOutputSize; ++outputX) {
+      const int sourceXNumerator = outputX * (LauncherPngSourceSize - 1);
+      const int sourceX0 = sourceXNumerator / LauncherPngScaleDenominator;
+      const int fractionX = sourceXNumerator % LauncherPngScaleDenominator;
       const int sourceX1 =
         fractionX == 0 ? sourceX0 : sourceX0 + 1;
 
@@ -734,7 +741,7 @@ int drawLauncherPngLine(PNGDRAW* pDraw) {
       1);
   }
 
-  for (int x = 0; x < 64; ++x) {
+  for (int x = 0; x < LauncherPngSourceSize; ++x) {
     context->previousSourceRow[x] = sourceLine[x];
   }
   context->previousSourceY = pDraw->y;
@@ -757,8 +764,8 @@ void drawLauncherPngIcon(
     drawLauncherPngLine);
   if (openResult != PNG_SUCCESS) return;
 
-  if (weatherPngDecoder.getWidth() != 64 ||
-      weatherPngDecoder.getHeight() != 64) {
+  if (weatherPngDecoder.getWidth() != LauncherPngSourceSize ||
+      weatherPngDecoder.getHeight() != LauncherPngSourceSize) {
     weatherPngDecoder.close();
     return;
   }
