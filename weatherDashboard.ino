@@ -641,8 +641,9 @@ uint8_t interpolateLauncherChannel(
     (uint32_t)topRight * fractionX * inverseY +
     (uint32_t)bottomLeft * inverseX * fractionY +
     (uint32_t)bottomRight * fractionX * fractionY;
-  return (uint8_t)((weighted + (LauncherPngScaleDenominator * LauncherPngScaleDenominator) / 2) /
-      (LauncherPngScaleDenominator * LauncherPngScaleDenominator));
+  const uint32_t denominator =
+    LauncherPngScaleDenominator * LauncherPngScaleDenominator;
+  return (uint8_t)((weighted + denominator / 2) / denominator);
 }
 
 uint16_t interpolateLauncherPixel(
@@ -678,7 +679,8 @@ uint16_t interpolateLauncherPixel(
 
 int drawLauncherPngLine(PNGDRAW* pDraw) {
   if (pDraw == nullptr || pDraw->pUser == nullptr ||
-      pDraw->iWidth != LauncherPngSourceSize || pDraw->y < 0 || pDraw->y >= LauncherPngSourceSize) {
+      pDraw->iWidth != LauncherPngSourceSize ||
+      pDraw->y < 0 || pDraw->y >= LauncherPngSourceSize) {
     return 0;
   }
 
@@ -695,8 +697,8 @@ int drawLauncherPngLine(PNGDRAW* pDraw) {
     PNG_RGB565_LITTLE_ENDIAN,
     0x00E2F3FEUL);
 
-  // A 36-pixel output spans source positions 0..63. Coordinates are kept as
-  // integer numerators over 35 so both endpoints stay aligned to the PNG.
+  // Output coordinates span source positions 0..63 using integer numerators
+  // over the output's final coordinate, keeping both endpoints aligned.
   for (int outputY = 0; outputY < LauncherPngOutputSize; ++outputY) {
     const int sourceYNumerator = outputY * (LauncherPngSourceSize - 1);
     const int sourceY0 = sourceYNumerator / LauncherPngScaleDenominator;
@@ -737,7 +739,7 @@ int drawLauncherPngLine(PNGDRAW* pDraw) {
       context->x,
       context->y + outputY,
       scaledLine,
-      36,
+      LauncherPngOutputSize,
       1);
   }
 
